@@ -85,19 +85,17 @@ function Page() {
               <div className="flex items-center gap-2">
                 <div className="text-lg font-bold">{money(s.grand_total)}</div>
                 {s.status === "pending" && (
-                  <>
-                    <Button size="sm" variant="outline" asChild>
-                      <Link to="/pos" search={{ edit: s.id }}>
-                        <Pencil className="h-4 w-4 mr-1" /> Edit
-                      </Link>
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => {
-                      if (confirm("Delete this pending invoice?")) deleteMutation.mutate(s.id);
-                    }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to="/pos" search={{ edit: s.id }}>
+                      <Pencil className="h-4 w-4 mr-1" /> Edit
+                    </Link>
+                  </Button>
                 )}
+                <Button size="icon" variant="ghost" onClick={() => {
+                  if (confirm(`Delete invoice ${s.invoice_no}? This cannot be undone.`)) deleteMutation.mutate(s.id);
+                }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
             <Table>
