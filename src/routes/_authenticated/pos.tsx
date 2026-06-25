@@ -1,24 +1,31 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { money, num } from "@/lib/format";
-import { Trash2, Plus, Printer, Save } from "lucide-react";
+import { Trash2, Printer, Save, Clock, X } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
+
+const searchSchema = z.object({ edit: z.string().optional() });
 
 export const Route = createFileRoute("/_authenticated/pos")({
   component: POS,
+  validateSearch: searchSchema,
 });
 
 type CartItem = { product_id: string; name: string; price: number; quantity: number };
 
 function POS() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { edit: editId } = Route.useSearch();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [customer, setCustomer] = useState("");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
 
   const { data: products = [] } = useQuery({
@@ -29,6 +36,35 @@ function POS() {
       return data ?? [];
     },
   });
+
+  // Load pending sale for editing
+  const { data: editingSale } = useQuery({
+    queryKey: ["sales", "edit", editId],
+    enabled: !!editId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*, sale_items(*, products(id, name, sale_price))")
+        .eq("id", editId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (editingSale) {
+      setCustomer(editingSale.customer_name ?? "");
+      setCart(
+        (editingSale.sale_items ?? []).map((it: any) => ({
+          product_id: it.product_id,
+          name: it.products?.name ?? "Item",
+          price: num(it.price),
+          quantity: num(it.quantity),
+        }))
+      );
+    }
+  }, [editingSale]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -48,21 +84,44 @@ function POS() {
     });
   }
 
+  function resetForm() {
+    setCart([]);
+    setCustomer("");
+    if (editId) navigate({ to: "/pos", search: {} });
+  }
+
   const grandTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (status: "pending" | "completed") => {
       if (cart.length === 0) throw new Error("Cart is empty");
+      const items = cart.map((i) => ({ product_id: i.product_id, quantity: i.quantity }));
+      if (editId) {
+        const { data, error } = await supabase.rpc("update_pending_sale", {
+          _sale_id: editId,
+          _items: items,
+          _customer_name: customer,
+          _status: status,
+        });
+        if (error) throw error;
+        return { sale: data, status };
+      }
       const { data, error } = await supabase.rpc("save_sale", {
-        _items: cart.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        _items: items,
+        _customer_name: customer,
+        _status: status,
       });
       if (error) throw error;
-      return data;
+      return { sale: data, status };
     },
-    onSuccess: (sale: any) => {
-      toast.success(`Invoice ${sale.invoice_no} saved`);
-      setLastInvoice({ ...sale, items: cart });
-      setCart([]);
+    onSuccess: ({ sale, status }: any) => {
+      toast.success(
+        status === "pending"
+          ? `Invoice ${sale.invoice_no} saved as pending`
+          : `Invoice ${sale.invoice_no} completed`
+      );
+      if (status === "completed") setLastInvoice({ ...sale, items: cart });
+      resetForm();
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
@@ -104,11 +163,25 @@ function POS() {
 
       <Card className="no-print h-fit">
         <CardContent className="p-4 space-y-3">
-          <div className="font-semibold">Current Order</div>
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">
+              {editId ? `Editing ${editingSale?.invoice_no ?? "…"}` : "Current Order"}
+            </div>
+            {editId && (
+              <Button size="sm" variant="ghost" onClick={resetForm}>
+                <X className="h-4 w-4 mr-1" /> Cancel
+              </Button>
+            )}
+          </div>
+          <Input
+            placeholder="Customer name (optional)"
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
+          />
           {cart.length === 0 ? (
             <p className="text-sm text-muted-foreground">Tap products to add</p>
           ) : (
-            <div className="space-y-2 max-h-[50vh] overflow-auto pr-1">
+            <div className="space-y-2 max-h-[45vh] overflow-auto pr-1">
               {cart.map((i, idx) => (
                 <div key={i.product_id} className="flex items-center gap-2">
                   <div className="flex-1 text-sm">
@@ -139,13 +212,23 @@ function POS() {
             <div className="text-xl font-bold">{money(grandTotal)}</div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => saveMutation.mutate()} disabled={cart.length === 0 || saveMutation.isPending}>
-              <Save className="h-4 w-4 mr-1" /> Save
+            <Button
+              variant="outline"
+              onClick={() => saveMutation.mutate("pending")}
+              disabled={cart.length === 0 || saveMutation.isPending}
+            >
+              <Clock className="h-4 w-4 mr-1" /> Save Pending
             </Button>
-            <Button variant="outline" onClick={handlePrint} disabled={!lastInvoice}>
-              <Printer className="h-4 w-4 mr-1" /> Print
+            <Button
+              onClick={() => saveMutation.mutate("completed")}
+              disabled={cart.length === 0 || saveMutation.isPending}
+            >
+              <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
+          <Button variant="ghost" className="w-full" onClick={handlePrint} disabled={!lastInvoice}>
+            <Printer className="h-4 w-4 mr-1" /> Print Last
+          </Button>
           {lastInvoice && (
             <p className="text-xs text-muted-foreground text-center">Last: {lastInvoice.invoice_no}</p>
           )}
@@ -154,29 +237,35 @@ function POS() {
 
       {lastInvoice && (
         <div className="print-area hidden print:block">
-          <InvoicePrint invoice={lastInvoice} />
+          <InvoicePrint invoice={lastInvoice} customer={customer} />
         </div>
       )}
     </div>
   );
 }
 
-export function InvoicePrint({ invoice }: { invoice: any }) {
+export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: string }) {
+  const name = customer ?? invoice.customer_name;
   return (
     <div className="p-8 text-black bg-white max-w-md mx-auto font-mono text-sm">
       <div className="text-center border-b border-dashed pb-2 mb-2">
         <div className="text-lg font-bold">Café Manager</div>
         <div className="text-xs">Tax Invoice</div>
       </div>
-      <div className="flex justify-between text-xs mb-2">
+      <div className="flex justify-between text-xs mb-1">
         <span>{invoice.invoice_no}</span>
         <span>{new Date(invoice.sale_date ?? Date.now()).toLocaleString()}</span>
       </div>
+      {name && <div className="text-xs mb-2">Customer: <span className="font-semibold">{name}</span></div>}
       <table className="w-full text-xs">
         <thead><tr className="border-b border-dashed"><th className="text-left">Item</th><th>Qty</th><th className="text-right">Total</th></tr></thead>
         <tbody>
-          {(invoice.items ?? []).map((i: any, idx: number) => (
-            <tr key={idx}><td>{i.name}</td><td className="text-center">{i.quantity}</td><td className="text-right">{money(i.price * i.quantity)}</td></tr>
+          {(invoice.items ?? invoice.sale_items ?? []).map((i: any, idx: number) => (
+            <tr key={idx}>
+              <td>{i.name ?? i.products?.name}</td>
+              <td className="text-center">{i.quantity}</td>
+              <td className="text-right">{money((i.price ?? 0) * i.quantity)}</td>
+            </tr>
           ))}
         </tbody>
       </table>
