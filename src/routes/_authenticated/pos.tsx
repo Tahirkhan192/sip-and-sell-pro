@@ -112,6 +112,21 @@ function POS() {
 
   const grandTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("sales").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pending invoice deleted");
+      resetForm();
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (status: "pending" | "completed") => {
       if (cart.length === 0) throw new Error("Cart is empty");
