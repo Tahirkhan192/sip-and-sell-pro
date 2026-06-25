@@ -58,8 +58,8 @@ function DailyReport() {
     queryFn: async () => {
       const sales = await rangeFilter(supabase.from("sales").select("grand_total"), "sale_date", r.from, r.to + "T23:59");
       const exp = await rangeFilter(supabase.from("expenses").select("amount"), "date", r.from, r.to);
-      const rev = (sales.data ?? []).reduce((s,x:any)=>s+num(x.grand_total),0);
-      const exps = (exp.data ?? []).reduce((s,x:any)=>s+num(x.amount),0);
+      const rev = (sales.data ?? []).reduce((s: number,x:any)=>s+num(x.grand_total),0);
+      const exps = (exp.data ?? []).reduce((s: number,x:any)=>s+num(x.amount),0);
       return { rev, exps, profit: rev - exps };
     },
   });
@@ -98,8 +98,8 @@ function MonthlyReport() {
         const unit = a && a.q > 0 ? a.c / a.q : 0;
         cogs += Math.abs(num(m.quantity)) * unit;
       }
-      const rev = (sales.data ?? []).reduce((s,x:any)=>s+num(x.grand_total),0);
-      const exps = (exp.data ?? []).reduce((s,x:any)=>s+num(x.amount),0);
+      const rev = (sales.data ?? []).reduce((s: number,x:any)=>s+num(x.grand_total),0);
+      const exps = (exp.data ?? []).reduce((s: number,x:any)=>s+num(x.amount),0);
       return { rev, cogs, exps, profit: rev - cogs - exps };
     },
   });
