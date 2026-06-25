@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { money, num } from "@/lib/format";
-import { Trash2, Printer, Save, Clock, X } from "lucide-react";
+import { Trash2, Printer, Save, Clock, X, Search, User } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
