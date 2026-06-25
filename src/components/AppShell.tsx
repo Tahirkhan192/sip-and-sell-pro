@@ -34,7 +34,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 
-const NAV = [
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
+const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/pos", label: "POS", icon: ShoppingCart },
   { to: "/sales", label: "Daily Sales", icon: Receipt },
@@ -45,7 +46,7 @@ const NAV = [
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/reports", label: "Reports", icon: BarChart3 },
-] as const;
+];
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
