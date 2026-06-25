@@ -27,6 +27,8 @@ function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState("");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [showInvoiceResults, setShowInvoiceResults] = useState(false);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
