@@ -359,45 +359,25 @@ export type Database = {
         }
         Returns: boolean
       }
-      save_sale:
-        | {
-            Args: { _items: Json }
-            Returns: {
-              created_at: string
-              created_by: string | null
-              customer_name: string | null
-              grand_total: number
-              id: string
-              invoice_no: string
-              sale_date: string
-              status: string
-            }
-            SetofOptions: {
-              from: "*"
-              to: "sales"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
-        | {
-            Args: { _customer_name?: string; _items: Json; _status?: string }
-            Returns: {
-              created_at: string
-              created_by: string | null
-              customer_name: string | null
-              grand_total: number
-              id: string
-              invoice_no: string
-              sale_date: string
-              status: string
-            }
-            SetofOptions: {
-              from: "*"
-              to: "sales"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
+      save_sale: {
+        Args: { _customer_name?: string; _items: Json; _status?: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          customer_name: string | null
+          grand_total: number
+          id: string
+          invoice_no: string
+          sale_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_pending_sale: {
         Args: {
           _customer_name?: string
