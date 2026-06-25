@@ -100,23 +100,21 @@ function Page() {
                 </tr>
               </thead>
               <tbody>
-                {matrix.byIng.map(([id, v]) => (
-                  <>
-                    <tr key={id+"p"} className="border-t">
-                      <td rowSpan={3} className="p-2 sticky left-0 bg-card font-medium align-top">{v.name}<div className="text-[10px] text-muted-foreground">{v.unit}</div></td>
-                      <td className="p-2 text-success">Purchase</td>
-                      {v.rows.purchase.map((q,i)=><td key={i} className="p-2 text-right tabular-nums">{q ? q.toFixed(1) : "—"}</td>)}
-                    </tr>
-                    <tr key={id+"s"}>
-                      <td className="p-2 text-destructive">Sell</td>
-                      {v.rows.sell.map((q,i)=><td key={i} className="p-2 text-right tabular-nums">{q ? q.toFixed(1) : "—"}</td>)}
-                    </tr>
-                    <tr key={id+"r"} className="border-b">
-                      <td className="p-2 font-medium">Remaining</td>
-                      {v.rows.remaining.map((q,i)=><td key={i} className="p-2 text-right tabular-nums font-medium">{q.toFixed(1)}</td>)}
-                    </tr>
-                  </>
-                ))}
+                {matrix.byIng.flatMap(([id, v]) => [
+                  <tr key={id+"p"} className="border-t">
+                    <td rowSpan={3} className="p-2 sticky left-0 bg-card font-medium align-top">{v.name}<div className="text-[10px] text-muted-foreground">{v.unit}</div></td>
+                    <td className="p-2 text-success">Purchase</td>
+                    {v.rows.purchase.map((q,i)=><td key={i} className="p-2 text-right tabular-nums">{q ? q.toFixed(1) : "—"}</td>)}
+                  </tr>,
+                  <tr key={id+"s"}>
+                    <td className="p-2 text-destructive">Sell</td>
+                    {v.rows.sell.map((q,i)=><td key={i} className="p-2 text-right tabular-nums">{q ? q.toFixed(1) : "—"}</td>)}
+                  </tr>,
+                  <tr key={id+"r"} className="border-b">
+                    <td className="p-2 font-medium">Remaining</td>
+                    {v.rows.remaining.map((q,i)=><td key={i} className="p-2 text-right tabular-nums font-medium">{q.toFixed(1)}</td>)}
+                  </tr>,
+                ])}
                 {matrix.byIng.length===0 && <tr><td colSpan={matrix.days+2} className="p-6 text-center text-muted-foreground">No movements this month</td></tr>}
               </tbody>
             </table>
