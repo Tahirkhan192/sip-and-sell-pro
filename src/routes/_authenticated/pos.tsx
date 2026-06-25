@@ -193,6 +193,48 @@ function POS() {
               </Button>
             )}
           </div>
+          {!editId && (
+            <div className="relative">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Input
+                  placeholder="Search pending invoice by customer name…"
+                  value={invoiceSearch}
+                  onChange={(e) => {
+                    setInvoiceSearch(e.target.value);
+                    setShowInvoiceResults(true);
+                  }}
+                  onFocus={() => setShowInvoiceResults(true)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              {showInvoiceResults && invoiceSearch.trim().length >= 2 && (
+                <div className="absolute z-20 w-full mt-1 rounded-md border bg-popover shadow-md max-h-60 overflow-auto">
+                  {pendingInvoices.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No pending invoices found</div>
+                  ) : (
+                    pendingInvoices.map((inv: any) => (
+                      <button
+                        key={inv.id}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2"
+                        onClick={() => {
+                          navigate({ to: "/pos", search: { edit: inv.id } });
+                          setInvoiceSearch("");
+                          setShowInvoiceResults(false);
+                        }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{inv.invoice_no} — {inv.customer_name || "Walk-in"}</span>
+                        </div>
+                        <span className="text-muted-foreground text-xs shrink-0">{money(inv.grand_total)}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <Input
             placeholder="Customer name (optional)"
             value={customer}
