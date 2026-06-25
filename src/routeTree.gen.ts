@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
 import { Route as AuthenticatedSalesRouteImport } from './routes/_authenticated/sales'
 import { Route as AuthenticatedRecipesRouteImport } from './routes/_authenticated/recipes'
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
@@ -32,6 +33,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSalesRoute = AuthenticatedSalesRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/purchases': typeof AuthenticatedPurchasesRoute
   '/recipes': typeof AuthenticatedRecipesRoute
   '/sales': typeof AuthenticatedSalesRoute
+  '/stock': typeof AuthenticatedStockRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/purchases': typeof AuthenticatedPurchasesRoute
   '/recipes': typeof AuthenticatedRecipesRoute
   '/sales': typeof AuthenticatedSalesRoute
+  '/stock': typeof AuthenticatedStockRoute
   '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/_authenticated/purchases': typeof AuthenticatedPurchasesRoute
   '/_authenticated/recipes': typeof AuthenticatedRecipesRoute
   '/_authenticated/sales': typeof AuthenticatedSalesRoute
+  '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/purchases'
     | '/recipes'
     | '/sales'
+    | '/stock'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/purchases'
     | '/recipes'
     | '/sales'
+    | '/stock'
     | '/'
   id:
     | '__root__'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/_authenticated/purchases'
     | '/_authenticated/recipes'
     | '/_authenticated/sales'
+    | '/_authenticated/stock'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
@@ -169,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/stock': {
+      id: '/_authenticated/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof AuthenticatedStockRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/sales': {
@@ -231,6 +250,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPurchasesRoute: typeof AuthenticatedPurchasesRoute
   AuthenticatedRecipesRoute: typeof AuthenticatedRecipesRoute
   AuthenticatedSalesRoute: typeof AuthenticatedSalesRoute
+  AuthenticatedStockRoute: typeof AuthenticatedStockRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -242,6 +262,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPurchasesRoute: AuthenticatedPurchasesRoute,
   AuthenticatedRecipesRoute: AuthenticatedRecipesRoute,
   AuthenticatedSalesRoute: AuthenticatedSalesRoute,
+  AuthenticatedStockRoute: AuthenticatedStockRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 
