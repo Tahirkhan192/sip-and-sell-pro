@@ -65,8 +65,26 @@ function POS() {
           quantity: num(it.quantity),
         }))
       );
+      setInvoiceSearch("");
+      setShowInvoiceResults(false);
     }
   }, [editingSale]);
+
+  const { data: pendingInvoices = [] } = useQuery({
+    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
+    enabled: invoiceSearch.trim().length >= 2,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("id, invoice_no, customer_name, grand_total, sale_date")
+        .eq("status", "pending")
+        .ilike("customer_name", `%${invoiceSearch.trim()}%`)
+        .order("sale_date", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
