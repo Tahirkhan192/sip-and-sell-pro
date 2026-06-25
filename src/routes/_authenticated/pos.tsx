@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { money, num } from "@/lib/format";
-import { Trash2, Printer, Save, Clock, X, Search, User } from "lucide-react";
+import { Trash2, Printer, Save, Clock, X, Search, User, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -112,6 +112,21 @@ function POS() {
 
   const grandTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("sales").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pending invoice deleted");
+      resetForm();
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (status: "pending" | "completed") => {
       if (cart.length === 0) throw new Error("Cart is empty");
@@ -188,9 +203,22 @@ function POS() {
               {editId ? `Editing ${editingSale?.invoice_no ?? "…"}` : "Current Order"}
             </div>
             {editId && (
-              <Button size="sm" variant="ghost" onClick={resetForm}>
-                <X className="h-4 w-4 mr-1" /> Cancel
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (confirm("Delete this pending invoice?")) deleteMutation.mutate(editId);
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash className="h-4 w-4 mr-1" /> Delete
+                </Button>
+                <Button size="sm" variant="ghost" onClick={resetForm}>
+                  <X className="h-4 w-4 mr-1" /> Cancel
+                </Button>
+              </div>
             )}
           </div>
           {!editId && (
