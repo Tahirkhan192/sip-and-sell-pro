@@ -4,7 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { money, num } from "@/lib/format";
 import { Trash2, Printer, Save, Clock, X, Search, User, Trash } from "lucide-react";
 import { toast } from "sonner";
@@ -26,39 +28,30 @@ function POS() {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState("");
+  const [delivery, setDelivery] = useState(0);
+  const [payment, setPayment] = useState<"cash" | "card">("cash");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").eq("active", true).order("name");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null).order("name")).data ?? [],
   });
 
-  // Load pending sale for editing
   const { data: editingSale } = useQuery({
     queryKey: ["sales", "edit", editId],
     enabled: !!editId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*, sale_items(*, products(id, name, sale_price))")
-        .eq("id", editId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, sale_price))").eq("id", editId!).maybeSingle()).data,
   });
 
   useEffect(() => {
     if (editingSale) {
-      setCustomer(editingSale.customer_name ?? "");
+      setCustomer((editingSale as any).customer_name ?? "");
+      setDelivery(Number((editingSale as any).delivery_charges ?? 0));
+      setPayment(((editingSale as any).payment_method ?? "cash") as "cash" | "card");
       setCart(
-        (editingSale.sale_items ?? []).map((it: any) => ({
+        ((editingSale as any).sale_items ?? []).map((it: any) => ({
           product_id: it.product_id,
           name: it.products?.name ?? "Item",
           price: num(it.price),
@@ -73,23 +66,13 @@ function POS() {
   const { data: pendingInvoices = [] } = useQuery({
     queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
     enabled: invoiceSearch.trim().length >= 2,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("id, invoice_no, customer_name, grand_total, sale_date")
-        .eq("status", "pending")
-        .ilike("customer_name", `%${invoiceSearch.trim()}%`)
-        .order("sale_date", { ascending: false })
-        .limit(8);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: async () => (await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? [],
   });
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return products.slice(0, 12);
-    return products.filter((p: any) => p.name.toLowerCase().includes(q)).slice(0, 16);
+    return (products as any[]).filter((p) => p.name.toLowerCase().includes(q)).slice(0, 16);
   }, [products, search]);
 
   function addToCart(p: any) {
@@ -107,14 +90,17 @@ function POS() {
   function resetForm() {
     setCart([]);
     setCustomer("");
+    setDelivery(0);
+    setPayment("cash");
     if (editId) navigate({ to: "/pos", search: {} });
   }
 
-  const grandTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const grandTotal = subtotal + delivery;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("sales").delete().eq("id", id);
+      const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -122,7 +108,6 @@ function POS() {
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["stock"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
   });
@@ -131,93 +116,54 @@ function POS() {
     mutationFn: async (status: "pending" | "completed") => {
       if (cart.length === 0) throw new Error("Cart is empty");
       const items = cart.map((i) => ({ product_id: i.product_id, quantity: i.quantity }));
+      const args = { _items: items, _customer_name: customer, _status: status, _delivery_charges: delivery, _payment_method: payment };
       if (editId) {
-        const { data, error } = await supabase.rpc("update_pending_sale", {
-          _sale_id: editId,
-          _items: items,
-          _customer_name: customer,
-          _status: status,
-        });
+        const { data, error } = await supabase.rpc("update_pending_sale", { _sale_id: editId, ...args });
         if (error) throw error;
         return { sale: data, status };
       }
-      const { data, error } = await supabase.rpc("save_sale", {
-        _items: items,
-        _customer_name: customer,
-        _status: status,
-      });
+      const { data, error } = await supabase.rpc("save_sale", args);
       if (error) throw error;
       return { sale: data, status };
     },
     onSuccess: ({ sale, status }: any) => {
-      toast.success(
-        status === "pending"
-          ? `Invoice ${sale.invoice_no} saved as pending`
-          : `Invoice ${sale.invoice_no} completed`
-      );
+      toast.success(status === "pending" ? `Invoice ${sale.invoice_no} saved as pending` : `Invoice ${sale.invoice_no} completed`);
       if (status === "completed") setLastInvoice({ ...sale, items: cart });
       resetForm();
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
   });
 
-  function handlePrint() {
-    window.print();
-  }
-
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
       <div className="space-y-3 no-print">
-        <Input
-          autoFocus
-          placeholder="Search product (type to filter, e.g. 'ch')"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-12 text-base"
-        />
+        <Input autoFocus placeholder="Search product…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 text-base" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map((p: any) => (
-            <button
-              key={p.id}
-              onClick={() => addToCart(p)}
-              className="rounded-lg border bg-card hover:bg-accent/40 hover:border-accent transition p-3 text-left"
-            >
+            <button key={p.id} onClick={() => addToCart(p)} className="rounded-lg border bg-card hover:bg-accent/40 hover:border-accent transition p-3 text-left">
               <div className="font-medium text-sm leading-tight">{p.name}</div>
               <div className="text-xs text-muted-foreground mt-1">{p.category ?? "—"}</div>
               <div className="text-sm font-semibold text-primary mt-2">{money(p.sale_price)}</div>
             </button>
           ))}
-          {filtered.length === 0 && (
-            <div className="text-sm text-muted-foreground col-span-full">No products. Add some in Products.</div>
-          )}
+          {filtered.length === 0 && <div className="text-sm text-muted-foreground col-span-full">No products. Add some in Products.</div>}
         </div>
       </div>
 
       <Card className="no-print h-fit">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="font-semibold">
-              {editId ? `Editing ${editingSale?.invoice_no ?? "…"}` : "Current Order"}
-            </div>
+            <div className="font-semibold">{editId ? `Editing ${(editingSale as any)?.invoice_no ?? "…"}` : "Current Order"}</div>
             {editId && (
               <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (confirm("Delete this pending invoice?")) deleteMutation.mutate(editId);
-                  }}
-                  disabled={deleteMutation.isPending}
-                >
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this pending invoice?")) deleteMutation.mutate(editId); }} disabled={deleteMutation.isPending}>
                   <Trash className="h-4 w-4 mr-1" /> Delete
                 </Button>
-                <Button size="sm" variant="ghost" onClick={resetForm}>
-                  <X className="h-4 w-4 mr-1" /> Cancel
-                </Button>
+                <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancel</Button>
               </div>
             )}
           </div>
@@ -225,32 +171,15 @@ function POS() {
             <div className="relative">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input
-                  placeholder="Search pending invoice by customer name…"
-                  value={invoiceSearch}
-                  onChange={(e) => {
-                    setInvoiceSearch(e.target.value);
-                    setShowInvoiceResults(true);
-                  }}
-                  onFocus={() => setShowInvoiceResults(true)}
-                  className="h-9 text-sm"
-                />
+                <Input placeholder="Search pending invoice by customer name…" value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceResults(true); }} onFocus={() => setShowInvoiceResults(true)} className="h-9 text-sm" />
               </div>
               {showInvoiceResults && invoiceSearch.trim().length >= 2 && (
                 <div className="absolute z-20 w-full mt-1 rounded-md border bg-popover shadow-md max-h-60 overflow-auto">
                   {pendingInvoices.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-muted-foreground">No pending invoices found</div>
                   ) : (
-                    pendingInvoices.map((inv: any) => (
-                      <button
-                        key={inv.id}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2"
-                        onClick={() => {
-                          navigate({ to: "/pos", search: { edit: inv.id } });
-                          setInvoiceSearch("");
-                          setShowInvoiceResults(false);
-                        }}
-                      >
+                    (pendingInvoices as any[]).map((inv) => (
+                      <button key={inv.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2" onClick={() => { navigate({ to: "/pos", search: { edit: inv.id } }); setInvoiceSearch(""); setShowInvoiceResults(false); }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate">{inv.invoice_no} — {inv.customer_name || "Walk-in"}</span>
@@ -263,65 +192,68 @@ function POS() {
               )}
             </div>
           )}
-          <Input
-            placeholder="Customer name (optional)"
-            value={customer}
-            onChange={(e) => setCustomer(e.target.value)}
-          />
+          <Input placeholder="Customer name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
           {cart.length === 0 ? (
             <p className="text-sm text-muted-foreground">Tap products to add</p>
           ) : (
-            <div className="space-y-2 max-h-[45vh] overflow-auto pr-1">
+            <div className="space-y-2 max-h-[40vh] overflow-auto pr-1">
               {cart.map((i, idx) => (
                 <div key={i.product_id} className="flex items-center gap-2">
                   <div className="flex-1 text-sm">
                     <div className="font-medium leading-tight">{i.name}</div>
                     <div className="text-xs text-muted-foreground">{money(i.price)} each</div>
                   </div>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.5"
-                    value={i.quantity}
-                    onChange={(e) => {
-                      const q = Number(e.target.value);
-                      setCart((c) => c.map((x, j) => (j === idx ? { ...x, quantity: q } : x)).filter((x) => x.quantity > 0));
-                    }}
-                    className="w-16 h-8 text-center"
-                  />
+                  <Input type="number" min={0} step="0.5" value={i.quantity} onChange={(e) => {
+                    const q = Number(e.target.value);
+                    setCart((c) => c.map((x, j) => (j === idx ? { ...x, quantity: q } : x)).filter((x) => x.quantity > 0));
+                  }} className="w-16 h-8 text-center" />
                   <div className="w-20 text-right text-sm font-medium">{money(i.price * i.quantity)}</div>
-                  <Button size="icon" variant="ghost" onClick={() => setCart((c) => c.filter((_, j) => j !== idx))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setCart((c) => c.filter((_, j) => j !== idx))}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
             </div>
           )}
-          <div className="border-t pt-3 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">Grand Total</div>
-            <div className="text-xl font-bold">{money(grandTotal)}</div>
+
+          <div className="border-t pt-3 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{money(subtotal)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Delivery Charges</Label>
+                <Input type="number" step="0.01" value={delivery} onChange={(e) => setDelivery(Number(e.target.value))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Payment</Label>
+                <Select value={payment} onValueChange={(v: any) => setPayment(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t">
+              <span className="text-sm text-muted-foreground">Grand Total</span>
+              <span className="text-xl font-bold">{money(grandTotal)}</span>
+            </div>
+            {delivery === 0 && <p className="text-[10px] text-muted-foreground">No delivery charge — treated as walk-in customer.</p>}
           </div>
+
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              onClick={() => saveMutation.mutate("pending")}
-              disabled={cart.length === 0 || saveMutation.isPending}
-            >
+            <Button variant="outline" onClick={() => saveMutation.mutate("pending")} disabled={cart.length === 0 || saveMutation.isPending}>
               <Clock className="h-4 w-4 mr-1" /> Save Pending
             </Button>
-            <Button
-              onClick={() => saveMutation.mutate("completed")}
-              disabled={cart.length === 0 || saveMutation.isPending}
-            >
+            <Button onClick={() => saveMutation.mutate("completed")} disabled={cart.length === 0 || saveMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
-          <Button variant="ghost" className="w-full" onClick={handlePrint} disabled={!lastInvoice}>
+          <Button variant="ghost" className="w-full" onClick={() => window.print()} disabled={!lastInvoice}>
             <Printer className="h-4 w-4 mr-1" /> Print Last
           </Button>
-          {lastInvoice && (
-            <p className="text-xs text-muted-foreground text-center">Last: {lastInvoice.invoice_no}</p>
-          )}
+          {lastInvoice && <p className="text-xs text-muted-foreground text-center">Last: {lastInvoice.invoice_no}</p>}
         </CardContent>
       </Card>
 
@@ -336,6 +268,7 @@ function POS() {
 
 export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: string }) {
   const name = customer ?? invoice.customer_name;
+  const subtotal = (invoice.items ?? invoice.sale_items ?? []).reduce((s: number, i: any) => s + num(i.price ?? 0) * num(i.quantity), 0);
   return (
     <div className="p-8 text-black bg-white max-w-md mx-auto font-mono text-sm">
       <div className="text-center border-b border-dashed pb-2 mb-2">
@@ -354,13 +287,15 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
             <tr key={idx}>
               <td>{i.name ?? i.products?.name}</td>
               <td className="text-center">{i.quantity}</td>
-              <td className="text-right">{money((i.price ?? 0) * i.quantity)}</td>
+              <td className="text-right">{money(num(i.price ?? 0) * num(i.quantity))}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="border-t border-dashed mt-2 pt-2 flex justify-between font-bold">
-        <span>TOTAL</span><span>{money(invoice.grand_total)}</span>
+      <div className="border-t border-dashed mt-2 pt-2 text-xs space-y-1">
+        <div className="flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+        {num(invoice.delivery_charges) > 0 && <div className="flex justify-between"><span>Delivery</span><span>{money(invoice.delivery_charges)}</span></div>}
+        <div className="flex justify-between font-bold pt-1 border-t border-dashed"><span>TOTAL</span><span>{money(invoice.grand_total)}</span></div>
       </div>
       <div className="text-center text-xs mt-3">Thank you — please come again</div>
     </div>
