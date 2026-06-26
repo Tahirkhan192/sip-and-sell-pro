@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedStockItemsRouteImport } from './routes/_authenticated/stock-items'
 import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
 import { Route as AuthenticatedSalesRouteImport } from './routes/_authenticated/sales'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
@@ -19,6 +20,8 @@ import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
+import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
+import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -32,6 +35,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStockItemsRoute = AuthenticatedStockItemsRouteImport.update({
+  id: '/stock-items',
+  path: '/stock-items',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
@@ -69,10 +77,24 @@ const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDeliveryReportRoute =
+  AuthenticatedDeliveryReportRouteImport.update({
+    id: '/delivery-report',
+    path: '/delivery-report',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDeliveryExpensesRoute =
+  AuthenticatedDeliveryExpensesRouteImport.update({
+    id: '/delivery-expenses',
+    path: '/delivery-expenses',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
+  '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -80,9 +102,12 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthenticatedReportsRoute
   '/sales': typeof AuthenticatedSalesRoute
   '/stock': typeof AuthenticatedStockRoute
+  '/stock-items': typeof AuthenticatedStockItemsRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
+  '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -90,12 +115,15 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthenticatedReportsRoute
   '/sales': typeof AuthenticatedSalesRoute
   '/stock': typeof AuthenticatedStockRoute
+  '/stock-items': typeof AuthenticatedStockItemsRoute
   '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
+  '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/pos': typeof AuthenticatedPosRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
@@ -103,6 +131,7 @@ export interface FileRoutesById {
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/sales': typeof AuthenticatedSalesRoute
   '/_authenticated/stock': typeof AuthenticatedStockRoute
+  '/_authenticated/stock-items': typeof AuthenticatedStockItemsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +139,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/delivery-expenses'
+    | '/delivery-report'
     | '/expenses'
     | '/pos'
     | '/products'
@@ -117,9 +148,12 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/stock'
+    | '/stock-items'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/delivery-expenses'
+    | '/delivery-report'
     | '/expenses'
     | '/pos'
     | '/products'
@@ -127,11 +161,14 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/stock'
+    | '/stock-items'
     | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/delivery-expenses'
+    | '/_authenticated/delivery-report'
     | '/_authenticated/expenses'
     | '/_authenticated/pos'
     | '/_authenticated/products'
@@ -139,6 +176,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reports'
     | '/_authenticated/sales'
     | '/_authenticated/stock'
+    | '/_authenticated/stock-items'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
@@ -168,6 +206,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/stock-items': {
+      id: '/_authenticated/stock-items'
+      path: '/stock-items'
+      fullPath: '/stock-items'
+      preLoaderRoute: typeof AuthenticatedStockItemsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/stock': {
@@ -219,10 +264,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExpensesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/delivery-report': {
+      id: '/_authenticated/delivery-report'
+      path: '/delivery-report'
+      fullPath: '/delivery-report'
+      preLoaderRoute: typeof AuthenticatedDeliveryReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/delivery-expenses': {
+      id: '/_authenticated/delivery-expenses'
+      path: '/delivery-expenses'
+      fullPath: '/delivery-expenses'
+      preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
+  AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedPosRoute: typeof AuthenticatedPosRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
@@ -230,10 +291,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSalesRoute: typeof AuthenticatedSalesRoute
   AuthenticatedStockRoute: typeof AuthenticatedStockRoute
+  AuthenticatedStockItemsRoute: typeof AuthenticatedStockItemsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
+  AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedPosRoute: AuthenticatedPosRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
@@ -241,6 +305,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSalesRoute: AuthenticatedSalesRoute,
   AuthenticatedStockRoute: AuthenticatedStockRoute,
+  AuthenticatedStockItemsRoute: AuthenticatedStockItemsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 

@@ -116,13 +116,16 @@ function Page() {
                 <TableCell>{p.supplier ?? "—"}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.notes ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => setForm({
-                    id: p.id, date: p.date,
-                    target: p.product_id ? "product" : "stock_item",
-                    product_id: p.product_id ?? "", stock_item_id: p.stock_item_id ?? "",
-                    quantity: Number(p.quantity), unit_cost: Number(p.unit_cost),
-                    supplier: p.supplier ?? "", notes: p.notes ?? "",
-                  }) || setOpen(true)}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => {
+                    setForm({
+                      id: p.id, date: p.date,
+                      target: p.product_id ? "product" : "stock_item",
+                      product_id: p.product_id ?? "", stock_item_id: p.stock_item_id ?? "",
+                      quantity: Number(p.quantity), unit_cost: Number(p.unit_cost),
+                      supplier: p.supplier ?? "", notes: p.notes ?? "",
+                    });
+                    setOpen(true);
+                  }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this purchase?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
