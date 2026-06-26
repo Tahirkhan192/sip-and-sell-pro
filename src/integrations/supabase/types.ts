@@ -14,12 +14,169 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity: string | null
+          entity_id: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      branches: {
+        Row: {
+          address: string | null
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          address: string | null
+          balance: number
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      delivery_expenses: {
+        Row: {
+          created_at: string
+          date: string
+          deleted_at: string | null
+          description: string | null
+          fuel_cost: number
+          id: string
+          maintenance_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          deleted_at?: string | null
+          description?: string | null
+          fuel_cost?: number
+          id?: string
+          maintenance_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          deleted_at?: string | null
+          description?: string | null
+          fuel_cost?: number
+          id?: string
+          maintenance_cost?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      employees: {
+        Row: {
+          active: boolean
+          created_at: string
+          deleted_at: string | null
+          id: string
+          joined_on: string | null
+          name: string
+          phone: string | null
+          role: string | null
+          salary: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          joined_on?: string | null
+          name: string
+          phone?: string | null
+          role?: string | null
+          salary?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          joined_on?: string | null
+          name?: string
+          phone?: string | null
+          role?: string | null
+          salary?: number
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
           category: string
           created_at: string
           date: string
+          deleted_at: string | null
           description: string | null
           id: string
         }
@@ -28,6 +185,7 @@ export type Database = {
           category: string
           created_at?: string
           date?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
         }
@@ -36,88 +194,68 @@ export type Database = {
           category?: string
           created_at?: string
           date?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
         }
         Relationships: []
       }
-      ingredient_movements: {
+      monthly_stock_overrides: {
         Row: {
+          category: string | null
+          closing_value: number | null
           created_at: string
-          date: string
           id: string
-          ingredient_id: string
-          movement_type: Database["public"]["Enums"]["movement_type"]
-          quantity: number
-          reference_id: string | null
-          reference_type: string | null
-          unit_cost: number | null
+          month: number
+          opening_value: number | null
+          product_id: string | null
+          scope: string
+          stock_item_id: string | null
+          updated_at: string
+          year: number
         }
         Insert: {
+          category?: string | null
+          closing_value?: number | null
           created_at?: string
-          date?: string
           id?: string
-          ingredient_id: string
-          movement_type: Database["public"]["Enums"]["movement_type"]
-          quantity: number
-          reference_id?: string | null
-          reference_type?: string | null
-          unit_cost?: number | null
+          month: number
+          opening_value?: number | null
+          product_id?: string | null
+          scope: string
+          stock_item_id?: string | null
+          updated_at?: string
+          year: number
         }
         Update: {
+          category?: string | null
+          closing_value?: number | null
           created_at?: string
-          date?: string
           id?: string
-          ingredient_id?: string
-          movement_type?: Database["public"]["Enums"]["movement_type"]
-          quantity?: number
-          reference_id?: string | null
-          reference_type?: string | null
-          unit_cost?: number | null
+          month?: number
+          opening_value?: number | null
+          product_id?: string | null
+          scope?: string
+          stock_item_id?: string | null
+          updated_at?: string
+          year?: number
         }
         Relationships: [
           {
-            foreignKeyName: "ingredient_movements_ingredient_id_fkey"
-            columns: ["ingredient_id"]
+            foreignKeyName: "monthly_stock_overrides_product_id_fkey"
+            columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "ingredients"
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ingredient_movements_ingredient_id_fkey"
-            columns: ["ingredient_id"]
+            foreignKeyName: "monthly_stock_overrides_stock_item_id_fkey"
+            columns: ["stock_item_id"]
             isOneToOne: false
-            referencedRelation: "stock_summary"
-            referencedColumns: ["ingredient_id"]
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
           },
         ]
-      }
-      ingredients: {
-        Row: {
-          category: string | null
-          created_at: string
-          id: string
-          minimum_stock: number
-          name: string
-          unit: string
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string
-          id?: string
-          minimum_stock?: number
-          name: string
-          unit: string
-        }
-        Update: {
-          category?: string | null
-          created_at?: string
-          id?: string
-          minimum_stock?: number
-          name?: string
-          unit?: string
-        }
-        Relationships: []
       }
       products: {
         Row: {
@@ -125,8 +263,12 @@ export type Database = {
           category: string | null
           cost_price: number
           created_at: string
+          current_stock: number
+          deleted_at: string | null
           id: string
+          minimum_stock: number
           name: string
+          opening_stock: number
           sale_price: number
         }
         Insert: {
@@ -134,8 +276,12 @@ export type Database = {
           category?: string | null
           cost_price?: number
           created_at?: string
+          current_stock?: number
+          deleted_at?: string | null
           id?: string
+          minimum_stock?: number
           name: string
+          opening_stock?: number
           sale_price?: number
         }
         Update: {
@@ -143,57 +289,15 @@ export type Database = {
           category?: string | null
           cost_price?: number
           created_at?: string
+          current_stock?: number
+          deleted_at?: string | null
           id?: string
+          minimum_stock?: number
           name?: string
+          opening_stock?: number
           sale_price?: number
         }
         Relationships: []
-      }
-      recipes: {
-        Row: {
-          created_at: string
-          id: string
-          ingredient_id: string
-          product_id: string
-          quantity_required: number
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          ingredient_id: string
-          product_id: string
-          quantity_required: number
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          ingredient_id?: string
-          product_id?: string
-          quantity_required?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recipes_ingredient_id_fkey"
-            columns: ["ingredient_id"]
-            isOneToOne: false
-            referencedRelation: "ingredients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recipes_ingredient_id_fkey"
-            columns: ["ingredient_id"]
-            isOneToOne: false
-            referencedRelation: "stock_summary"
-            referencedColumns: ["ingredient_id"]
-          },
-          {
-            foreignKeyName: "recipes_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       sale_items: {
         Row: {
@@ -242,9 +346,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_name: string | null
+          deleted_at: string | null
+          delivery_charges: number
           grand_total: number
           id: string
           invoice_no: string
+          payment_method: string
           sale_date: string
           status: string
         }
@@ -252,9 +359,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_name?: string | null
+          deleted_at?: string | null
+          delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          payment_method?: string
           sale_date?: string
           status?: string
         }
@@ -262,11 +372,53 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_name?: string | null
+          deleted_at?: string | null
+          delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          payment_method?: string
           sale_date?: string
           status?: string
+        }
+        Relationships: []
+      }
+      stock_items: {
+        Row: {
+          created_at: string
+          current_stock: number
+          deleted_at: string | null
+          id: string
+          minimum_stock: number
+          name: string
+          opening_stock: number
+          purchase_price: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_stock?: number
+          deleted_at?: string | null
+          id?: string
+          minimum_stock?: number
+          name: string
+          opening_stock?: number
+          purchase_price?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_stock?: number
+          deleted_at?: string | null
+          id?: string
+          minimum_stock?: number
+          name?: string
+          opening_stock?: number
+          purchase_price?: number
+          unit?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -274,9 +426,12 @@ export type Database = {
         Row: {
           created_at: string
           date: string
+          deleted_at: string | null
           id: string
-          ingredient_id: string
+          notes: string | null
+          product_id: string | null
           quantity: number
+          stock_item_id: string | null
           supplier: string | null
           total_cost: number
           unit_cost: number
@@ -284,9 +439,12 @@ export type Database = {
         Insert: {
           created_at?: string
           date?: string
+          deleted_at?: string | null
           id?: string
-          ingredient_id: string
+          notes?: string | null
+          product_id?: string | null
           quantity: number
+          stock_item_id?: string | null
           supplier?: string | null
           total_cost: number
           unit_cost: number
@@ -294,29 +452,65 @@ export type Database = {
         Update: {
           created_at?: string
           date?: string
+          deleted_at?: string | null
           id?: string
-          ingredient_id?: string
+          notes?: string | null
+          product_id?: string | null
           quantity?: number
+          stock_item_id?: string | null
           supplier?: string | null
           total_cost?: number
           unit_cost?: number
         }
         Relationships: [
           {
-            foreignKeyName: "stock_purchases_ingredient_id_fkey"
-            columns: ["ingredient_id"]
+            foreignKeyName: "stock_purchases_product_id_fkey"
+            columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "ingredients"
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "stock_purchases_ingredient_id_fkey"
-            columns: ["ingredient_id"]
+            foreignKeyName: "stock_purchases_stock_item_fk"
+            columns: ["stock_item_id"]
             isOneToOne: false
-            referencedRelation: "stock_summary"
-            referencedColumns: ["ingredient_id"]
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
           },
         ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          balance: number
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -341,18 +535,7 @@ export type Database = {
       }
     }
     Views: {
-      stock_summary: {
-        Row: {
-          consumed: number | null
-          ingredient_id: string | null
-          minimum_stock: number | null
-          name: string | null
-          purchased: number | null
-          remaining: number | null
-          unit: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       has_role: {
@@ -362,15 +545,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
       save_sale: {
-        Args: { _customer_name?: string; _items: Json; _status?: string }
+        Args: {
+          _customer_name?: string
+          _delivery_charges?: number
+          _items: Json
+          _payment_method?: string
+          _status?: string
+        }
         Returns: {
           created_at: string
           created_by: string | null
           customer_name: string | null
+          deleted_at: string | null
+          delivery_charges: number
           grand_total: number
           id: string
           invoice_no: string
+          payment_method: string
           sale_date: string
           status: string
         }
@@ -384,7 +577,9 @@ export type Database = {
       update_pending_sale: {
         Args: {
           _customer_name?: string
+          _delivery_charges?: number
           _items: Json
+          _payment_method?: string
           _sale_id: string
           _status?: string
         }
@@ -392,9 +587,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_name: string | null
+          deleted_at: string | null
+          delivery_charges: number
           grand_total: number
           id: string
           invoice_no: string
+          payment_method: string
           sale_date: string
           status: string
         }

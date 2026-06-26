@@ -4,51 +4,56 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { money, today, startOfMonth, num } from "@/lib/format";
-import { AlertTriangle, TrendingUp, ShoppingBag, Wallet, Receipt } from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-} from "recharts";
+import { AlertTriangle, TrendingUp, ShoppingBag, Wallet, Receipt, Truck, Bike } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
-export const Route = createFileRoute("/_authenticated/")({
-  component: Dashboard,
-});
+export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
 async function fetchDashboard() {
   const t = today();
   const m = startOfMonth();
-  const [todaySales, monthSales, monthExpenses, lowStock, monthMovements, last7] = await Promise.all([
-    supabase.from("sales").select("grand_total").gte("sale_date", t),
-    supabase.from("sales").select("grand_total, sale_date").gte("sale_date", m),
-    supabase.from("expenses").select("amount").gte("date", m),
-    supabase.from("stock_summary").select("*"),
-    supabase.from("ingredient_movements").select("quantity, unit_cost, movement_type, date").gte("date", m),
-    supabase.from("sales").select("grand_total, sale_date").gte("sale_date", new Date(Date.now()-6*86400000).toISOString().slice(0,10)),
+  const tomorrow = new Date(new Date(t).getTime() + 86400000).toISOString().slice(0, 10);
+  const [todaySalesQ, monthSalesQ, monthExpensesQ, monthDelExpQ, todayDelExpQ, productsQ, last7Q, monthPurchQ] = await Promise.all([
+    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null).gte("sale_date", t).lt("sale_date", tomorrow),
+    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null).gte("sale_date", m),
+    supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", m),
+    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", m),
+    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).eq("date", t),
+    supabase.from("products").select("id, name, current_stock, minimum_stock, cost_price, category").is("deleted_at", null),
+    supabase.from("sales").select("grand_total, sale_date").is("deleted_at", null).gte("sale_date", new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)),
+    supabase.from("stock_purchases").select("total_cost").is("deleted_at", null).gte("date", m),
   ]);
 
-  const todayRev = (todaySales.data ?? []).reduce((s, r) => s + num(r.grand_total), 0);
-  const monthRev = (monthSales.data ?? []).reduce((s, r) => s + num(r.grand_total), 0);
-  const monthExp = (monthExpenses.data ?? []).reduce((s, r) => s + num(r.amount), 0);
+  const sumGT = (rows: any[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.grand_total), 0);
+  const sumDel = (rows: any[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.delivery_charges), 0);
 
-  // COGS approximate: sum of consumption (purchase unit_cost when known, else 0)
-  // Use simpler approach: avg purchase cost per ingredient × consumption.
-  const purchases = (monthMovements.data ?? []).filter(m => m.movement_type === "purchase");
-  const avgCost: Record<string, number> = {};
-  // we don't have ingredient_id here, skip detailed COGS; estimate from last month's purchase total proportion
-  const monthCOGS = 0; // computed in reports page; dashboard uses rough estimate
-  const monthProfit = monthRev - monthCOGS - monthExp;
-  const todayProfitApprox = todayRev - 0; // simplified
+  const todayRev = sumGT(todaySalesQ.data);
+  const todayDelCharges = sumDel(todaySalesQ.data);
+  const monthRev = sumGT(monthSalesQ.data);
+  const monthDelCharges = sumDel(monthSalesQ.data);
+  const monthExp = (monthExpensesQ.data ?? []).reduce((s, r: any) => s + num(r.amount), 0);
+  const monthDelExp = (monthDelExpQ.data ?? []).reduce((s, r: any) => s + num(r.fuel_cost) + num(r.maintenance_cost), 0);
+  const todayDelExp = (todayDelExpQ.data ?? []).reduce((s, r: any) => s + num(r.fuel_cost) + num(r.maintenance_cost), 0);
+  const monthPurch = (monthPurchQ.data ?? []).reduce((s, r: any) => s + num(r.total_cost), 0);
 
-  const low = (lowStock.data ?? []).filter((r: any) => num(r.remaining) < num(r.minimum_stock));
+  // Approximate business profit: monthly sales (ex delivery) - purchases - general expenses (closing stock approx ignored on dashboard)
+  const monthSalesExDel = monthRev - monthDelCharges;
+  const monthBizProfit = monthSalesExDel - monthPurch - monthExp;
+  const monthDelProfit = monthDelCharges - monthDelExp;
+  const monthOverall = monthBizProfit + monthDelProfit;
+  const todayDelProfit = todayDelCharges - todayDelExp;
+  const todayProfitApprox = todayRev - todayDelCharges; // simplified: revenue ex delivery
 
-  // last 7 days
+  const low = (productsQ.data ?? []).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
+
   const days: { day: string; total: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i*86400000).toISOString().slice(0,10);
-    const total = (last7.data ?? []).filter(r => r.sale_date.startsWith(d)).reduce((s,r)=>s+num(r.grand_total),0);
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const total = (last7Q.data ?? []).filter((r: any) => r.sale_date.startsWith(d)).reduce((s, r: any) => s + num(r.grand_total), 0);
     days.push({ day: d.slice(5), total });
   }
 
-  return { todayRev, monthRev, monthExp, monthProfit, todayProfitApprox, low, days, avgCost };
+  return { todayRev, todayDelCharges, todayDelProfit, todayProfitApprox, monthRev, monthBizProfit, monthDelProfit, monthOverall, low, days };
 }
 
 function Dashboard() {
@@ -59,14 +64,18 @@ function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Live view of today's café operations</p>
+        <p className="text-sm text-muted-foreground">Live view of café operations</p>
       </div>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <KPI title="Today's Sales" icon={Receipt} value={money(d?.todayRev)} loading={isLoading} />
-        <KPI title="Today's Profit" icon={TrendingUp} value={money(d?.todayProfitApprox)} hint="≈ revenue (see Reports for COGS)" loading={isLoading} />
+        <KPI title="Today's Profit" icon={TrendingUp} value={money(d?.todayProfitApprox)} hint="approx — full P&L in Reports" loading={isLoading} />
+        <KPI title="Today's Delivery Charges" icon={Truck} value={money(d?.todayDelCharges)} loading={isLoading} />
+        <KPI title="Today's Delivery Profit" icon={Bike} value={money(d?.todayDelProfit)} loading={isLoading} />
         <KPI title="Monthly Sales" icon={ShoppingBag} value={money(d?.monthRev)} loading={isLoading} />
-        <KPI title="Monthly Expenses" icon={Wallet} value={money(d?.monthExp)} loading={isLoading} />
+        <KPI title="Monthly Business Profit" icon={Wallet} value={money(d?.monthBizProfit)} loading={isLoading} />
+        <KPI title="Monthly Delivery Profit" icon={Bike} value={money(d?.monthDelProfit)} loading={isLoading} />
+        <KPI title="Overall Monthly Profit" icon={TrendingUp} value={money(d?.monthOverall)} loading={isLoading} emphasize />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -79,7 +88,7 @@ function Dashboard() {
                 <XAxis dataKey="day" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip formatter={(v: number) => money(v)} />
-                <Bar dataKey="total" fill="var(--color-chart-1)" radius={[6,6,0,0]} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -91,14 +100,14 @@ function Dashboard() {
           </CardHeader>
           <CardContent>
             {(d?.low?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">All ingredients above minimum.</p>
+              <p className="text-sm text-muted-foreground">All products above minimum.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2 max-h-64 overflow-auto">
                 {d!.low.map((r: any) => (
-                  <li key={r.ingredient_id} className="flex items-center justify-between text-sm">
+                  <li key={r.id} className="flex items-center justify-between text-sm">
                     <span className="font-medium">{r.name}</span>
                     <Badge variant="destructive">
-                      {num(r.remaining).toFixed(1)} {r.unit} / min {num(r.minimum_stock).toFixed(1)}
+                      {num(r.current_stock).toFixed(1)} / min {num(r.minimum_stock).toFixed(1)}
                     </Badge>
                   </li>
                 ))}
@@ -111,15 +120,15 @@ function Dashboard() {
   );
 }
 
-function KPI({ title, value, icon: Icon, hint, loading }: { title: string; value: string; icon: any; hint?: string; loading?: boolean }) {
+function KPI({ title, value, icon: Icon, hint, loading, emphasize }: { title: string; value: string; icon: any; hint?: string; loading?: boolean; emphasize?: boolean }) {
   return (
-    <Card>
+    <Card className={emphasize ? "border-primary/50" : ""}>
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{loading ? "…" : value}</div>
+        <div className={emphasize ? "text-2xl font-bold text-primary" : "text-2xl font-bold"}>{loading ? "…" : value}</div>
         {hint && <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>}
       </CardContent>
     </Card>
