@@ -28,7 +28,7 @@ function IngredientsPage() {
 
   const save = useMutation({
     mutationFn: async (p: I) => {
-      const payload = { name: p.name, unit: p.unit, minimum_stock: p.minimum_stock };
+      const payload = { name: p.name, unit: p.unit, minimum_stock: p.minimum_stock, category: p.category?.trim() || null };
       const res = p.id
         ? await supabase.from("ingredients").update(payload).eq("id", p.id)
         : await supabase.from("ingredients").insert(payload);
