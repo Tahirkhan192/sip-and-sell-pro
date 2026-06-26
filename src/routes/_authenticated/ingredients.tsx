@@ -13,8 +13,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/ingredients")({ component: IngredientsPage });
 
-type I = { id?: string; name: string; unit: string; minimum_stock: number };
-const empty: I = { name: "", unit: "kg", minimum_stock: 0 };
+type I = { id?: string; name: string; unit: string; minimum_stock: number; category?: string | null };
+const empty: I = { name: "", unit: "kg", minimum_stock: 0, category: "" };
 
 function IngredientsPage() {
   const qc = useQueryClient();
@@ -28,7 +28,7 @@ function IngredientsPage() {
 
   const save = useMutation({
     mutationFn: async (p: I) => {
-      const payload = { name: p.name, unit: p.unit, minimum_stock: p.minimum_stock };
+      const payload = { name: p.name, unit: p.unit, minimum_stock: p.minimum_stock, category: p.category?.trim() || null };
       const res = p.id
         ? await supabase.from("ingredients").update(payload).eq("id", p.id)
         : await supabase.from("ingredients").insert(payload);
@@ -52,20 +52,21 @@ function IngredientsPage() {
       />
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Min Stock</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Min Stock</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {data.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-muted-foreground">{p.category ?? "—"}</TableCell>
                 <TableCell>{p.unit}</TableCell>
                 <TableCell className="text-right">{Number(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ ...p, category: p.category ?? "" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {data.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">No ingredients yet</TableCell></TableRow>}
+            {data.length===0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No ingredients yet</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
@@ -75,6 +76,8 @@ function IngredientsPage() {
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} /></div>
+        <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} /></div>
+        <div className="space-y-2"><Label>Category</Label><Input value={form.category ?? ""} onChange={(e)=>setForm({...form, category: e.target.value})} placeholder="e.g. Coffee, Bakery" /></div>
         <div className="space-y-2"><Label>Unit</Label><Input value={form.unit} onChange={(e)=>setForm({...form, unit: e.target.value})} placeholder="kg, g, ml, pcs" /></div>
         <div className="space-y-2"><Label>Minimum stock</Label><Input type="number" step="0.01" value={form.minimum_stock} onChange={(e)=>setForm({...form, minimum_stock: Number(e.target.value)})} /></div>
       </CrudDialog>

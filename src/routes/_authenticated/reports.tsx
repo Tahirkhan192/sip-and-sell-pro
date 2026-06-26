@@ -111,7 +111,110 @@ function MonthlyReport() {
       <Stat label="Expenses" value={money(data?.exps)} />
       <Stat label="Net Profit" value={money(data?.profit)} emphasize />
     </div>
+    <div className="mt-6">
+      <CategoryMonthlyReport from={r.from} to={r.to} />
+    </div>
   </>);
+}
+
+function CategoryMonthlyReport({ from, to }: { from: string; to: string }) {
+  const { data } = useQuery({
+    queryKey: ["report", "monthly-category", from, to],
+    queryFn: async () => {
+      const [products, ingredients, saleItems, purchasesInRange, allPurchases, movementsBefore] = await Promise.all([
+        supabase.from("products").select("id, category"),
+        supabase.from("ingredients").select("id, category"),
+        rangeFilter(
+          supabase.from("sale_items").select("total, product_id, sales!inner(sale_date)"),
+          "sales.sale_date", from, to + "T23:59"
+        ),
+        rangeFilter(supabase.from("stock_purchases").select("ingredient_id, total_cost"), "date", from, to),
+        supabase.from("stock_purchases").select("ingredient_id, quantity, total_cost"),
+        supabase.from("ingredient_movements").select("ingredient_id, quantity").lt("date", from),
+      ]);
+
+      const prodCat: Record<string, string> = {};
+      for (const p of products.data ?? []) if (p.category) prodCat[p.id] = p.category;
+      const ingCat: Record<string, string> = {};
+      for (const i of ingredients.data ?? []) if (i.category) ingCat[i.id] = i.category;
+
+      // avg unit cost per ingredient from all purchases
+      const ingAvg: Record<string, { q: number; c: number }> = {};
+      for (const p of allPurchases.data ?? []) {
+        const k = p.ingredient_id;
+        ingAvg[k] ??= { q: 0, c: 0 };
+        ingAvg[k].q += num(p.quantity);
+        ingAvg[k].c += num(p.total_cost);
+      }
+
+      const cats = new Set<string>([...Object.values(prodCat), ...Object.values(ingCat)]);
+      const rows: Record<string, { category: string; sales: number; opening: number; purchases: number }> = {};
+      for (const c of cats) rows[c] = { category: c, sales: 0, opening: 0, purchases: 0 };
+
+      for (const it of saleItems.data ?? []) {
+        const cat = prodCat[(it as any).product_id];
+        if (!cat) continue;
+        rows[cat] ??= { category: cat, sales: 0, opening: 0, purchases: 0 };
+        rows[cat].sales += num((it as any).total);
+      }
+      for (const p of purchasesInRange.data ?? []) {
+        const cat = ingCat[p.ingredient_id];
+        if (!cat) continue;
+        rows[cat] ??= { category: cat, sales: 0, opening: 0, purchases: 0 };
+        rows[cat].purchases += num(p.total_cost);
+      }
+      // opening = qty remaining before month start × avg unit cost
+      const remBefore: Record<string, number> = {};
+      for (const m of movementsBefore.data ?? []) {
+        remBefore[m.ingredient_id] = (remBefore[m.ingredient_id] ?? 0) + num(m.quantity);
+      }
+      for (const [ingId, qty] of Object.entries(remBefore)) {
+        const cat = ingCat[ingId];
+        if (!cat) continue;
+        const a = ingAvg[ingId];
+        const unit = a && a.q > 0 ? a.c / a.q : 0;
+        rows[cat] ??= { category: cat, sales: 0, opening: 0, purchases: 0 };
+        rows[cat].opening += Math.max(0, qty) * unit;
+      }
+
+      return Object.values(rows)
+        .map((r) => ({ ...r, profit: r.sales - (r.opening + r.purchases) }))
+        .sort((a, b) => b.profit - a.profit);
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm">Monthly profit by category</CardTitle></CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category</TableHead>
+              <TableHead className="text-right">Sales</TableHead>
+              <TableHead className="text-right">Opening Stock</TableHead>
+              <TableHead className="text-right">Purchases</TableHead>
+              <TableHead className="text-right">Profit</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(data ?? []).map((r) => (
+              <TableRow key={r.category}>
+                <TableCell className="font-medium">{r.category}</TableCell>
+                <TableCell className="text-right">{money(r.sales)}</TableCell>
+                <TableCell className="text-right">{money(r.opening)}</TableCell>
+                <TableCell className="text-right">{money(r.purchases)}</TableCell>
+                <TableCell className={"text-right font-semibold " + (r.profit >= 0 ? "text-primary" : "text-destructive")}>{money(r.profit)}</TableCell>
+              </TableRow>
+            ))}
+            {(!data || data.length === 0) && (
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No categorized data in range</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
 function ProductReport() {
