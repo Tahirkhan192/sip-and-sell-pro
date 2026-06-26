@@ -13,8 +13,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/ingredients")({ component: IngredientsPage });
 
-type I = { id?: string; name: string; unit: string; minimum_stock: number };
-const empty: I = { name: "", unit: "kg", minimum_stock: 0 };
+type I = { id?: string; name: string; unit: string; minimum_stock: number; category?: string | null };
+const empty: I = { name: "", unit: "kg", minimum_stock: 0, category: "" };
 
 function IngredientsPage() {
   const qc = useQueryClient();
