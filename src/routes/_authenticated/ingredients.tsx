@@ -76,6 +76,8 @@ function IngredientsPage() {
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} /></div>
+        <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} /></div>
+        <div className="space-y-2"><Label>Category</Label><Input value={form.category ?? ""} onChange={(e)=>setForm({...form, category: e.target.value})} placeholder="e.g. Coffee, Bakery" /></div>
         <div className="space-y-2"><Label>Unit</Label><Input value={form.unit} onChange={(e)=>setForm({...form, unit: e.target.value})} placeholder="kg, g, ml, pcs" /></div>
         <div className="space-y-2"><Label>Minimum stock</Label><Input type="number" step="0.01" value={form.minimum_stock} onChange={(e)=>setForm({...form, minimum_stock: Number(e.target.value)})} /></div>
       </CrudDialog>
