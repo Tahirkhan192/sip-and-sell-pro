@@ -94,6 +94,7 @@ export type Database = {
       }
       ingredients: {
         Row: {
+          category: string | null
           created_at: string
           id: string
           minimum_stock: number
@@ -101,6 +102,7 @@ export type Database = {
           unit: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           id?: string
           minimum_stock?: number
@@ -108,6 +110,7 @@ export type Database = {
           unit: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           id?: string
           minimum_stock?: number
