@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.fn_purchase_update_stock() FROM PUBLIC, anon, authenticated;
