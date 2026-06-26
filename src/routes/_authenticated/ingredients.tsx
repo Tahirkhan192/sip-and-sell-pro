@@ -52,20 +52,21 @@ function IngredientsPage() {
       />
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Min Stock</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Min Stock</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {data.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-muted-foreground">{p.category ?? "—"}</TableCell>
                 <TableCell>{p.unit}</TableCell>
                 <TableCell className="text-right">{Number(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ ...p, category: p.category ?? "" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {data.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">No ingredients yet</TableCell></TableRow>}
+            {data.length===0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No ingredients yet</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
