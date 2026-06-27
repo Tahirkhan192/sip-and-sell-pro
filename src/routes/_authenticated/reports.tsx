@@ -1,15 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
-import { money, num, today, startOfMonth } from "@/lib/format";
-import { CATEGORIES } from "@/lib/categories";
+import { money, num } from "@/lib/format";
+import { useCategories } from "@/lib/use-categories";
+import { useDateRangeFilter } from "@/components/DateRangeFilter";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: Reports });
 
@@ -39,17 +38,14 @@ function Reports() {
   );
 }
 
-function useRange(initFrom: string, initTo: string) {
-  const [from, setFrom] = useState(initFrom);
-  const [to, setTo] = useState(initTo);
+function useRange(initPreset: "today" | "month" = "month") {
+  const f = useDateRangeFilter(initPreset);
   return {
-    from, to, setFrom, setTo,
-    el: (
-      <div className="grid grid-cols-2 gap-2 max-w-sm mb-4">
-        <div className="space-y-1"><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-        <div className="space-y-1"><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-      </div>
-    ),
+    from: f.range.from,
+    to: f.range.to,
+    startUTC: f.range.startUTC,
+    endExclusiveUTC: f.range.endExclusiveUTC,
+    el: f.el,
   };
 }
 
@@ -59,11 +55,11 @@ function dayPlus(d: string) {
 
 // ============================================================ DAILY
 function DailyReport() {
-  const r = useRange(today(), today());
+  const r = useRange("today");
   const { data } = useQuery({
     queryKey: ["report", "daily", r.from, r.to],
     queryFn: async () => {
-      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.from).lt("sale_date", dayPlus(r.to));
+      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC);
       const rows = sales.data ?? [];
       const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
       for (const s of rows as any[]) {
@@ -116,18 +112,20 @@ function DailyReport() {
 }
 
 // ============================================================ MONTHLY
-function useMonthlyData(from: string, to: string) {
+function useMonthlyData(from: string, to: string, categories: string[]) {
   return useQuery({
-    queryKey: ["report", "monthly-full", from, to],
+    queryKey: ["report", "monthly-full", from, to, categories.join(",")],
     queryFn: async () => {
-      const fromNext = dayPlus(to);
+      const startUTC = `${from}T03:00:00.000Z`;
+      const toNext = new Date(`${to}T00:00:00.000Z`); toNext.setUTCDate(toNext.getUTCDate() + 1);
+      const endExclusiveUTC = `${toNext.toISOString().slice(0, 10)}T03:00:00.000Z`;
       const [salesQ, expQ, delExpQ, purchProdQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
-        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", from).lt("sale_date", fromNext),
+        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC),
         supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to),
         supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to),
         supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to),
         supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null),
-        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", from).lt("sales.sale_date", fromNext),
+        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC),
         supabase.from("monthly_stock_overrides").select("*").eq("year", Number(from.slice(0, 4))).eq("month", Number(from.slice(5, 7))),
       ]);
 
@@ -175,7 +173,7 @@ function useMonthlyData(from: string, to: string) {
 
       // Per-category aggregation
       const catData: Record<string, { sales: number; revenueQty: number; opening: number; purchases: number; closing: number; cogs: number }> = {};
-      for (const cat of CATEGORIES) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
+      for (const cat of categories) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
 
       for (const p of prods) {
         const cat = p.category ?? "—";
@@ -232,8 +230,9 @@ function useMonthlyData(from: string, to: string) {
 }
 
 function MonthlyReport() {
-  const r = useRange(startOfMonth(), today());
-  const { data } = useMonthlyData(r.from, r.to);
+  const r = useRange("month");
+  const { data: categories = [] } = useCategories();
+  const { data } = useMonthlyData(r.from, r.to, categories);
   return (<>
     {r.el}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -279,8 +278,9 @@ function MonthlyReport() {
 
 // ============================================================ CATEGORY
 function CategoryReport() {
-  const r = useRange(startOfMonth(), today());
-  const { data } = useMonthlyData(r.from, r.to);
+  const r = useRange("month");
+  const { data: categories = [] } = useCategories();
+  const { data } = useMonthlyData(r.from, r.to, categories);
   return (<>
     {r.el}
     <Card>
@@ -357,7 +357,7 @@ function StockReport() {
 
 // ============================================================ PURCHASES
 function PurchaseReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "purchases", r.from, r.to],
     queryFn: async () => (await supabase.from("stock_purchases").select("*, products(name), stock_items(name)").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
@@ -388,7 +388,7 @@ function PurchaseReport() {
 
 // ============================================================ EXPENSES
 function ExpenseReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "expenses", r.from, r.to],
     queryFn: async () => (await supabase.from("expenses").select("*").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
@@ -425,10 +425,10 @@ function ExpenseReport() {
 
 // ============================================================ SALES
 function SalesReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "sales-items", r.from, r.to],
-    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.from).lt("sales.sale_date", dayPlus(r.to))).data ?? [],
+    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC)).data ?? [],
   });
   const rows = useMemo(() => {
     const m: Record<string, { name: string; category: string; qty: number; rev: number }> = {};

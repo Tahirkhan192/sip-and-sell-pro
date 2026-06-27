@@ -10,9 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Search, ArrowUpDown } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ArrowUpDown, Copy } from "lucide-react";
 import { money, num } from "@/lib/format";
-import { CATEGORIES } from "@/lib/categories";
+import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
@@ -35,6 +35,7 @@ type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
 function ProductsPage() {
   const qc = useQueryClient();
+  const { data: categories = [] } = useCategories();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("name");
@@ -119,7 +120,7 @@ function ProductsPage() {
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -149,6 +150,7 @@ function ProductsPage() {
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { const { id, ...rest } = p; setForm({ ...rest, name: `${p.name} (copy)` } as P); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -160,13 +162,14 @@ function ProductsPage() {
 
       <CrudDialog title={form.id ? "Edit Product" : "Add Product"} open={open} onOpenChange={setOpen} onSubmit={async () => {
         if (!form.name.trim()) { toast.error("Name required"); return false; }
+        if (!form.category) { toast.error("Category required"); return false; }
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div className="space-y-2"><Label>Category</Label>
+        <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label>
           <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-2">
