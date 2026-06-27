@@ -97,25 +97,35 @@ function Page() {
     <div>
       <PageHeader title="Purchases" subtitle="Stock purchases — auto-adds to product/item current stock"
         action={<Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Purchase</Button>} />
-      <div className="relative max-w-sm mb-3">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-8" placeholder="Search product / supplier" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="relative max-w-sm flex-1 min-w-[200px]">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Search product / supplier" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Select value={catFilter} onValueChange={setCatFilter}>
+          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       <Card>
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Date</TableHead><TableHead>Product / Item</TableHead>
+            <TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Product / Item</TableHead>
             <TableHead className="text-right">Qty</TableHead>
             <TableHead className="text-right">Unit</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead>Supplier</TableHead>
             <TableHead>Notes</TableHead>
-            <TableHead className="w-24"></TableHead>
+            <TableHead className="w-32"></TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
+                <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell>{p.products?.name ?? p.stock_items?.name ?? "?"}</TableCell>
                 <TableCell className="text-right">{Number(p.quantity)}</TableCell>
                 <TableCell className="text-right">{money(p.unit_cost)}</TableCell>
@@ -127,28 +137,47 @@ function Page() {
                     setForm({
                       id: p.id, date: p.date,
                       target: p.product_id ? "product" : "stock_item",
+                      category: p.category ?? "",
                       product_id: p.product_id ?? "", stock_item_id: p.stock_item_id ?? "",
                       quantity: Number(p.quantity), unit_cost: Number(p.unit_cost),
                       supplier: p.supplier ?? "", notes: p.notes ?? "",
                     });
                     setOpen(true);
                   }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => {
+                    setForm({
+                      date: today(),
+                      target: p.product_id ? "product" : "stock_item",
+                      category: p.category ?? "",
+                      product_id: p.product_id ?? "", stock_item_id: p.stock_item_id ?? "",
+                      quantity: Number(p.quantity), unit_cost: Number(p.unit_cost),
+                      supplier: p.supplier ?? "", notes: p.notes ?? "",
+                    });
+                    setOpen(true);
+                  }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this purchase?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">No purchases</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-6">No purchases</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
 
       <CrudDialog title={form.id ? "Edit Purchase" : "New Purchase"} open={open} onOpenChange={setOpen} onSubmit={async () => {
+        if (!form.category) { toast.error("Category required"); return false; }
         if (form.target === "product" && !form.product_id) { toast.error("Pick a product"); return false; }
         if (form.target === "stock_item" && !form.stock_item_id) { toast.error("Pick a stock item"); return false; }
         if (!form.quantity) { toast.error("Quantity required"); return false; }
         await save.mutateAsync(form); return true;
       }}>
-        <div className="space-y-2"><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+        <div className="space-y-2"><Label>Purchase Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+        <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label>
+          <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, product_id: "" })}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="space-y-2"><Label>Type</Label>
           <Select value={form.target} onValueChange={(v: any) => setForm({ ...form, target: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -160,9 +189,12 @@ function Page() {
         </div>
         {form.target === "product" ? (
           <div className="space-y-2"><Label>Product</Label>
-            <Select value={form.product_id} onValueChange={(v) => setForm({ ...form, product_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Choose…" /></SelectTrigger>
-              <SelectContent>{products.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+            <Select value={form.product_id} onValueChange={(v) => {
+              const prod = (products as any[]).find((x) => x.id === v);
+              setForm({ ...form, product_id: v, category: prod?.category ?? form.category });
+            }}>
+              <SelectTrigger><SelectValue placeholder={form.category ? "Choose…" : "Pick category first"} /></SelectTrigger>
+              <SelectContent>{(products as any[]).filter((i) => !form.category || i.category === form.category).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         ) : (
@@ -175,7 +207,7 @@ function Page() {
         )}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-2"><Label>Quantity</Label><Input type="number" step="0.01" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Unit cost</Label><Input type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Purchase Price</Label><Input type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: Number(e.target.value) })} /></div>
         </div>
         <div className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{money(form.quantity * form.unit_cost)}</span></div>
         <div className="space-y-2"><Label>Supplier</Label><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
