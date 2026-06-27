@@ -36,6 +36,8 @@ function Page() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<P>(empty);
   const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState<string>("all");
+  const { data: categories = [] } = useCategories();
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active-all"],
