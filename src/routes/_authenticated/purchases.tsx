@@ -63,6 +63,7 @@ function Page() {
       const payload: any = {
         date: p.date, quantity: p.quantity, unit_cost: p.unit_cost, total_cost: total,
         supplier: p.supplier || null, notes: p.notes || null,
+        category: p.category,
         product_id: p.target === "product" ? p.product_id : null,
         stock_item_id: p.target === "stock_item" ? p.stock_item_id : null,
       };
@@ -71,7 +72,7 @@ function Page() {
         : await supabase.from("stock_purchases").insert(payload);
       if (res.error) throw res.error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchases"] }); qc.invalidateQueries({ queryKey: ["products"] }); qc.invalidateQueries({ queryKey: ["stock_items"] }); toast.success("Saved"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchases"] }); qc.invalidateQueries({ queryKey: ["products"] }); qc.invalidateQueries({ queryKey: ["stock_items"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); qc.invalidateQueries({ queryKey: ["report"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
