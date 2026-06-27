@@ -277,7 +277,8 @@ function MonthlyReport() {
 // ============================================================ CATEGORY
 function CategoryReport() {
   const r = useRange("month");
-  const { data } = useMonthlyData(r.from, r.to);
+  const { data: categories = [] } = useCategories();
+  const { data } = useMonthlyData(r.from, r.to, categories);
   return (<>
     {r.el}
     <Card>
