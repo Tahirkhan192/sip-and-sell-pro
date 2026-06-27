@@ -229,7 +229,8 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
 
 function MonthlyReport() {
   const r = useRange("month");
-  const { data } = useMonthlyData(r.from, r.to);
+  const { data: categories = [] } = useCategories();
+  const { data } = useMonthlyData(r.from, r.to, categories);
   return (<>
     {r.el}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
