@@ -59,7 +59,7 @@ function DailyReport() {
   const { data } = useQuery({
     queryKey: ["report", "daily", r.from, r.to],
     queryFn: async () => {
-      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.from).lt("sale_date", dayPlus(r.to));
+      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC);
       const rows = sales.data ?? [];
       const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
       for (const s of rows as any[]) {
@@ -426,7 +426,7 @@ function SalesReport() {
   const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "sales-items", r.from, r.to],
-    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.from).lt("sales.sale_date", dayPlus(r.to))).data ?? [],
+    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC)).data ?? [],
   });
   const rows = useMemo(() => {
     const m: Record<string, { name: string; category: string; qty: number; rev: number }> = {};
