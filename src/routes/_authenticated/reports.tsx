@@ -112,7 +112,7 @@ function DailyReport() {
 }
 
 // ============================================================ MONTHLY
-function useMonthlyData(from: string, to: string) {
+function useMonthlyData(from: string, to: string, categories: string[]) {
   return useQuery({
     queryKey: ["report", "monthly-full", from, to],
     queryFn: async () => {
