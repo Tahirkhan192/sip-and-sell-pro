@@ -55,7 +55,7 @@ function dayPlus(d: string) {
 
 // ============================================================ DAILY
 function DailyReport() {
-  const r = useRange(today(), today());
+  const r = useRange("today");
   const { data } = useQuery({
     queryKey: ["report", "daily", r.from, r.to],
     queryFn: async () => {
@@ -228,7 +228,7 @@ function useMonthlyData(from: string, to: string) {
 }
 
 function MonthlyReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data } = useMonthlyData(r.from, r.to);
   return (<>
     {r.el}
@@ -275,7 +275,7 @@ function MonthlyReport() {
 
 // ============================================================ CATEGORY
 function CategoryReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data } = useMonthlyData(r.from, r.to);
   return (<>
     {r.el}
@@ -353,7 +353,7 @@ function StockReport() {
 
 // ============================================================ PURCHASES
 function PurchaseReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "purchases", r.from, r.to],
     queryFn: async () => (await supabase.from("stock_purchases").select("*, products(name), stock_items(name)").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
@@ -384,7 +384,7 @@ function PurchaseReport() {
 
 // ============================================================ EXPENSES
 function ExpenseReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "expenses", r.from, r.to],
     queryFn: async () => (await supabase.from("expenses").select("*").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
@@ -421,7 +421,7 @@ function ExpenseReport() {
 
 // ============================================================ SALES
 function SalesReport() {
-  const r = useRange(startOfMonth(), today());
+  const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "sales-items", r.from, r.to],
     queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.from).lt("sales.sale_date", dayPlus(r.to))).data ?? [],
