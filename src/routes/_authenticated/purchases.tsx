@@ -85,11 +85,13 @@ function Page() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (data as any[]).filter((p) => {
+    let rows = (data as any[]).filter((p) => {
       const name = p.products?.name ?? p.stock_items?.name ?? "";
       return name.toLowerCase().includes(q) || (p.supplier ?? "").toLowerCase().includes(q);
     });
-  }, [data, search]);
+    if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
+    return rows;
+  }, [data, search, catFilter]);
 
   return (
     <div>
