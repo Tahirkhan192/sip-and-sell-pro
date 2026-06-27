@@ -3,25 +3,38 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { money, today, startOfMonth, num } from "@/lib/format";
-import { AlertTriangle, TrendingUp, ShoppingBag, Wallet, Receipt, Truck, Bike } from "lucide-react";
+import { money, num } from "@/lib/format";
+import { AlertTriangle, TrendingUp, ShoppingBag, Wallet, Receipt, Truck, Bike, Tag } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { buildRange, businessToday } from "@/lib/business-date";
+import { useCategories } from "@/lib/use-categories";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
 async function fetchDashboard() {
-  const t = today();
-  const m = startOfMonth();
-  const tomorrow = new Date(new Date(t).getTime() + 86400000).toISOString().slice(0, 10);
-  const [todaySalesQ, monthSalesQ, monthExpensesQ, monthDelExpQ, todayDelExpQ, productsQ, last7Q, monthPurchQ] = await Promise.all([
-    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null).gte("sale_date", t).lt("sale_date", tomorrow),
-    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null).gte("sale_date", m),
-    supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", m),
-    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", m),
-    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).eq("date", t),
+  const todayRange = buildRange("today");
+  const monthRange = buildRange("month");
+  const businessDay = businessToday();
+
+  const [
+    todaySalesQ, monthSalesQ, monthExpensesQ, monthDelExpQ, todayDelExpQ,
+    productsQ, last7Q, monthPurchQ, todaySaleItemsQ, monthSaleItemsQ,
+  ] = await Promise.all([
+    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null)
+      .gte("sale_date", todayRange.startUTC).lt("sale_date", todayRange.endExclusiveUTC),
+    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null)
+      .gte("sale_date", monthRange.startUTC).lt("sale_date", monthRange.endExclusiveUTC),
+    supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
+    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
+    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).eq("date", todayRange.from),
     supabase.from("products").select("id, name, current_stock, minimum_stock, cost_price, category").is("deleted_at", null),
-    supabase.from("sales").select("grand_total, sale_date").is("deleted_at", null).gte("sale_date", new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)),
-    supabase.from("stock_purchases").select("total_cost").is("deleted_at", null).gte("date", m),
+    supabase.from("sales").select("grand_total, sale_date").is("deleted_at", null)
+      .gte("sale_date", buildRange("custom", addDaysISO(businessDay, -6), businessDay).startUTC),
+    supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
+    supabase.from("sale_items").select("quantity, total, products!inner(category, cost_price), sales!inner(sale_date, status, deleted_at)")
+      .gte("sales.sale_date", todayRange.startUTC).lt("sales.sale_date", todayRange.endExclusiveUTC),
+    supabase.from("sale_items").select("quantity, total, products!inner(category, cost_price), sales!inner(sale_date, status, deleted_at)")
+      .gte("sales.sale_date", monthRange.startUTC).lt("sales.sale_date", monthRange.endExclusiveUTC),
   ]);
 
   const sumGT = (rows: any[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.grand_total), 0);
@@ -36,51 +49,110 @@ async function fetchDashboard() {
   const todayDelExp = (todayDelExpQ.data ?? []).reduce((s, r: any) => s + num(r.fuel_cost) + num(r.maintenance_cost), 0);
   const monthPurch = (monthPurchQ.data ?? []).reduce((s, r: any) => s + num(r.total_cost), 0);
 
-  // Approximate business profit: monthly sales (ex delivery) - purchases - general expenses (closing stock approx ignored on dashboard)
+  // Today's COGS for business profit (sum of item.qty * product.cost_price)
+  const todayCogs = ((todaySaleItemsQ.data as any[]) ?? []).filter((it) => !it.sales?.deleted_at && it.sales?.status === "completed")
+    .reduce((s, it) => s + num(it.quantity) * num(it.products?.cost_price), 0);
+  const todaySalesExDel = todayRev - todayDelCharges;
+  const todayBizProfit = todaySalesExDel - todayCogs;
+  const todayDelProfit = todayDelCharges - todayDelExp;
+  const todayTotalProfit = todayBizProfit + todayDelProfit;
+
   const monthSalesExDel = monthRev - monthDelCharges;
   const monthBizProfit = monthSalesExDel - monthPurch - monthExp;
   const monthDelProfit = monthDelCharges - monthDelExp;
   const monthOverall = monthBizProfit + monthDelProfit;
-  const todayDelProfit = todayDelCharges - todayDelExp;
-  const todayProfitApprox = todayRev - todayDelCharges; // simplified: revenue ex delivery
+
+  // Per-category breakdown
+  const catMap: Record<string, { todaySales: number; monthSales: number; monthCogs: number; monthPurch: number }> = {};
+  const getCat = (c: string) => (catMap[c] ??= { todaySales: 0, monthSales: 0, monthCogs: 0, monthPurch: 0 });
+  for (const it of (todaySaleItemsQ.data as any[]) ?? []) {
+    if (it.sales?.deleted_at || it.sales?.status !== "completed") continue;
+    getCat(it.products?.category ?? "—").todaySales += num(it.total);
+  }
+  for (const it of (monthSaleItemsQ.data as any[]) ?? []) {
+    if (it.sales?.deleted_at || it.sales?.status !== "completed") continue;
+    const c = getCat(it.products?.category ?? "—");
+    c.monthSales += num(it.total);
+    c.monthCogs += num(it.quantity) * num(it.products?.cost_price);
+  }
+  for (const r of (monthPurchQ.data as any[]) ?? []) {
+    getCat(r.category ?? "—").monthPurch += num(r.total_cost);
+  }
 
   const low = (productsQ.data ?? []).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
 
   const days: { day: string; total: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    const total = (last7Q.data ?? []).filter((r: any) => r.sale_date.startsWith(d)).reduce((s, r: any) => s + num(r.grand_total), 0);
+    const d = addDaysISO(businessDay, -i);
+    const r = buildRange("custom", d, d);
+    const total = (last7Q.data ?? []).filter((row: any) => row.sale_date >= r.startUTC && row.sale_date < r.endExclusiveUTC)
+      .reduce((s, row: any) => s + num(row.grand_total), 0);
     days.push({ day: d.slice(5), total });
   }
 
-  return { todayRev, todayDelCharges, todayDelProfit, todayProfitApprox, monthRev, monthBizProfit, monthDelProfit, monthOverall, low, days };
+  return {
+    todayRev, todayDelCharges, todayDelProfit, todayBizProfit, todayTotalProfit,
+    monthRev, monthBizProfit, monthDelProfit, monthOverall, low, days, catMap,
+  };
+}
+
+function addDaysISO(d: string, n: number): string {
+  const t = new Date(`${d}T00:00:00.000Z`);
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
 }
 
 function Dashboard() {
   const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard, refetchInterval: 30000 });
+  const { data: categories = [] } = useCategories();
   const d = data;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Live view of café operations</p>
+        <p className="text-sm text-muted-foreground">Live view of café operations • business day rolls over 08:00 PKT</p>
       </div>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <KPI title="Today's Sales" icon={Receipt} value={money(d?.todayRev)} loading={isLoading} />
-        <KPI title="Today's Profit" icon={TrendingUp} value={money(d?.todayProfitApprox)} hint="approx — full P&L in Reports" loading={isLoading} />
-        <KPI title="Today's Delivery Charges" icon={Truck} value={money(d?.todayDelCharges)} loading={isLoading} />
+        <KPI title="Today's Business Profit" icon={Wallet} value={money(d?.todayBizProfit)} loading={isLoading} />
         <KPI title="Today's Delivery Profit" icon={Bike} value={money(d?.todayDelProfit)} loading={isLoading} />
+        <KPI title="Today's Total Profit" icon={TrendingUp} value={money(d?.todayTotalProfit)} loading={isLoading} emphasize />
         <KPI title="Monthly Sales" icon={ShoppingBag} value={money(d?.monthRev)} loading={isLoading} />
         <KPI title="Monthly Business Profit" icon={Wallet} value={money(d?.monthBizProfit)} loading={isLoading} />
-        <KPI title="Monthly Delivery Profit" icon={Bike} value={money(d?.monthDelProfit)} loading={isLoading} />
+        <KPI title="Monthly Delivery Profit" icon={Truck} value={money(d?.monthDelProfit)} loading={isLoading} />
         <KPI title="Overall Monthly Profit" icon={TrendingUp} value={money(d?.monthOverall)} loading={isLoading} emphasize />
       </div>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><Tag className="h-4 w-4" /> Category Sales Summary</CardTitle>
+          <span className="text-xs text-muted-foreground">Today • This month</span>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            {categories.map((c) => {
+              const cd = d?.catMap?.[c] ?? { todaySales: 0, monthSales: 0, monthCogs: 0, monthPurch: 0 };
+              const monthProfit = cd.monthSales - cd.monthCogs;
+              return (
+                <div key={c} className="rounded-lg border p-3 bg-card">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{c}</div>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Today</span><span className="font-medium">{money(cd.todaySales)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Month</span><span className="font-medium">{money(cd.monthSales)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Profit</span><span className={"font-semibold " + (monthProfit >= 0 ? "text-primary" : "text-destructive")}>{money(monthProfit)}</span></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Sales — last 7 days</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Sales — last 7 business days</CardTitle></CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={d?.days ?? []}>
