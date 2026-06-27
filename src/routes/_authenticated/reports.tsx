@@ -171,7 +171,7 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
 
       // Per-category aggregation
       const catData: Record<string, { sales: number; revenueQty: number; opening: number; purchases: number; closing: number; cogs: number }> = {};
-      for (const cat of CATEGORIES) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
+      for (const cat of categories) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
 
       for (const p of prods) {
         const cat = p.category ?? "—";
