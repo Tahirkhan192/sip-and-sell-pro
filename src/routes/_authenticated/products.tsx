@@ -162,12 +162,13 @@ function ProductsPage() {
 
       <CrudDialog title={form.id ? "Edit Product" : "Add Product"} open={open} onOpenChange={setOpen} onSubmit={async () => {
         if (!form.name.trim()) { toast.error("Name required"); return false; }
+        if (!form.category) { toast.error("Category required"); return false; }
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div className="space-y-2"><Label>Category</Label>
+        <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label>
           <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
             <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
         </div>
