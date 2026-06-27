@@ -68,6 +68,33 @@ export type Database = {
         }
         Relationships: []
       }
+      categories: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -260,7 +287,7 @@ export type Database = {
       products: {
         Row: {
           active: boolean
-          category: string | null
+          category: string
           cost_price: number
           created_at: string
           current_stock: number
@@ -273,7 +300,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
-          category?: string | null
+          category: string
           cost_price?: number
           created_at?: string
           current_stock?: number
@@ -286,7 +313,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
-          category?: string | null
+          category?: string
           cost_price?: number
           created_at?: string
           current_stock?: number
@@ -424,6 +451,7 @@ export type Database = {
       }
       stock_purchases: {
         Row: {
+          category: string
           created_at: string
           date: string
           deleted_at: string | null
@@ -437,6 +465,7 @@ export type Database = {
           unit_cost: number
         }
         Insert: {
+          category: string
           created_at?: string
           date?: string
           deleted_at?: string | null
@@ -450,6 +479,7 @@ export type Database = {
           unit_cost: number
         }
         Update: {
+          category?: string
           created_at?: string
           date?: string
           deleted_at?: string | null
@@ -538,6 +568,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      business_date: { Args: { ts: string }; Returns: string }
+      category_monthly_report: {
+        Args: { _month: string }
+        Returns: {
+          category: string
+          closing_value: number
+          expenses_allocated: number
+          gross_profit: number
+          net_profit: number
+          opening_value: number
+          purchased_value: number
+          sales_cogs: number
+          sales_qty: number
+          sales_revenue: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
