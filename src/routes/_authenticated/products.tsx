@@ -10,9 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Search, ArrowUpDown } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ArrowUpDown, Copy } from "lucide-react";
 import { money, num } from "@/lib/format";
-import { CATEGORIES } from "@/lib/categories";
+import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
