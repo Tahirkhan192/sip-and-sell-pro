@@ -21,6 +21,7 @@ type P = {
   id?: string;
   date: string;
   target: "product" | "stock_item";
+  category: string;
   product_id: string;
   stock_item_id: string;
   quantity: number;
@@ -28,7 +29,7 @@ type P = {
   supplier: string;
   notes: string;
 };
-const empty: P = { date: today(), target: "product", product_id: "", stock_item_id: "", quantity: 0, unit_cost: 0, supplier: "", notes: "" };
+const empty: P = { date: today(), target: "product", category: "", product_id: "", stock_item_id: "", quantity: 0, unit_cost: 0, supplier: "", notes: "" };
 
 function Page() {
   const qc = useQueryClient();
