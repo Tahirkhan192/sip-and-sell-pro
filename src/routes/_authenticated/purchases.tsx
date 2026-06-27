@@ -41,7 +41,7 @@ function Page() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active-all"],
-    queryFn: async () => (await supabase.from("products").select("id,name").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id,name,category").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", "all"],
