@@ -35,6 +35,7 @@ type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
 function ProductsPage() {
   const qc = useQueryClient();
+  const { data: categories = [] } = useCategories();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("name");
