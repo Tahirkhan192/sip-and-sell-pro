@@ -38,17 +38,14 @@ function Reports() {
   );
 }
 
-function useRange(initFrom: string, initTo: string) {
-  const [from, setFrom] = useState(initFrom);
-  const [to, setTo] = useState(initTo);
+function useRange(initPreset: "today" | "month" = "month") {
+  const f = useDateRangeFilter(initPreset);
   return {
-    from, to, setFrom, setTo,
-    el: (
-      <div className="grid grid-cols-2 gap-2 max-w-sm mb-4">
-        <div className="space-y-1"><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-        <div className="space-y-1"><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-      </div>
-    ),
+    from: f.range.from,
+    to: f.range.to,
+    startUTC: f.range.startUTC,
+    endExclusiveUTC: f.range.endExclusiveUTC,
+    el: f.el,
   };
 }
 
