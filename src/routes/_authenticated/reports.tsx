@@ -1,15 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
-import { money, num, today, startOfMonth } from "@/lib/format";
-import { CATEGORIES } from "@/lib/categories";
+import { money, num } from "@/lib/format";
+import { useCategories } from "@/lib/use-categories";
+import { useDateRangeFilter } from "@/components/DateRangeFilter";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: Reports });
 
