@@ -16,6 +16,8 @@ import {
   Sun,
   Coffee,
   Menu,
+  ChefHat,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -40,6 +42,7 @@ const NAV: NavItem[] = [
   { to: "/pos", label: "POS", icon: ShoppingCart },
   { to: "/sales", label: "Sales", icon: Receipt },
   { to: "/products", label: "Products", icon: Package },
+  { to: "/recipes", label: "Recipes", icon: ChefHat },
   { to: "/stock-items", label: "Stock Items", icon: Boxes },
   { to: "/purchases", label: "Purchases", icon: Truck },
   { to: "/expenses", label: "Expenses", icon: Wallet },
@@ -47,6 +50,7 @@ const NAV: NavItem[] = [
   { to: "/delivery-report", label: "Delivery Report", icon: Send },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/reports", label: "Reports", icon: BarChart3 },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 function useTheme() {

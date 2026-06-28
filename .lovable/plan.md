@@ -1,67 +1,98 @@
-# Café Management Upgrade Plan
+# POS Complete Business Logic — Implementation Plan
 
-## 1. Database changes (single migration)
+Big change. Confirm before I build.
 
-**New `categories` table** (future-ready, owner-editable later):
-- `id uuid pk`, `name text unique not null`, `sort_order int`, `deleted_at timestamptz`
-- Seeded with: Karahi, Fast Food, Snacks, Juices, Cold Drinks, **Biryani** (new)
-- RLS: authenticated read; admin write
-- `products.category` and `stock_purchases` keep using text name (soft FK to `categories.name`) so existing rows stay valid. New rows validated by trigger that ensures `category` exists in `categories` and is not soft-deleted.
+## 1. Database (one migration)
 
-**Products**: make `category` NOT NULL (after backfilling any nulls to 'Snacks'). UI dropdown sourced from `categories` table.
+### `products` — add columns
+- `unit` text not null default `'pcs'` (`pcs` | `kg` | `ltr`)
+- `selling_method` text not null default `'fixed'` (`fixed` | `weight`)
+- `allow_negative_stock` boolean default false
 
-**Stock purchases**: add `category text not null` (backfill from joined product's category; for `stock_item` rows default to 'Snacks' or pick from form). New trigger keeps `category` in sync with chosen product on insert/update.
+`sale_price` keeps its meaning: price per piece for `fixed`, price per KG/LTR for `weight`.
 
-**Business-day helper**:
-```sql
-create function business_date(ts timestamptz)
-returns date language sql immutable as $$
-  select ((ts at time zone 'Asia/Karachi') - interval '8 hours')::date
-$$;
+### `recipes` (new) — linked products / BOM
 ```
-All report queries use `business_date(sale_date)` etc. instead of `sale_date::date`.
+id, parent_product_id (fk products), component_product_id (fk products),
+quantity numeric not null,          -- amount of component per 1 parent sold
+unit text not null,                 -- kg / ltr / pcs (informational)
+deleted_at, created_at, updated_at
+```
+GRANT + RLS + service_role as per project rules.
 
-**Monthly stock snapshot RPC** `category_monthly_report(_month date)`:
-Returns per-category: opening_value, purchased_value, sales_revenue, sales_cogs, closing_value, gross_profit, expenses_allocated, net_profit. Opening = manual override from `monthly_stock_overrides` if exists, else previous month's closing. Closing = opening + purchased − COGS-of-sales for category (valued at avg cost). Expenses allocated by category-sales share.
+### `sales` — add columns
+- `cash_paid numeric default 0`
+- `online_paid numeric default 0`
+- `order_type text default 'walk_in'` (`walk_in` | `take_away` | `delivery`)
+- `delivery_boy text`
+Keep existing `payment_method` for back-compat (derived = cash if cash_paid>0 && online=0 etc).
 
-## 2. Frontend changes
+### `sale_items` — add columns
+- `unit text`
+- so quantity can be decimal (already numeric).
 
-**Categories source**: new `src/lib/use-categories.ts` hook → React Query fetch from `categories` table. Replaces hardcoded `CATEGORIES` in `src/lib/categories.ts` (file kept as fallback constant only).
+### `settings` (new, single row) — owner toggles
+- `allow_negative_stock boolean default false`
+- (room for future: tax %, currency, etc.)
 
-**Purchases page**: add required **Category** select (sourced from categories table). Required even for stock-item purchases. Existing product select filters by chosen category.
+### RPC rewrites
+**`save_sale` / `update_pending_sale`** — accept items shape:
+```
+{ product_id, quantity, rate, total, unit }
+```
+Server recomputes `total = round(quantity * rate, 2)` defensively; persists rate as `price`. Stock deduction order:
+1. If product has rows in `recipes` → for each component, subtract `quantity_sold * recipe.quantity` from component product `current_stock` and from matching `stock_items`.
+2. Else → subtract `quantity_sold` from product's own `current_stock` and matching `stock_items`.
 
-**Products page**: enforce required category dropdown (same source). No save without category.
+Negative-stock guard: if `settings.allow_negative_stock = false` and resulting stock < 0 → raise. (POS UI shows a soft warning before save regardless.)
 
-**Reports page** (`reports.tsx`) — full rewrite into tabs:
-- **Daily** — uses business-date filter
-- **Monthly Dashboard** — month picker; shows Overall + per-category cards (Qty/Revenue/Gross/Net), plus footer: Monthly Sales, Expenses, Business Profit, Delivery Profit, Final Profit
-- **Category P&L** — per-category table: Opening / Purchased / Sales / Closing / Gross / Expenses / Net (with manual opening-override editor)
-- **Monthly Stock** — per product: Opening, Purchased, Sold, Remaining, Closing
-- **Sales / Purchases / Expenses** tables with filters
+**`restore_sale_stock`** — mirror new path (recipe-aware).
 
-**Filter presets** (shared component `DateRangePicker`): Today, Yesterday, This Week, This Month, Last Month, Custom — all computed against business date in Asia/Karachi.
+## 2. UI — POS rewrite (`src/routes/_authenticated/pos.tsx`)
 
-**Dashboard** (`index.tsx`): add cards for Today's Business Profit, Today's Total Profit, and a **Category Sales Summary** grid showing Today's Sales / Monthly Sales / Monthly Profit per category. All metrics use business-date.
+Cart line columns: **Product | Unit | Qty | Rate | Total | ✕**
 
-**Business-date util** (`src/lib/business-date.ts`): functions for today, yesterday, week, month, lastMonth, customRange — all returning UTC `timestamptz` boundaries based on 08:00 PKT day rollover.
+- Search field stays; results show name + category + stock badge.
+- After add, line shows unit chip (`KG` / `LTR` / `PCS`).
+- **Fixed products**: rate readonly (from product), qty editable → total auto.
+- **Weight products**: three editable fields with live two-way bind:
+  - edit qty → total = qty × rate
+  - edit total → qty = total / rate
+  - edit rate → total = qty × rate
+  - last-edited-field tracking prevents loops.
+- Live low-stock badge per line (red if requested > available; still allow save).
+- Footer:
+  - Order Type tabs: Walk-in / Take-away / Delivery (Walk-in forces delivery=0 and disables delivery boy)
+  - Delivery Charges + Delivery Boy (only when Delivery)
+  - **Payment** grid: Grand Total | Cash Paid | Online Paid | Remaining | Change
+    - Remaining = max(0, Grand − Cash − Online); Change = max(0, Cash+Online − Grand)
+  - Save Pending / Save Complete / Print Last
 
-**CRUD additions**: add **Duplicate** action to Products, Purchases, Expenses, Sales tables. Already have create/edit/delete/search/filter/sort and soft-delete.
+Keyboard: `/` focuses search, Enter adds first match, Tab cycles cart fields, Esc closes invoice search popover.
 
-**Auto-refresh**: existing React Query `invalidateQueries` on mutations covers this; verify dashboard + reports queries are invalidated on every mutation.
+## 3. UI — Products page (`products.tsx`)
+Add Unit + Selling Method selects. When `selling_method=weight`, label price as "Price per KG/LTR".
 
-## 3. Out of scope (not requested in this turn)
+## 4. UI — Recipes (new page `recipes.tsx`)
+Parent product → list of (component product, quantity, unit). CRUD + soft delete + duplicate. Added to AppShell nav.
 
-- Undo-last-delete UI beyond existing soft delete (records remain restorable in DB; no toast-level undo widget added unless asked).
-- Allocation of *general* expenses to categories uses revenue-share; if user prefers another method we'll adjust.
+## 5. UI — Settings (new minimal page `settings.tsx`)
+Single toggle: Allow negative stock. Owner only.
 
-## 4. Execution order
+## 6. Reports / Dashboard
+No structural change — already category-driven and uses business_date. They automatically reflect new sale_items because COGS now flows through recipes:
+- Update `category_monthly_report` so `sales_cogs` uses recipe expansion (sum of component cost_price × component qty) when recipes exist, else falls back to product cost_price as today.
 
-1. Migration (categories table + seed Biryani + business_date fn + purchases.category column + category_monthly_report RPC + override semantics)
-2. Categories hook + business-date util
-3. Update Products, Purchases forms (category required + dropdown from DB)
-4. Rewrite Reports page with tabs and presets
-5. Update Dashboard cards + category summary
-6. Add Duplicate buttons across modules
-7. Verify build + smoke-test the preview
+## 7. Out of scope this round
+- Barcode scanning, KDS, WhatsApp invoice, employee/role pages beyond existing — already future-stubbed.
+- Tax/discount fields on invoice (not requested).
 
-Confirm to proceed and I'll execute.
+## Execution order
+1. Migration (schema + RPC rewrites + report RPC update)
+2. POS rewrite with live calc + payments + order type
+3. Products form: unit + selling_method
+4. Recipes CRUD page + nav entry
+5. Settings page + negative-stock guard wiring
+6. Smoke test: create weight product, recipe, sell, verify stock + reports
+
+Approve and I'll build it straight through.

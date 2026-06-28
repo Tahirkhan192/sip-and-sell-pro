@@ -287,6 +287,7 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          allow_negative_stock: boolean
           category: string
           cost_price: number
           created_at: string
@@ -297,9 +298,12 @@ export type Database = {
           name: string
           opening_stock: number
           sale_price: number
+          selling_method: string
+          unit: string
         }
         Insert: {
           active?: boolean
+          allow_negative_stock?: boolean
           category: string
           cost_price?: number
           created_at?: string
@@ -310,9 +314,12 @@ export type Database = {
           name: string
           opening_stock?: number
           sale_price?: number
+          selling_method?: string
+          unit?: string
         }
         Update: {
           active?: boolean
+          allow_negative_stock?: boolean
           category?: string
           cost_price?: number
           created_at?: string
@@ -323,8 +330,58 @@ export type Database = {
           name?: string
           opening_stock?: number
           sale_price?: number
+          selling_method?: string
+          unit?: string
         }
         Relationships: []
+      }
+      recipes: {
+        Row: {
+          component_product_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          parent_product_id: string
+          quantity: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          component_product_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          parent_product_id: string
+          quantity: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          component_product_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          parent_product_id?: string
+          quantity?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sale_items: {
         Row: {
@@ -334,6 +391,7 @@ export type Database = {
           quantity: number
           sale_id: string
           total: number
+          unit: string | null
         }
         Insert: {
           id?: string
@@ -342,6 +400,7 @@ export type Database = {
           quantity: number
           sale_id: string
           total: number
+          unit?: string | null
         }
         Update: {
           id?: string
@@ -350,6 +409,7 @@ export type Database = {
           quantity?: number
           sale_id?: string
           total?: number
+          unit?: string | null
         }
         Relationships: [
           {
@@ -370,43 +430,73 @@ export type Database = {
       }
       sales: {
         Row: {
+          cash_paid: number
           created_at: string
           created_by: string | null
           customer_name: string | null
           deleted_at: string | null
+          delivery_boy: string | null
           delivery_charges: number
           grand_total: number
           id: string
           invoice_no: string
+          online_paid: number
+          order_type: string
           payment_method: string
           sale_date: string
           status: string
         }
         Insert: {
+          cash_paid?: number
           created_at?: string
           created_by?: string | null
           customer_name?: string | null
           deleted_at?: string | null
+          delivery_boy?: string | null
           delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          online_paid?: number
+          order_type?: string
           payment_method?: string
           sale_date?: string
           status?: string
         }
         Update: {
+          cash_paid?: number
           created_at?: string
           created_by?: string | null
           customer_name?: string | null
           deleted_at?: string | null
+          delivery_boy?: string | null
           delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          online_paid?: number
+          order_type?: string
           payment_method?: string
           sale_date?: string
           status?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          allow_negative_stock: boolean
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          allow_negative_stock?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_negative_stock?: boolean
+          id?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -568,6 +658,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_stock_for_sale_item: {
+        Args: { _product_id: string; _quantity: number; _sign: number }
+        Returns: undefined
+      }
       business_date: { Args: { ts: string }; Returns: string }
       category_monthly_report: {
         Args: { _month: string }
@@ -592,63 +686,146 @@ export type Database = {
         Returns: boolean
       }
       restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
-      save_sale: {
-        Args: {
-          _customer_name?: string
-          _delivery_charges?: number
-          _items: Json
-          _payment_method?: string
-          _status?: string
-        }
-        Returns: {
-          created_at: string
-          created_by: string | null
-          customer_name: string | null
-          deleted_at: string | null
-          delivery_charges: number
-          grand_total: number
-          id: string
-          invoice_no: string
-          payment_method: string
-          sale_date: string
-          status: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "sales"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      update_pending_sale: {
-        Args: {
-          _customer_name?: string
-          _delivery_charges?: number
-          _items: Json
-          _payment_method?: string
-          _sale_id: string
-          _status?: string
-        }
-        Returns: {
-          created_at: string
-          created_by: string | null
-          customer_name: string | null
-          deleted_at: string | null
-          delivery_charges: number
-          grand_total: number
-          id: string
-          invoice_no: string
-          payment_method: string
-          sale_date: string
-          status: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "sales"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      save_sale:
+        | {
+            Args: {
+              _customer_name?: string
+              _delivery_charges?: number
+              _items: Json
+              _payment_method?: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_name: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _items: Json
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_name: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      update_pending_sale:
+        | {
+            Args: {
+              _customer_name?: string
+              _delivery_charges?: number
+              _items: Json
+              _payment_method?: string
+              _sale_id: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_name: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _items: Json
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _sale_id: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_name: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
     }
     Enums: {
       app_role: "admin" | "staff"

@@ -28,8 +28,10 @@ type P = {
   current_stock: number;
   minimum_stock: number;
   active: boolean;
+  unit: string;
+  selling_method: "fixed" | "weight";
 };
-const empty: P = { name: "", category: "Karahi", sale_price: 0, cost_price: 0, opening_stock: 0, current_stock: 0, minimum_stock: 0, active: true };
+const empty: P = { name: "", category: "Karahi", sale_price: 0, cost_price: 0, opening_stock: 0, current_stock: 0, minimum_stock: 0, active: true, unit: "pcs", selling_method: "fixed" };
 
 type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
@@ -59,6 +61,8 @@ function ProductsPage() {
         current_stock: p.current_stock,
         minimum_stock: p.minimum_stock,
         active: p.active,
+        unit: p.unit,
+        selling_method: p.selling_method,
       };
       const res = p.id
         ? await supabase.from("products").update(payload).eq("id", p.id)
@@ -149,7 +153,7 @@ function ProductsPage() {
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ ...empty, ...p }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { const { id, ...rest } = p; setForm({ ...rest, name: `${p.name} (copy)` } as P); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
@@ -173,7 +177,28 @@ function ProductsPage() {
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>Sale price</Label><Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Unit</Label>
+            <Select value={form.unit} onValueChange={(v) => setForm({ ...form, unit: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pcs">PCS</SelectItem>
+                <SelectItem value="kg">KG</SelectItem>
+                <SelectItem value="ltr">LTR</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2"><Label>Selling method</Label>
+            <Select value={form.selling_method} onValueChange={(v: any) => setForm({ ...form, selling_method: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fixed price (per piece)</SelectItem>
+                <SelectItem value="weight">Weight / Volume (per KG / LTR)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: Number(e.target.value) })} /></div>
           <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: Number(e.target.value) })} /></div>
         </div>
         <div className="grid grid-cols-3 gap-2">
