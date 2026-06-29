@@ -297,7 +297,8 @@ function CategoryReport() {
           <TableHead className="text-right">Qty Sold</TableHead>
           <TableHead className="text-right">Total Revenue</TableHead>
           <TableHead className="text-right">Opening</TableHead>
-          <TableHead className="text-right">Purchased</TableHead>
+          <TableHead className="text-right">Product Purchases</TableHead>
+          <TableHead className="text-right">Stock Item Purchases</TableHead>
           <TableHead className="text-right">Closing</TableHead>
           <TableHead className="text-right">COGS</TableHead>
           <TableHead className="text-right">Gross Profit</TableHead>
@@ -305,13 +306,14 @@ function CategoryReport() {
           <TableHead className="text-right">Net Profit</TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {(data?.catRows ?? []).map((c) => (
+          {(data?.catRows ?? []).map((c: any) => (
             <TableRow key={c.category}>
               <TableCell className="font-medium">{c.category}</TableCell>
-              <TableCell className="text-right">{c.revenueQty.toFixed(2)}</TableCell>
+              <TableCell className="text-right">{Number(c.revenueQty).toFixed(2)}</TableCell>
               <TableCell className="text-right">{money(c.sales)}</TableCell>
               <TableCell className="text-right">{money(c.opening)}</TableCell>
-              <TableCell className="text-right">{money(c.purchases)}</TableCell>
+              <TableCell className="text-right">{money(c.productPurchases)}</TableCell>
+              <TableCell className="text-right">{money(c.stockPurchases)}</TableCell>
               <TableCell className="text-right">{money(c.closing)}</TableCell>
               <TableCell className="text-right">{money(c.cogs)}</TableCell>
               <TableCell className="text-right">{money(c.grossProfit)}</TableCell>
