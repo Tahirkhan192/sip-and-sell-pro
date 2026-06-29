@@ -119,11 +119,12 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
       const startUTC = `${from}T03:00:00.000Z`;
       const toNext = new Date(`${to}T00:00:00.000Z`); toNext.setUTCDate(toNext.getUTCDate() + 1);
       const endExclusiveUTC = `${toNext.toISOString().slice(0, 10)}T03:00:00.000Z`;
-      const [salesQ, expQ, delExpQ, purchProdQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
+      const [salesQ, expQ, delExpQ, purchProdQ, purchStockQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
         supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC),
         supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to),
         supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to),
-        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to),
+        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to),
+        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to),
         supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null),
         supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC),
         supabase.from("monthly_stock_overrides").select("*").eq("year", Number(from.slice(0, 4))).eq("month", Number(from.slice(5, 7))),
@@ -171,33 +172,39 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
         if (o.scope === "product" && o.product_id) prodOverride[o.product_id] = { opening: o.opening_value ?? undefined, closing: o.closing_value ?? undefined };
       }
 
-      // Per-category aggregation
-      const catData: Record<string, { sales: number; revenueQty: number; opening: number; purchases: number; closing: number; cogs: number }> = {};
-      for (const cat of categories) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
+      // Per-category aggregation — track product purchases vs stock-item purchases separately
+      const catData: Record<string, { sales: number; revenueQty: number; opening: number; productPurchases: number; stockPurchases: number; purchases: number; closing: number; cogs: number }> = {};
+      const ensure = (cat: string) => (catData[cat] ??= { sales: 0, revenueQty: 0, opening: 0, productPurchases: 0, stockPurchases: 0, purchases: 0, closing: 0, cogs: 0 });
+      for (const cat of categories) ensure(cat);
 
       for (const p of prods) {
         const cat = p.category ?? "—";
-        if (!catData[cat]) catData[cat] = { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
+        const cd = ensure(cat);
         const cp = num(p.cost_price);
         const openingVal = prodOverride[p.id]?.opening ?? num(p.opening_stock) * cp;
-        // Closing stock estimate = current_stock × cost_price (snapshot). Manual override if provided.
         const closingVal = prodOverride[p.id]?.closing ?? num(p.current_stock) * cp;
         const purch = purchByProd[p.id] ?? { qty: 0, cost: 0 };
         const sold = soldByProd[p.id] ?? { qty: 0, revenue: 0 };
-        catData[cat].opening += openingVal;
-        catData[cat].closing += closingVal;
-        catData[cat].purchases += purch.cost;
-        catData[cat].sales += sold.revenue;
-        catData[cat].revenueQty += sold.qty;
+        cd.opening += openingVal;
+        cd.closing += closingVal;
+        cd.productPurchases += purch.cost;
+        cd.sales += sold.revenue;
+        cd.revenueQty += sold.qty;
+      }
+      // Add stock-item purchases by their category
+      for (const r of ((purchStockQ.data ?? []) as any[])) {
+        const cat = r.category ?? "—";
+        ensure(cat).stockPurchases += num(r.total_cost);
       }
       // Apply category-level overrides (replace, not add)
       for (const [cat, ov] of Object.entries(catOverride)) {
-        catData[cat] ??= { sales: 0, revenueQty: 0, opening: 0, purchases: 0, closing: 0, cogs: 0 };
-        if (ov.opening !== undefined) catData[cat].opening = ov.opening;
-        if (ov.closing !== undefined) catData[cat].closing = ov.closing;
+        const cd = ensure(cat);
+        if (ov.opening !== undefined) cd.opening = ov.opening;
+        if (ov.closing !== undefined) cd.closing = ov.closing;
       }
-      // COGS per category = opening + purchases - closing
+      // Total purchases per category + COGS
       for (const c of Object.keys(catData)) {
+        catData[c].purchases = catData[c].productPurchases + catData[c].stockPurchases;
         catData[c].cogs = catData[c].opening + catData[c].purchases - catData[c].closing;
       }
 
@@ -290,7 +297,8 @@ function CategoryReport() {
           <TableHead className="text-right">Qty Sold</TableHead>
           <TableHead className="text-right">Total Revenue</TableHead>
           <TableHead className="text-right">Opening</TableHead>
-          <TableHead className="text-right">Purchased</TableHead>
+          <TableHead className="text-right">Product Purchases</TableHead>
+          <TableHead className="text-right">Stock Item Purchases</TableHead>
           <TableHead className="text-right">Closing</TableHead>
           <TableHead className="text-right">COGS</TableHead>
           <TableHead className="text-right">Gross Profit</TableHead>
@@ -298,13 +306,14 @@ function CategoryReport() {
           <TableHead className="text-right">Net Profit</TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {(data?.catRows ?? []).map((c) => (
+          {(data?.catRows ?? []).map((c: any) => (
             <TableRow key={c.category}>
               <TableCell className="font-medium">{c.category}</TableCell>
-              <TableCell className="text-right">{c.revenueQty.toFixed(2)}</TableCell>
+              <TableCell className="text-right">{Number(c.revenueQty).toFixed(2)}</TableCell>
               <TableCell className="text-right">{money(c.sales)}</TableCell>
               <TableCell className="text-right">{money(c.opening)}</TableCell>
-              <TableCell className="text-right">{money(c.purchases)}</TableCell>
+              <TableCell className="text-right">{money(c.productPurchases)}</TableCell>
+              <TableCell className="text-right">{money(c.stockPurchases)}</TableCell>
               <TableCell className="text-right">{money(c.closing)}</TableCell>
               <TableCell className="text-right">{money(c.cogs)}</TableCell>
               <TableCell className="text-right">{money(c.grossProfit)}</TableCell>

@@ -24,6 +24,9 @@ import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/po
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
 import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
+import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
+import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
+import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -101,10 +104,28 @@ const AuthenticatedDeliveryExpensesRoute =
     path: '/delivery-expenses',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicWhatsappInvoiceRoute =
+  ApiPublicWhatsappInvoiceRouteImport.update({
+    id: '/api/public/whatsapp-invoice',
+    path: '/api/public/whatsapp-invoice',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/categories': typeof AuthenticatedCategoriesRoute
+  '/customers': typeof AuthenticatedCustomersRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -117,9 +138,12 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
+  '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/categories': typeof AuthenticatedCategoriesRoute
+  '/customers': typeof AuthenticatedCustomersRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -133,11 +157,14 @@ export interface FileRoutesByTo {
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
+  '/_authenticated/customers': typeof AuthenticatedCustomersRoute
   '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
@@ -151,12 +178,15 @@ export interface FileRoutesById {
   '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/stock-items': typeof AuthenticatedStockItemsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
+    | '/categories'
+    | '/customers'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -169,9 +199,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock'
     | '/stock-items'
+    | '/api/public/whatsapp-invoice'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/categories'
+    | '/customers'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -185,10 +218,13 @@ export interface FileRouteTypes {
     | '/stock'
     | '/stock-items'
     | '/'
+    | '/api/public/whatsapp-invoice'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/categories'
+    | '/_authenticated/customers'
     | '/_authenticated/delivery-expenses'
     | '/_authenticated/delivery-report'
     | '/_authenticated/expenses'
@@ -202,11 +238,13 @@ export interface FileRouteTypes {
     | '/_authenticated/stock'
     | '/_authenticated/stock-items'
     | '/_authenticated/'
+    | '/api/public/whatsapp-invoice'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicWhatsappInvoiceRoute: typeof ApiPublicWhatsappInvoiceRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -316,10 +354,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/customers': {
+      id: '/_authenticated/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AuthenticatedCustomersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/categories': {
+      id: '/_authenticated/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/whatsapp-invoice': {
+      id: '/api/public/whatsapp-invoice'
+      path: '/api/public/whatsapp-invoice'
+      fullPath: '/api/public/whatsapp-invoice'
+      preLoaderRoute: typeof ApiPublicWhatsappInvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
+  AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
   AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
@@ -336,6 +397,8 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
+  AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
   AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
@@ -357,17 +420,8 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicWhatsappInvoiceRoute: ApiPublicWhatsappInvoiceRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

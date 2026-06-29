@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { money, num } from "@/lib/format";
-import { Trash2, Printer, Save, Clock, X, Search, User, Trash, AlertTriangle } from "lucide-react";
+import { Trash2, Printer, Save, Clock, X, Search, User, Trash, AlertTriangle, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { sendWhatsappInvoice } from "@/lib/whatsapp";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -45,11 +46,15 @@ function POS() {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState("");
+  const [phone, setPhone] = useState("");
+  const [katha, setKatha] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerResults, setShowCustomerResults] = useState(false);
   const [orderType, setOrderType] = useState<"walk_in" | "take_away" | "delivery">("walk_in");
-  const [delivery, setDelivery] = useState(0);
+  const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
-  const [cash, setCash] = useState(0);
-  const [online, setOnline] = useState(0);
+  const [cash, setCash] = useState<number | "">("");
+  const [online, setOnline] = useState<number | "">("");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
@@ -69,11 +74,13 @@ function POS() {
     if (editingSale) {
       const s: any = editingSale;
       setCustomer(s.customer_name ?? "");
+      setPhone(s.customer_phone ?? "");
+      setKatha(!!s.katha);
       setOrderType((s.order_type ?? "walk_in") as any);
-      setDelivery(num(s.delivery_charges));
+      setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
-      setCash(num(s.cash_paid));
-      setOnline(num(s.online_paid));
+      setCash(num(s.cash_paid) || "");
+      setOnline(num(s.online_paid) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
         product_id: it.product_id,
         name: it.products?.name ?? "Item",
@@ -89,6 +96,15 @@ function POS() {
       setShowInvoiceResults(false);
     }
   }, [editingSale]);
+
+  const { data: customerSuggestions = [] } = useQuery({
+    queryKey: ["customers", "search", customerSearch.trim().toLowerCase()],
+    enabled: customerSearch.trim().length >= 2,
+    queryFn: async () => (await supabase.from("customers").select("id, name, phone, outstanding_balance")
+      .is("deleted_at", null)
+      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
+      .limit(6)).data ?? [],
+  });
 
   const { data: pendingInvoices = [] } = useQuery({
     queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
@@ -151,18 +167,21 @@ function POS() {
   }
 
   function resetForm() {
-    setCart([]); setCustomer(""); setDelivery(0); setDeliveryBoy("");
-    setCash(0); setOnline(0); setOrderType("walk_in");
+    setCart([]); setCustomer(""); setPhone(""); setKatha(false);
+    setDelivery(""); setDeliveryBoy(""); setCash(""); setOnline(""); setOrderType("walk_in");
+    setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.total, 0), [cart]);
-  const effectiveDelivery = orderType === "delivery" ? delivery : 0;
+  const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
   const grandTotal = round2(subtotal + effectiveDelivery);
   const paid = round2(num(cash) + num(online));
   const remaining = Math.max(0, round2(grandTotal - paid));
   const change = Math.max(0, round2(paid - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
+  // Auto-disable katha when fully paid
+  useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
   // Keyboard: '/' focuses search, Esc closes invoice popover
   useEffect(() => {
@@ -210,24 +229,46 @@ function POS() {
         _online_paid: num(online),
         _order_type: orderType,
         _delivery_boy: deliveryBoy,
+        _customer_phone: phone,
+        _katha: katha,
       };
       if (editId) {
-        const { data, error } = await supabase.rpc("update_pending_sale", { _sale_id: editId, ...args });
+        const { data, error } = await supabase.rpc("update_pending_sale" as any, { _sale_id: editId, ...args });
         if (error) throw error;
         return { sale: data, status };
       }
-      const { data, error } = await supabase.rpc("save_sale", args);
+      const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
       return { sale: data, status };
     },
-    onSuccess: ({ sale, status }: any) => {
+    onSuccess: async ({ sale, status }: any) => {
       toast.success(status === "pending" ? `Invoice ${sale.invoice_no} saved as pending` : `Invoice ${sale.invoice_no} completed`);
-      if (status === "completed") setLastInvoice({ ...sale, items: cart });
+      if (status === "completed") {
+        setLastInvoice({ ...sale, items: cart });
+        // Silent WhatsApp send (non-blocking)
+        if (phone) {
+          sendWhatsappInvoice({
+            invoice_no: sale.invoice_no,
+            customer_phone: phone,
+            customer_name: customer,
+            grand_total: num(sale.grand_total),
+            cash_paid: num(cash),
+            online_paid: num(online),
+            items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
+          }).then((r) => {
+            if (r.ok) toast.success("WhatsApp invoice sent");
+            else if (r.reason !== "not-configured" && r.reason !== "no-phone")
+              toast.message("WhatsApp not sent — invoice saved", { description: r.reason });
+          });
+        }
+      }
       resetForm();
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
   });
@@ -308,7 +349,30 @@ function POS() {
             </div>
           )}
 
-          <Input placeholder="Customer name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+          {/* Customer + phone with live suggestions */}
+          <div className="relative grid grid-cols-2 gap-2">
+            <Input placeholder="Customer name"
+              value={customer}
+              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onFocus={() => { setCustomerSearch(customer); setShowCustomerResults(true); }}
+            />
+            <Input placeholder="Mobile number"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onFocus={() => { setCustomerSearch(phone); setShowCustomerResults(true); }}
+            />
+            {showCustomerResults && customerSearch.trim().length >= 2 && customerSuggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
+                {(customerSuggestions as any[]).map((c) => (
+                  <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
+                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setShowCustomerResults(false); }}>
+                    <span><User className="h-3 w-3 inline mr-1" />{c.name}{c.phone ? ` · ${c.phone}` : ""}</span>
+                    {num(c.outstanding_balance) > 0 && <span className="text-xs text-destructive">{money(c.outstanding_balance)}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Order type */}
           <div className="grid grid-cols-3 gap-1">
@@ -392,7 +456,7 @@ function POS() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Delivery Charges</Label>
-                <Input type="number" step="0.01" value={delivery} onChange={(e) => setDelivery(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={delivery} placeholder="0.00" onChange={(e) => setDelivery(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Delivery Boy</Label>
@@ -412,11 +476,11 @@ function POS() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Cash Paid</Label>
-                <Input type="number" step="0.01" value={cash} onChange={(e) => setCash(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={cash} placeholder="0.00" onChange={(e) => setCash(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Online Paid</Label>
-                <Input type="number" step="0.01" value={online} onChange={(e) => setOnline(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={online} placeholder="0.00" onChange={(e) => setOnline(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -429,7 +493,24 @@ function POS() {
                 <span className={"font-semibold " + (change > 0 ? "text-emerald-600" : "")}>{money(change)}</span>
               </div>
             </div>
-            {remaining > 0 && paid > 0 && <Badge variant="secondary" className="w-full justify-center">Customer credit: {money(remaining)}</Badge>}
+
+            {/* Katha toggle */}
+            <label className={"flex items-center gap-2 text-xs rounded px-2 py-1.5 border " + (remaining <= 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+              <input type="checkbox" disabled={remaining <= 0} checked={katha} onChange={(e) => setKatha(e.target.checked)} />
+              <BookMarked className="h-3.5 w-3.5" />
+              <span>Add remaining to Katha</span>
+            </label>
+
+            {/* Payment status badge */}
+            {cart.length > 0 && (
+              remaining <= 0 ? (
+                <Badge className="w-full justify-center bg-emerald-600 hover:bg-emerald-600"><Check className="h-3 w-3 mr-1" /> FULLY PAID</Badge>
+              ) : katha ? (
+                <Badge className="w-full justify-center bg-emerald-600 hover:bg-emerald-600"><BookMarked className="h-3 w-3 mr-1" /> ADDED TO KATHA</Badge>
+              ) : (
+                <Badge variant="destructive" className="w-full justify-center"><AlertCircle className="h-3 w-3 mr-1" /> NOT PAID FULLY · {money(remaining)}</Badge>
+              )
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">

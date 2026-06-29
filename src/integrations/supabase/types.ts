@@ -70,24 +70,36 @@ export type Database = {
       }
       categories: {
         Row: {
+          active: boolean
+          color: string | null
           created_at: string
           deleted_at: string | null
+          description: string | null
+          icon: string | null
           id: string
           name: string
           sort_order: number
           updated_at: string
         }
         Insert: {
+          active?: boolean
+          color?: string | null
           created_at?: string
           deleted_at?: string | null
+          description?: string | null
+          icon?: string | null
           id?: string
           name: string
           sort_order?: number
           updated_at?: string
         }
         Update: {
+          active?: boolean
+          color?: string | null
           created_at?: string
           deleted_at?: string | null
+          description?: string | null
+          icon?: string | null
           id?: string
           name?: string
           sort_order?: number
@@ -102,9 +114,13 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          last_visit: string | null
           name: string
           notes: string | null
+          outstanding_balance: number
           phone: string | null
+          total_orders: number
+          total_purchases: number
         }
         Insert: {
           address?: string | null
@@ -112,9 +128,13 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          last_visit?: string | null
           name: string
           notes?: string | null
+          outstanding_balance?: number
           phone?: string | null
+          total_orders?: number
+          total_purchases?: number
         }
         Update: {
           address?: string | null
@@ -122,9 +142,13 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          last_visit?: string | null
           name?: string
           notes?: string | null
+          outstanding_balance?: number
           phone?: string | null
+          total_orders?: number
+          total_purchases?: number
         }
         Relationships: []
       }
@@ -433,13 +457,16 @@ export type Database = {
           cash_paid: number
           created_at: string
           created_by: string | null
+          customer_id: string | null
           customer_name: string | null
+          customer_phone: string | null
           deleted_at: string | null
           delivery_boy: string | null
           delivery_charges: number
           grand_total: number
           id: string
           invoice_no: string
+          katha: boolean
           online_paid: number
           order_type: string
           payment_method: string
@@ -450,13 +477,16 @@ export type Database = {
           cash_paid?: number
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           customer_name?: string | null
+          customer_phone?: string | null
           deleted_at?: string | null
           delivery_boy?: string | null
           delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          katha?: boolean
           online_paid?: number
           order_type?: string
           payment_method?: string
@@ -467,20 +497,31 @@ export type Database = {
           cash_paid?: number
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           customer_name?: string | null
+          customer_phone?: string | null
           deleted_at?: string | null
           delivery_boy?: string | null
           delivery_charges?: number
           grand_total?: number
           id?: string
           invoice_no?: string
+          katha?: boolean
           online_paid?: number
           order_type?: string
           payment_method?: string
           sale_date?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {
@@ -502,38 +543,50 @@ export type Database = {
       }
       stock_items: {
         Row: {
+          category: string
           created_at: string
           current_stock: number
           deleted_at: string | null
           id: string
           minimum_stock: number
           name: string
+          notes: string | null
           opening_stock: number
+          purchase_date: string | null
           purchase_price: number
+          supplier_id: string | null
           unit: string
           updated_at: string
         }
         Insert: {
+          category: string
           created_at?: string
           current_stock?: number
           deleted_at?: string | null
           id?: string
           minimum_stock?: number
           name: string
+          notes?: string | null
           opening_stock?: number
+          purchase_date?: string | null
           purchase_price?: number
+          supplier_id?: string | null
           unit?: string
           updated_at?: string
         }
         Update: {
+          category?: string
           created_at?: string
           current_stock?: number
           deleted_at?: string | null
           id?: string
           minimum_stock?: number
           name?: string
+          notes?: string | null
           opening_stock?: number
+          purchase_date?: string | null
           purchase_price?: number
+          supplier_id?: string | null
           unit?: string
           updated_at?: string
         }
@@ -672,10 +725,27 @@ export type Database = {
           gross_profit: number
           net_profit: number
           opening_value: number
+          product_purchased_value: number
           purchased_value: number
           sales_cogs: number
           sales_qty: number
           sales_revenue: number
+          stock_purchased_value: number
+        }[]
+      }
+      dashboard_category_cards: {
+        Args: never
+        Returns: {
+          category: string
+          color: string
+          icon: string
+          month_cogs: number
+          month_orders: number
+          month_profit: number
+          month_sales: number
+          today_orders: number
+          today_sales: number
+          top_product: string
         }[]
       }
       has_role: {
@@ -699,13 +769,16 @@ export type Database = {
               cash_paid: number
               created_at: string
               created_by: string | null
+              customer_id: string | null
               customer_name: string | null
+              customer_phone: string | null
               deleted_at: string | null
               delivery_boy: string | null
               delivery_charges: number
               grand_total: number
               id: string
               invoice_no: string
+              katha: boolean
               online_paid: number
               order_type: string
               payment_method: string
@@ -735,13 +808,57 @@ export type Database = {
               cash_paid: number
               created_at: string
               created_by: string | null
+              customer_id: string | null
               customer_name: string | null
+              customer_phone: string | null
               deleted_at: string | null
               delivery_boy: string | null
               delivery_charges: number
               grand_total: number
               id: string
               invoice_no: string
+              katha: boolean
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _customer_phone?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _items: Json
+              _katha?: boolean
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_id: string | null
+              customer_name: string | null
+              customer_phone: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              katha: boolean
               online_paid: number
               order_type: string
               payment_method: string
@@ -769,13 +886,16 @@ export type Database = {
               cash_paid: number
               created_at: string
               created_by: string | null
+              customer_id: string | null
               customer_name: string | null
+              customer_phone: string | null
               deleted_at: string | null
               delivery_boy: string | null
               delivery_charges: number
               grand_total: number
               id: string
               invoice_no: string
+              katha: boolean
               online_paid: number
               order_type: string
               payment_method: string
@@ -806,13 +926,58 @@ export type Database = {
               cash_paid: number
               created_at: string
               created_by: string | null
+              customer_id: string | null
               customer_name: string | null
+              customer_phone: string | null
               deleted_at: string | null
               delivery_boy: string | null
               delivery_charges: number
               grand_total: number
               id: string
               invoice_no: string
+              katha: boolean
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _customer_phone?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _items: Json
+              _katha?: boolean
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _sale_id: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_id: string | null
+              customer_name: string | null
+              customer_phone: string | null
+              deleted_at: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              katha: boolean
               online_paid: number
               order_type: string
               payment_method: string

@@ -1,98 +1,105 @@
-# POS Complete Business Logic — Implementation Plan
+# Café POS — Extension Plan (No Redesign)
 
-Big change. Confirm before I build.
+Keeps every existing page, layout, route and feature intact. Only adds new tables, columns, a new Categories page, a Customers module, WhatsApp hook, payment/Katha status, and fixes the category-purchase report bug.
 
-## 1. Database (one migration)
+## 1. Database migration (single migration)
 
-### `products` — add columns
-- `unit` text not null default `'pcs'` (`pcs` | `kg` | `ltr`)
-- `selling_method` text not null default `'fixed'` (`fixed` | `weight`)
-- `allow_negative_stock` boolean default false
+**`categories`** — extend existing table:
+- add `description text`, `color text`, `icon text`, `active boolean default true`
+- keep existing `name` (unique), `sort_order`, `deleted_at`
+- soft-delete only when products exist; hard delete allowed otherwise
 
-`sale_price` keeps its meaning: price per piece for `fixed`, price per KG/LTR for `weight`.
+**`stock_items`** — add:
+- `category text not null` (validated against `categories.name`)
+- `supplier_id uuid`, `purchase_date date`, `notes text`
+- trigger: on insert/update, if `category` is null → reject
 
-### `recipes` (new) — linked products / BOM
-```
-id, parent_product_id (fk products), component_product_id (fk products),
-quantity numeric not null,          -- amount of component per 1 parent sold
-unit text not null,                 -- kg / ltr / pcs (informational)
-deleted_at, created_at, updated_at
-```
-GRANT + RLS + service_role as per project rules.
+**`stock_purchases`** — already has `category`. Add trigger:
+- when `stock_item_id` is set, auto-fill `category` from `stock_items.category` (mirror of existing product trigger)
 
-### `sales` — add columns
-- `cash_paid numeric default 0`
-- `online_paid numeric default 0`
-- `order_type text default 'walk_in'` (`walk_in` | `take_away` | `delivery`)
-- `delivery_boy text`
-Keep existing `payment_method` for back-compat (derived = cash if cash_paid>0 && online=0 etc).
+**`customers`** — extend (already has 8 cols). Ensure:
+- `phone` unique (partial index where phone not null)
+- `last_visit timestamptz`, `total_orders int`, `total_purchases numeric`, `outstanding_balance numeric`
 
-### `sale_items` — add columns
-- `unit text`
-- so quantity can be decimal (already numeric).
+**`sales`** — add:
+- `katha boolean default false`
+- `customer_id uuid references customers(id)`
+- derive `payment_status` view-side: paid = (cash_paid+online_paid >= grand_total)
 
-### `settings` (new, single row) — owner toggles
-- `allow_negative_stock boolean default false`
-- (room for future: tax %, currency, etc.)
+**RPC updates:**
+- `save_sale` / `update_pending_sale`: accept `_customer_name`, `_customer_phone`, `_katha`. Upsert customer by phone, link `customer_id`, bump `total_orders`, `total_purchases`, `last_visit`, and `outstanding_balance += remaining` (subtract on edit/delete).
+- `category_monthly_report` — **BUG FIX**: split `purchased_value` into `product_purchased_value` and `stock_purchased_value`. For each `stock_purchases` row:
+  - if `product_id` → category from products
+  - if `stock_item_id` → category from stock_items
+  - Already grouping by `sp.category` which the new trigger fills correctly; add separate sums by source.
+- New RPC `dashboard_category_cards(_from, _to)` returning per-category today/month sales, profit, orders, top product — driven by `categories` table so new categories appear automatically.
 
-### RPC rewrites
-**`save_sale` / `update_pending_sale`** — accept items shape:
-```
-{ product_id, quantity, rate, total, unit }
-```
-Server recomputes `total = round(quantity * rate, 2)` defensively; persists rate as `price`. Stock deduction order:
-1. If product has rows in `recipes` → for each component, subtract `quantity_sold * recipe.quantity` from component product `current_stock` and from matching `stock_items`.
-2. Else → subtract `quantity_sold` from product's own `current_stock` and matching `stock_items`.
+## 2. New page: Categories (`/categories`)
 
-Negative-stock guard: if `settings.allow_negative_stock = false` and resulting stock < 0 → raise. (POS UI shows a soft warning before save regardless.)
+- Sidebar entry between Products and Stock Items.
+- CRUD + search + sort + display order drag (or numeric input) + active toggle.
+- Fields: name (unique), description, color (color picker), icon (lucide name text), display_order, active.
+- Delete guard: if any product or stock_item references it, force "Mark Inactive" instead.
 
-**`restore_sale_stock`** — mirror new path (recipe-aware).
+## 3. Stock Items page
 
-## 2. UI — POS rewrite (`src/routes/_authenticated/pos.tsx`)
+- Add required Category dropdown (loads `categories` where active).
+- Add Supplier select, Purchase Date, Notes fields to existing form.
+- Block save if no category.
+- No layout changes — fields appended to existing form grid.
 
-Cart line columns: **Product | Unit | Qty | Rate | Total | ✕**
+## 4. Remove default zeros
 
-- Search field stays; results show name + category + stock badge.
-- After add, line shows unit chip (`KG` / `LTR` / `PCS`).
-- **Fixed products**: rate readonly (from product), qty editable → total auto.
-- **Weight products**: three editable fields with live two-way bind:
-  - edit qty → total = qty × rate
-  - edit total → qty = total / rate
-  - edit rate → total = qty × rate
-  - last-edited-field tracking prevents loops.
-- Live low-stock badge per line (red if requested > available; still allow save).
-- Footer:
-  - Order Type tabs: Walk-in / Take-away / Delivery (Walk-in forces delivery=0 and disables delivery boy)
-  - Delivery Charges + Delivery Boy (only when Delivery)
-  - **Payment** grid: Grand Total | Cash Paid | Online Paid | Remaining | Change
-    - Remaining = max(0, Grand − Cash − Online); Change = max(0, Cash+Online − Grand)
-  - Save Pending / Save Complete / Print Last
+- All numeric inputs across POS, Products, Purchases, Expenses, Stock Items: change `value={n}` to `value={n || ""}` and store as `null`/empty until typed. Calculated totals still render computed values.
 
-Keyboard: `/` focuses search, Enter adds first match, Tab cycles cart fields, Esc closes invoice search popover.
+## 5. Customers module
 
-## 3. UI — Products page (`products.tsx`)
-Add Unit + Selling Method selects. When `selling_method=weight`, label price as "Price per KG/LTR".
+- New `/customers` page: list, search, view orders, edit, outstanding balance.
+- POS: replace plain customer name input with combobox that searches `customers` by name/phone; on select fills name+phone; on save passes both to RPC which upserts.
 
-## 4. UI — Recipes (new page `recipes.tsx`)
-Parent product → list of (component product, quantity, unit). CRUD + soft delete + duplicate. Added to AppShell nav.
+## 6. POS payment & Katha UI
 
-## 5. UI — Settings (new minimal page `settings.tsx`)
-Single toggle: Allow negative stock. Owner only.
+- Compute `remaining = grand_total - cash_paid - online_paid`.
+- Badge:
+  - remaining=0 → green "✓ FULLY PAID"
+  - remaining>0 & katha=false → red "🔴 NOT PAID FULLY"
+  - remaining>0 & katha=true → green "🟢 ADDED TO KATHA"
+- "Add Remaining to Katha" checkbox enabled only when remaining>0.
 
-## 6. Reports / Dashboard
-No structural change — already category-driven and uses business_date. They automatically reflect new sale_items because COGS now flows through recipes:
-- Update `category_monthly_report` so `sales_cogs` uses recipe expansion (sum of component cost_price × component qty) when recipes exist, else falls back to product cost_price as today.
+## 7. Daily Sales / Sales page
 
-## 7. Out of scope this round
-- Barcode scanning, KDS, WhatsApp invoice, employee/role pages beyond existing — already future-stubbed.
-- Tax/discount fields on invoice (not requested).
+- Add Status column with same 3 badges.
+- Add filter chips: Fully Paid / Not Paid / Katha / Walk-in / Take-away / Delivery.
 
-## Execution order
-1. Migration (schema + RPC rewrites + report RPC update)
-2. POS rewrite with live calc + payments + order type
-3. Products form: unit + selling_method
-4. Recipes CRUD page + nav entry
-5. Settings page + negative-stock guard wiring
-6. Smoke test: create weight product, recipe, sell, verify stock + reports
+## 8. WhatsApp invoice (silent)
 
-Approve and I'll build it straight through.
+- After successful save, call new server fn `sendWhatsappInvoice({sale_id})`.
+- Server fn: generate plain-text invoice summary, POST to WhatsApp Cloud API using `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID` secrets.
+- Wrap in try/catch — failure shows toast "WhatsApp not sent, saved" and adds a "Resend WhatsApp" button on the sale row. Invoice save never blocks on WhatsApp.
+- If secrets not configured, skip silently with one-time toast.
+- **Needs from user**: WhatsApp Cloud API token + phone number ID (or confirm to stub the integration until they provide them).
+
+## 9. Dynamic dashboard & reports
+
+- Dashboard: replace hardcoded category grid with map over `categories` (active) using new RPC. Cards: today sales, month sales, month profit, orders, top product.
+- Reports page: same — iterate active categories. Show new columns: Product Purchases, Stock Item Purchases (separate), Stock Used, Gross Profit, Expenses, Net Profit, Current Stock Value, Best Seller.
+
+## 10. Auto-refresh
+
+- Already on TanStack Query. Add `queryClient.invalidateQueries` for `["dashboard"]`, `["reports"]`, `["sales"]`, `["stock"]`, `["purchases"]` inside each mutation's `onSuccess`. No manual refresh anywhere.
+
+## 11. Edit invoice cascade
+
+- `update_pending_sale` already restores stock then re-applies. Extend to:
+  - recompute customer outstanding (subtract old remaining, add new)
+  - re-evaluate katha flag
+- All downstream pages refresh via query invalidation.
+
+---
+
+## What I need from you before building
+
+1. **WhatsApp**: do you have a WhatsApp Cloud API token + phone number ID ready? If yes I'll request them via the secrets flow after the migration. If not, I'll build the hook + UI now and leave the send as a no-op stub you can enable later.
+2. **Confirm execution order**: migration → Categories page → Stock fields → Customers → POS payment/Katha/customer combobox → Dashboard/Reports rewrite → WhatsApp.
+
+Approve and I'll build straight through.
