@@ -17,6 +17,8 @@ import {
   Coffee,
   Menu,
   ChefHat,
+  Tag,
+  Users,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,9 +44,11 @@ const NAV: NavItem[] = [
   { to: "/pos", label: "POS", icon: ShoppingCart },
   { to: "/sales", label: "Sales", icon: Receipt },
   { to: "/products", label: "Products", icon: Package },
+  { to: "/categories", label: "Categories", icon: Tag },
   { to: "/recipes", label: "Recipes", icon: ChefHat },
   { to: "/stock-items", label: "Stock Items", icon: Boxes },
   { to: "/purchases", label: "Purchases", icon: Truck },
+  { to: "/customers", label: "Customers", icon: Users },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/delivery-expenses", label: "Delivery Expenses", icon: Bike },
   { to: "/delivery-report", label: "Delivery Report", icon: Send },
