@@ -349,7 +349,30 @@ function POS() {
             </div>
           )}
 
-          <Input placeholder="Customer name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+          {/* Customer + phone with live suggestions */}
+          <div className="relative grid grid-cols-2 gap-2">
+            <Input placeholder="Customer name"
+              value={customer}
+              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onFocus={() => { setCustomerSearch(customer); setShowCustomerResults(true); }}
+            />
+            <Input placeholder="Mobile number"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onFocus={() => { setCustomerSearch(phone); setShowCustomerResults(true); }}
+            />
+            {showCustomerResults && customerSearch.trim().length >= 2 && customerSuggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
+                {(customerSuggestions as any[]).map((c) => (
+                  <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
+                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setShowCustomerResults(false); }}>
+                    <span><User className="h-3 w-3 inline mr-1" />{c.name}{c.phone ? ` · ${c.phone}` : ""}</span>
+                    {num(c.outstanding_balance) > 0 && <span className="text-xs text-destructive">{money(c.outstanding_balance)}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Order type */}
           <div className="grid grid-cols-3 gap-1">
@@ -433,7 +456,7 @@ function POS() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Delivery Charges</Label>
-                <Input type="number" step="0.01" value={delivery} onChange={(e) => setDelivery(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={delivery} placeholder="0.00" onChange={(e) => setDelivery(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Delivery Boy</Label>
@@ -453,11 +476,11 @@ function POS() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Cash Paid</Label>
-                <Input type="number" step="0.01" value={cash} onChange={(e) => setCash(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={cash} placeholder="0.00" onChange={(e) => setCash(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Online Paid</Label>
-                <Input type="number" step="0.01" value={online} onChange={(e) => setOnline(Number(e.target.value))} className="h-9" />
+                <Input type="number" step="0.01" value={online} placeholder="0.00" onChange={(e) => setOnline(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -470,7 +493,24 @@ function POS() {
                 <span className={"font-semibold " + (change > 0 ? "text-emerald-600" : "")}>{money(change)}</span>
               </div>
             </div>
-            {remaining > 0 && paid > 0 && <Badge variant="secondary" className="w-full justify-center">Customer credit: {money(remaining)}</Badge>}
+
+            {/* Katha toggle */}
+            <label className={"flex items-center gap-2 text-xs rounded px-2 py-1.5 border " + (remaining <= 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+              <input type="checkbox" disabled={remaining <= 0} checked={katha} onChange={(e) => setKatha(e.target.checked)} />
+              <BookMarked className="h-3.5 w-3.5" />
+              <span>Add remaining to Katha</span>
+            </label>
+
+            {/* Payment status badge */}
+            {cart.length > 0 && (
+              remaining <= 0 ? (
+                <Badge className="w-full justify-center bg-emerald-600 hover:bg-emerald-600"><Check className="h-3 w-3 mr-1" /> FULLY PAID</Badge>
+              ) : katha ? (
+                <Badge className="w-full justify-center bg-emerald-600 hover:bg-emerald-600"><BookMarked className="h-3 w-3 mr-1" /> ADDED TO KATHA</Badge>
+              ) : (
+                <Badge variant="destructive" className="w-full justify-center"><AlertCircle className="h-3 w-3 mr-1" /> NOT PAID FULLY · {money(remaining)}</Badge>
+              )
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">
