@@ -59,9 +59,10 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: P) => {
-      const total = p.quantity * p.unit_cost;
+      const qty = num(p.quantity); const cost = num(p.unit_cost);
+      const total = qty * cost;
       const payload: any = {
-        date: p.date, quantity: p.quantity, unit_cost: p.unit_cost, total_cost: total,
+        date: p.date, quantity: qty, unit_cost: cost, total_cost: total,
         supplier: p.supplier || null, notes: p.notes || null,
         category: p.category,
         product_id: p.target === "product" ? p.product_id : null,
