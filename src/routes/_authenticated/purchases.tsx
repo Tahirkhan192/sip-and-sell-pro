@@ -207,10 +207,10 @@ function Page() {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>Quantity</Label><Input type="number" step="0.01" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Purchase Price</Label><Input type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Quantity</Label><Input type="number" step="0.01" placeholder="" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Purchase Price</Label><Input type="number" step="0.01" placeholder="0.00" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
-        <div className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{money(form.quantity * form.unit_cost)}</span></div>
+        <div className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{money(num(form.quantity) * num(form.unit_cost))}</span></div>
         <div className="space-y-2"><Label>Supplier</Label><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
         <div className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </CrudDialog>
