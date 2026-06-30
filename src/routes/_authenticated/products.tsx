@@ -22,16 +22,17 @@ type P = {
   id?: string;
   name: string;
   category: string;
-  sale_price: number;
-  cost_price: number;
-  opening_stock: number;
-  current_stock: number;
-  minimum_stock: number;
+  sale_price: number | "";
+  cost_price: number | "";
+  opening_stock: number | "";
+  current_stock: number | "";
+  minimum_stock: number | "";
   active: boolean;
   unit: string;
   selling_method: "fixed" | "weight";
+  track_stock: boolean;
 };
-const empty: P = { name: "", category: "Karahi", sale_price: 0, cost_price: 0, opening_stock: 0, current_stock: 0, minimum_stock: 0, active: true, unit: "pcs", selling_method: "fixed" };
+const empty: P = { name: "", category: "", sale_price: "", cost_price: "", opening_stock: "", current_stock: "", minimum_stock: "", active: true, unit: "pcs", selling_method: "fixed", track_stock: true };
 
 type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
