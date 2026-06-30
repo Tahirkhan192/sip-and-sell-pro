@@ -45,7 +45,8 @@ function POS() {
   const { edit: editId } = Route.useSearch();
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [catFilter, setCatFilter] = useState<string>("all");
+  const { data: categoryList = [] } = useCategories();
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
   const [katha, setKatha] = useState(false);
