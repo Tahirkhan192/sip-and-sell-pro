@@ -301,6 +301,12 @@ function POS() {
           }}
           className="h-12 text-base"
         />
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant={catFilter === "all" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCatFilter("all")}>All</Button>
+          {(categoryList as string[]).map((c) => (
+            <Button key={c} size="sm" variant={catFilter === c ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCatFilter(c)}>{c}</Button>
+          ))}
+        </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-1.5 max-h-[calc(100vh-200px)] overflow-auto pr-1">
           {filtered.map((p: any) => (
             <button key={p.id} onClick={() => addToCart(p)} className="rounded-md border bg-card hover:bg-accent/40 hover:border-accent transition px-1.5 py-1.5 text-left flex flex-col gap-0.5 min-h-[64px]">
