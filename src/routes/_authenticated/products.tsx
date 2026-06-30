@@ -200,13 +200,20 @@ function ProductsPage() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" placeholder="0.00" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" placeholder="0.00" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" placeholder="" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" placeholder="" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" placeholder="" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
+          <div>
+            <Label>Stock Tracking</Label>
+            <p className="text-xs text-muted-foreground">Off = don't reduce this product's own stock (e.g. Tea, Samosa). Recipe ingredients still reduce.</p>
+          </div>
+          <Switch checked={form.track_stock} onCheckedChange={(v) => setForm({ ...form, track_stock: v })} />
         </div>
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
