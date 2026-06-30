@@ -439,9 +439,10 @@ function POS() {
                           {it.selling_method === "weight" ? (
                             <Input
                               type="number" step="0.01" min={0}
-                              value={it.total}
-                              onChange={(e) => updateLine(idx, { total: Number(e.target.value), _changed: "total" } as any)}
-                              className="h-8 text-xs px-1 text-right"
+                              value={it.total === 0 ? "" : it.total}
+                              placeholder="0.00"
+                              onChange={(e) => updateLine(idx, { total: e.target.value === "" ? 0 : Number(e.target.value), _changed: "total" } as any)}
+                              className="h-7 text-xs px-1 text-right"
                             />
                           ) : (
                             <div className="text-xs text-right font-medium pr-1">{money(it.total)}</div>
