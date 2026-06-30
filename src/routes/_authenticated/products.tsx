@@ -155,8 +155,8 @@ function ProductsPage() {
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ ...empty, ...p }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { const { id, ...rest } = p; setForm({ ...rest, name: `${p.name} (copy)` } as P); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
