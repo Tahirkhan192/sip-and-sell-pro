@@ -47,6 +47,7 @@ function POS() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
   const { data: categoryList = [] } = useCategories();
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
   const [katha, setKatha] = useState(false);
