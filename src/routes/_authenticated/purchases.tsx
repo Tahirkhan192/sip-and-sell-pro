@@ -24,12 +24,12 @@ type P = {
   category: string;
   product_id: string;
   stock_item_id: string;
-  quantity: number;
-  unit_cost: number;
+  quantity: number | "";
+  unit_cost: number | "";
   supplier: string;
   notes: string;
 };
-const empty: P = { date: today(), target: "product", category: "", product_id: "", stock_item_id: "", quantity: 0, unit_cost: 0, supplier: "", notes: "" };
+const empty: P = { date: today(), target: "stock_item", category: "", product_id: "", stock_item_id: "", quantity: "", unit_cost: "", supplier: "", notes: "" };
 
 function Page() {
   const qc = useQueryClient();
