@@ -117,9 +117,11 @@ function POS() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return products as any[];
-    return (products as any[]).filter((p) => p.name.toLowerCase().includes(q));
-  }, [products, search]);
+    let rows = products as any[];
+    if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
+    if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q));
+    return rows;
+  }, [products, search, catFilter]);
 
   function addToCart(p: any) {
     setCart((c) => {
