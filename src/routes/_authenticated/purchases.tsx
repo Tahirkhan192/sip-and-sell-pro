@@ -174,7 +174,7 @@ function Page() {
       }}>
         <div className="space-y-2"><Label>Purchase Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
         <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label>
-          <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, product_id: "" })}>
+          <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, product_id: "", stock_item_id: "" })}>
             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
             <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
