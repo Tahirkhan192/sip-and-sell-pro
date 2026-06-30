@@ -114,8 +114,8 @@ function POS() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return (products as any[]).slice(0, 12);
-    return (products as any[]).filter((p) => p.name.toLowerCase().includes(q)).slice(0, 16);
+    if (!q) return products as any[];
+    return (products as any[]).filter((p) => p.name.toLowerCase().includes(q));
   }, [products, search]);
 
   function addToCart(p: any) {
@@ -124,7 +124,7 @@ function POS() {
       if (idx >= 0) {
         const next = [...c];
         const it = next[idx];
-        const newQty = round3(it.quantity + 1);
+        const newQty = Math.floor(it.quantity) + 1;
         next[idx] = { ...it, quantity: newQty, total: round2(newQty * it.rate) };
         return next;
       }
@@ -146,6 +146,15 @@ function POS() {
     });
     setSearch("");
     searchRef.current?.focus();
+  }
+
+  function stepQty(idx: number, delta: number) {
+    setCart((c) => c.map((it, i) => {
+      if (i !== idx) return it;
+      const base = Math.floor(it.quantity);
+      const q = Math.max(delta > 0 ? 1 : 0, base + delta);
+      return { ...it, quantity: q, total: round2(q * it.rate) };
+    }));
   }
 
   function updateLine(idx: number, patch: Partial<CartItem> & { _changed?: "qty" | "rate" | "total" }) {
