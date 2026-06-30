@@ -414,19 +414,25 @@ function POS() {
                           </div>
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input
-                            type="number" step={it.selling_method === "weight" ? "0.001" : "1"} min={0}
-                            value={it.quantity}
-                            onChange={(e) => updateLine(idx, { quantity: Number(e.target.value), _changed: "qty" } as any)}
-                            className="h-8 text-xs px-1"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepQty(idx, -1)}>−</Button>
+                            <Input
+                              type="number" step={it.selling_method === "weight" ? "0.001" : "1"} min={0}
+                              value={it.quantity === 0 ? "" : it.quantity}
+                              placeholder="0"
+                              onChange={(e) => updateLine(idx, { quantity: e.target.value === "" ? 0 : Number(e.target.value), _changed: "qty" } as any)}
+                              className="h-7 text-xs px-1 w-12 text-center"
+                            />
+                            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepQty(idx, 1)}>+</Button>
+                          </div>
                         </TableCell>
                         <TableCell className="py-1">
                           <Input
                             type="number" step="0.01" min={0}
-                            value={it.rate}
-                            onChange={(e) => updateLine(idx, { rate: Number(e.target.value), _changed: "rate" } as any)}
-                            className="h-8 text-xs px-1"
+                            value={it.rate === 0 ? "" : it.rate}
+                            placeholder="0.00"
+                            onChange={(e) => updateLine(idx, { rate: e.target.value === "" ? 0 : Number(e.target.value), _changed: "rate" } as any)}
+                            className="h-7 text-xs px-1"
                           />
                         </TableCell>
                         <TableCell className="py-1">
