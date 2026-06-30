@@ -13,6 +13,7 @@ import { Trash2, Printer, Save, Clock, X, Search, User, Trash, AlertTriangle, Ch
 import { toast } from "sonner";
 import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
+import { useCategories } from "@/lib/use-categories";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
