@@ -199,11 +199,22 @@ function Page() {
             </Select>
           </div>
         ) : (
-          <div className="space-y-2"><Label>Stock item</Label>
+          <div className="space-y-2"><Label>Stock item (from {form.category || "selected category"})</Label>
             <Select value={form.stock_item_id} onValueChange={(v) => setForm({ ...form, stock_item_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Choose…" /></SelectTrigger>
-              <SelectContent>{items.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
+              <SelectTrigger><SelectValue placeholder={form.category ? "Choose…" : "Pick category first"} /></SelectTrigger>
+              <SelectContent>{(items as any[]).filter((i) => !form.category || i.category === form.category).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
             </Select>
+            {form.category && (
+              <Button type="button" size="sm" variant="outline" className="mt-1" onClick={async () => {
+                const name = prompt(`New stock item name in "${form.category}"?`);
+                if (!name) return;
+                const { data: ins, error } = await supabase.from("stock_items").insert({ name, category: form.category, unit: "pcs" }).select("id").single();
+                if (error) { toast.error(error.message); return; }
+                await qc.invalidateQueries({ queryKey: ["stock_items"] });
+                setForm((f) => ({ ...f, stock_item_id: ins.id }));
+                toast.success(`Added ${name} to ${form.category}`);
+              }}><Plus className="h-3 w-3 mr-1" /> New stock item in this category</Button>
+            )}
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
