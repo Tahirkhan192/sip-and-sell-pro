@@ -296,21 +296,17 @@ function POS() {
           }}
           className="h-12 text-base"
         />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-1.5 max-h-[calc(100vh-200px)] overflow-auto pr-1">
           {filtered.map((p: any) => (
-            <button key={p.id} onClick={() => addToCart(p)} className="rounded-lg border bg-card hover:bg-accent/40 hover:border-accent transition p-3 text-left">
-              <div className="font-medium text-sm leading-tight">{p.name}</div>
-              <div className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                <span>{p.category ?? "—"}</span>
-                <span className="text-[10px] uppercase">{UNIT_LABEL[p.unit] ?? "PCS"}</span>
-              </div>
-              <div className="flex items-baseline justify-between mt-2">
-                <div className="text-sm font-semibold text-primary">
-                  {money(p.sale_price)}{p.selling_method === "weight" ? <span className="text-[10px] text-muted-foreground">/{UNIT_LABEL[p.unit]}</span> : null}
-                </div>
-                <div className={"text-[10px] " + (num(p.current_stock) <= num(p.minimum_stock) ? "text-destructive" : "text-muted-foreground")}>
-                  {num(p.current_stock).toFixed(p.unit === "pcs" ? 0 : 2)} {UNIT_LABEL[p.unit]}
-                </div>
+            <button key={p.id} onClick={() => addToCart(p)} className="rounded-md border bg-card hover:bg-accent/40 hover:border-accent transition px-1.5 py-1.5 text-left flex flex-col gap-0.5 min-h-[64px]">
+              <div className="font-medium text-[11px] leading-tight line-clamp-2">{p.name}</div>
+              <div className="mt-auto flex items-baseline justify-between gap-1">
+                <div className="text-xs font-semibold text-primary">{money(p.sale_price)}</div>
+                {p.track_stock !== false && (
+                  <div className={"text-[9px] " + (num(p.current_stock) <= num(p.minimum_stock) ? "text-destructive" : "text-muted-foreground")}>
+                    {num(p.current_stock).toFixed(p.unit === "pcs" ? 0 : 1)}
+                  </div>
+                )}
               </div>
             </button>
           ))}
