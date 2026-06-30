@@ -56,14 +56,15 @@ function ProductsPage() {
       const payload = {
         name: p.name,
         category: p.category,
-        sale_price: p.sale_price,
-        cost_price: p.cost_price,
-        opening_stock: p.opening_stock,
-        current_stock: p.current_stock,
-        minimum_stock: p.minimum_stock,
+        sale_price: num(p.sale_price),
+        cost_price: num(p.cost_price),
+        opening_stock: num(p.opening_stock),
+        current_stock: num(p.current_stock),
+        minimum_stock: num(p.minimum_stock),
         active: p.active,
         unit: p.unit,
         selling_method: p.selling_method,
+        track_stock: p.track_stock,
       };
       const res = p.id
         ? await supabase.from("products").update(payload).eq("id", p.id)
