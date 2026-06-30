@@ -22,16 +22,17 @@ type P = {
   id?: string;
   name: string;
   category: string;
-  sale_price: number;
-  cost_price: number;
-  opening_stock: number;
-  current_stock: number;
-  minimum_stock: number;
+  sale_price: number | "";
+  cost_price: number | "";
+  opening_stock: number | "";
+  current_stock: number | "";
+  minimum_stock: number | "";
   active: boolean;
   unit: string;
   selling_method: "fixed" | "weight";
+  track_stock: boolean;
 };
-const empty: P = { name: "", category: "Karahi", sale_price: 0, cost_price: 0, opening_stock: 0, current_stock: 0, minimum_stock: 0, active: true, unit: "pcs", selling_method: "fixed" };
+const empty: P = { name: "", category: "", sale_price: "", cost_price: "", opening_stock: "", current_stock: "", minimum_stock: "", active: true, unit: "pcs", selling_method: "fixed", track_stock: true };
 
 type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
@@ -55,14 +56,15 @@ function ProductsPage() {
       const payload = {
         name: p.name,
         category: p.category,
-        sale_price: p.sale_price,
-        cost_price: p.cost_price,
-        opening_stock: p.opening_stock,
-        current_stock: p.current_stock,
-        minimum_stock: p.minimum_stock,
+        sale_price: num(p.sale_price),
+        cost_price: num(p.cost_price),
+        opening_stock: num(p.opening_stock),
+        current_stock: num(p.current_stock),
+        minimum_stock: num(p.minimum_stock),
         active: p.active,
         unit: p.unit,
         selling_method: p.selling_method,
+        track_stock: p.track_stock,
       };
       const res = p.id
         ? await supabase.from("products").update(payload).eq("id", p.id)
@@ -153,8 +155,8 @@ function ProductsPage() {
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ ...empty, ...p }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { const { id, ...rest } = p; setForm({ ...rest, name: `${p.name} (copy)` } as P); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -198,13 +200,20 @@ function ProductsPage() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" placeholder="0.00" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" placeholder="0.00" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" placeholder="" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" placeholder="" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" placeholder="" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
+          <div>
+            <Label>Stock Tracking</Label>
+            <p className="text-xs text-muted-foreground">Off = don't reduce this product's own stock (e.g. Tea, Samosa). Recipe ingredients still reduce.</p>
+          </div>
+          <Switch checked={form.track_stock} onCheckedChange={(v) => setForm({ ...form, track_stock: v })} />
         </div>
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>

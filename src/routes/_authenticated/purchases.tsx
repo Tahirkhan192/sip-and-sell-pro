@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, Search, Pencil, Copy } from "lucide-react";
-import { money, today } from "@/lib/format";
+import { money, today, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
@@ -24,12 +24,12 @@ type P = {
   category: string;
   product_id: string;
   stock_item_id: string;
-  quantity: number;
-  unit_cost: number;
+  quantity: number | "";
+  unit_cost: number | "";
   supplier: string;
   notes: string;
 };
-const empty: P = { date: today(), target: "product", category: "", product_id: "", stock_item_id: "", quantity: 0, unit_cost: 0, supplier: "", notes: "" };
+const empty: P = { date: today(), target: "stock_item", category: "", product_id: "", stock_item_id: "", quantity: "", unit_cost: "", supplier: "", notes: "" };
 
 function Page() {
   const qc = useQueryClient();
@@ -45,7 +45,7 @@ function Page() {
   });
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", "all"],
-    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,category").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data = [] } = useQuery({
     queryKey: ["purchases"],
@@ -59,9 +59,10 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: P) => {
-      const total = p.quantity * p.unit_cost;
+      const qty = num(p.quantity); const cost = num(p.unit_cost);
+      const total = qty * cost;
       const payload: any = {
-        date: p.date, quantity: p.quantity, unit_cost: p.unit_cost, total_cost: total,
+        date: p.date, quantity: qty, unit_cost: cost, total_cost: total,
         supplier: p.supplier || null, notes: p.notes || null,
         category: p.category,
         product_id: p.target === "product" ? p.product_id : null,
@@ -173,7 +174,7 @@ function Page() {
       }}>
         <div className="space-y-2"><Label>Purchase Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
         <div className="space-y-2"><Label>Category <span className="text-destructive">*</span></Label>
-          <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, product_id: "" })}>
+          <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, product_id: "", stock_item_id: "" })}>
             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
             <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
@@ -198,18 +199,29 @@ function Page() {
             </Select>
           </div>
         ) : (
-          <div className="space-y-2"><Label>Stock item</Label>
+          <div className="space-y-2"><Label>Stock item (from {form.category || "selected category"})</Label>
             <Select value={form.stock_item_id} onValueChange={(v) => setForm({ ...form, stock_item_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Choose…" /></SelectTrigger>
-              <SelectContent>{items.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
+              <SelectTrigger><SelectValue placeholder={form.category ? "Choose…" : "Pick category first"} /></SelectTrigger>
+              <SelectContent>{(items as any[]).filter((i) => !form.category || i.category === form.category).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
             </Select>
+            {form.category && (
+              <Button type="button" size="sm" variant="outline" className="mt-1" onClick={async () => {
+                const name = prompt(`New stock item name in "${form.category}"?`);
+                if (!name) return;
+                const { data: ins, error } = await supabase.from("stock_items").insert({ name, category: form.category, unit: "pcs" }).select("id").single();
+                if (error) { toast.error(error.message); return; }
+                await qc.invalidateQueries({ queryKey: ["stock_items"] });
+                setForm((f) => ({ ...f, stock_item_id: ins.id }));
+                toast.success(`Added ${name} to ${form.category}`);
+              }}><Plus className="h-3 w-3 mr-1" /> New stock item in this category</Button>
+            )}
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>Quantity</Label><Input type="number" step="0.01" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Purchase Price</Label><Input type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Quantity</Label><Input type="number" step="0.01" placeholder="" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Purchase Price</Label><Input type="number" step="0.01" placeholder="0.00" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
-        <div className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{money(form.quantity * form.unit_cost)}</span></div>
+        <div className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{money(num(form.quantity) * num(form.unit_cost))}</span></div>
         <div className="space-y-2"><Label>Supplier</Label><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
         <div className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </CrudDialog>

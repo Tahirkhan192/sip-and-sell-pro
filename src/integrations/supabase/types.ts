@@ -323,6 +323,7 @@ export type Database = {
           opening_stock: number
           sale_price: number
           selling_method: string
+          track_stock: boolean
           unit: string
         }
         Insert: {
@@ -339,6 +340,7 @@ export type Database = {
           opening_stock?: number
           sale_price?: number
           selling_method?: string
+          track_stock?: boolean
           unit?: string
         }
         Update: {
@@ -355,6 +357,7 @@ export type Database = {
           opening_stock?: number
           sale_price?: number
           selling_method?: string
+          track_stock?: boolean
           unit?: string
         }
         Relationships: []
@@ -472,6 +475,8 @@ export type Database = {
           payment_method: string
           sale_date: string
           status: string
+          whatsapp_sent_at: string | null
+          whatsapp_status: string | null
         }
         Insert: {
           cash_paid?: number
@@ -492,6 +497,8 @@ export type Database = {
           payment_method?: string
           sale_date?: string
           status?: string
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
         }
         Update: {
           cash_paid?: number
@@ -512,6 +519,8 @@ export type Database = {
           payment_method?: string
           sale_date?: string
           status?: string
+          whatsapp_sent_at?: string | null
+          whatsapp_status?: string | null
         }
         Relationships: [
           {
@@ -528,16 +537,31 @@ export type Database = {
           allow_negative_stock: boolean
           id: number
           updated_at: string
+          whatsapp_auto_send: boolean | null
+          whatsapp_business_id: string | null
+          whatsapp_country_code: string | null
+          whatsapp_phone_id: string | null
+          whatsapp_token: string | null
         }
         Insert: {
           allow_negative_stock?: boolean
           id?: number
           updated_at?: string
+          whatsapp_auto_send?: boolean | null
+          whatsapp_business_id?: string | null
+          whatsapp_country_code?: string | null
+          whatsapp_phone_id?: string | null
+          whatsapp_token?: string | null
         }
         Update: {
           allow_negative_stock?: boolean
           id?: number
           updated_at?: string
+          whatsapp_auto_send?: boolean | null
+          whatsapp_business_id?: string | null
+          whatsapp_country_code?: string | null
+          whatsapp_phone_id?: string | null
+          whatsapp_token?: string | null
         }
         Relationships: []
       }
@@ -755,6 +779,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      mark_whatsapp_status: {
+        Args: { _sale_id: string; _status: string }
+        Returns: undefined
+      }
       restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
       save_sale:
         | {
@@ -784,6 +812,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -823,6 +853,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -864,6 +896,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -901,6 +935,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -941,6 +977,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -983,6 +1021,8 @@ export type Database = {
               payment_method: string
               sale_date: string
               status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
             }
             SetofOptions: {
               from: "*"
@@ -991,6 +1031,44 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      update_sale_payment: {
+        Args: {
+          _cash_paid?: number
+          _customer_name?: string
+          _customer_phone?: string
+          _katha?: boolean
+          _online_paid?: number
+          _sale_id: string
+        }
+        Returns: {
+          cash_paid: number
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          deleted_at: string | null
+          delivery_boy: string | null
+          delivery_charges: number
+          grand_total: number
+          id: string
+          invoice_no: string
+          katha: boolean
+          online_paid: number
+          order_type: string
+          payment_method: string
+          sale_date: string
+          status: string
+          whatsapp_sent_at: string | null
+          whatsapp_status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "staff"

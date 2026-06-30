@@ -13,6 +13,7 @@ import { Trash2, Printer, Save, Clock, X, Search, User, Trash, AlertTriangle, Ch
 import { toast } from "sonner";
 import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
+import { useCategories } from "@/lib/use-categories";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -44,6 +45,8 @@ function POS() {
   const { edit: editId } = Route.useSearch();
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState<string>("all");
+  const { data: categoryList = [] } = useCategories();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState("");
   const [phone, setPhone] = useState("");
@@ -114,9 +117,11 @@ function POS() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return (products as any[]).slice(0, 12);
-    return (products as any[]).filter((p) => p.name.toLowerCase().includes(q)).slice(0, 16);
-  }, [products, search]);
+    let rows = products as any[];
+    if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
+    if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q));
+    return rows;
+  }, [products, search, catFilter]);
 
   function addToCart(p: any) {
     setCart((c) => {
@@ -124,7 +129,7 @@ function POS() {
       if (idx >= 0) {
         const next = [...c];
         const it = next[idx];
-        const newQty = round3(it.quantity + 1);
+        const newQty = Math.floor(it.quantity) + 1;
         next[idx] = { ...it, quantity: newQty, total: round2(newQty * it.rate) };
         return next;
       }
@@ -146,6 +151,15 @@ function POS() {
     });
     setSearch("");
     searchRef.current?.focus();
+  }
+
+  function stepQty(idx: number, delta: number) {
+    setCart((c) => c.map((it, i) => {
+      if (i !== idx) return it;
+      const base = Math.floor(it.quantity);
+      const q = Math.max(delta > 0 ? 1 : 0, base + delta);
+      return { ...it, quantity: q, total: round2(q * it.rate) };
+    }));
   }
 
   function updateLine(idx: number, patch: Partial<CartItem> & { _changed?: "qty" | "rate" | "total" }) {
@@ -287,21 +301,23 @@ function POS() {
           }}
           className="h-12 text-base"
         />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant={catFilter === "all" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCatFilter("all")}>All</Button>
+          {(categoryList as string[]).map((c) => (
+            <Button key={c} size="sm" variant={catFilter === c ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCatFilter(c)}>{c}</Button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-1.5 max-h-[calc(100vh-200px)] overflow-auto pr-1">
           {filtered.map((p: any) => (
-            <button key={p.id} onClick={() => addToCart(p)} className="rounded-lg border bg-card hover:bg-accent/40 hover:border-accent transition p-3 text-left">
-              <div className="font-medium text-sm leading-tight">{p.name}</div>
-              <div className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                <span>{p.category ?? "—"}</span>
-                <span className="text-[10px] uppercase">{UNIT_LABEL[p.unit] ?? "PCS"}</span>
-              </div>
-              <div className="flex items-baseline justify-between mt-2">
-                <div className="text-sm font-semibold text-primary">
-                  {money(p.sale_price)}{p.selling_method === "weight" ? <span className="text-[10px] text-muted-foreground">/{UNIT_LABEL[p.unit]}</span> : null}
-                </div>
-                <div className={"text-[10px] " + (num(p.current_stock) <= num(p.minimum_stock) ? "text-destructive" : "text-muted-foreground")}>
-                  {num(p.current_stock).toFixed(p.unit === "pcs" ? 0 : 2)} {UNIT_LABEL[p.unit]}
-                </div>
+            <button key={p.id} onClick={() => addToCart(p)} className="rounded-md border bg-card hover:bg-accent/40 hover:border-accent transition px-1.5 py-1.5 text-left flex flex-col gap-0.5 min-h-[64px]">
+              <div className="font-medium text-[11px] leading-tight line-clamp-2">{p.name}</div>
+              <div className="mt-auto flex items-baseline justify-between gap-1">
+                <div className="text-xs font-semibold text-primary">{money(p.sale_price)}</div>
+                {p.track_stock !== false && (
+                  <div className={"text-[9px] " + (num(p.current_stock) <= num(p.minimum_stock) ? "text-destructive" : "text-muted-foreground")}>
+                    {num(p.current_stock).toFixed(p.unit === "pcs" ? 0 : 1)}
+                  </div>
+                )}
               </div>
             </button>
           ))}
@@ -409,28 +425,35 @@ function POS() {
                           </div>
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input
-                            type="number" step={it.selling_method === "weight" ? "0.001" : "1"} min={0}
-                            value={it.quantity}
-                            onChange={(e) => updateLine(idx, { quantity: Number(e.target.value), _changed: "qty" } as any)}
-                            className="h-8 text-xs px-1"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepQty(idx, -1)}>−</Button>
+                            <Input
+                              type="number" step={it.selling_method === "weight" ? "0.001" : "1"} min={0}
+                              value={it.quantity === 0 ? "" : it.quantity}
+                              placeholder="0"
+                              onChange={(e) => updateLine(idx, { quantity: e.target.value === "" ? 0 : Number(e.target.value), _changed: "qty" } as any)}
+                              className="h-7 text-xs px-1 w-12 text-center"
+                            />
+                            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepQty(idx, 1)}>+</Button>
+                          </div>
                         </TableCell>
                         <TableCell className="py-1">
                           <Input
                             type="number" step="0.01" min={0}
-                            value={it.rate}
-                            onChange={(e) => updateLine(idx, { rate: Number(e.target.value), _changed: "rate" } as any)}
-                            className="h-8 text-xs px-1"
+                            value={it.rate === 0 ? "" : it.rate}
+                            placeholder="0.00"
+                            onChange={(e) => updateLine(idx, { rate: e.target.value === "" ? 0 : Number(e.target.value), _changed: "rate" } as any)}
+                            className="h-7 text-xs px-1"
                           />
                         </TableCell>
                         <TableCell className="py-1">
                           {it.selling_method === "weight" ? (
                             <Input
                               type="number" step="0.01" min={0}
-                              value={it.total}
-                              onChange={(e) => updateLine(idx, { total: Number(e.target.value), _changed: "total" } as any)}
-                              className="h-8 text-xs px-1 text-right"
+                              value={it.total === 0 ? "" : it.total}
+                              placeholder="0.00"
+                              onChange={(e) => updateLine(idx, { total: e.target.value === "" ? 0 : Number(e.target.value), _changed: "total" } as any)}
+                              className="h-7 text-xs px-1 text-right"
                             />
                           ) : (
                             <div className="text-xs text-right font-medium pr-1">{money(it.total)}</div>
