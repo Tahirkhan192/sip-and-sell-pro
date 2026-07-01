@@ -56,22 +56,15 @@ function POS() {
   const [orderType, setOrderType] = useState<"walk_in" | "take_away" | "delivery">("walk_in");
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [cash, setCash] = useState<number | "">("");
   const [online, setOnline] = useState<number | "">("");
-  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
-  const [discountValue, setDiscountValue] = useState<number | "">("");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
-  const [highlightIdx, setHighlightIdx] = useState(0);
-  const [priorityBump, setPriorityBump] = useState<Record<string, number>>({});
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
-    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
-      .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
-      .order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null).order("name")).data ?? [],
   });
 
   const { data: editingSale } = useQuery({
@@ -89,11 +82,8 @@ function POS() {
       setOrderType((s.order_type ?? "walk_in") as any);
       setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
-      setDeliveryAddress(s.delivery_address ?? "");
       setCash(num(s.cash_paid) || "");
       setOnline(num(s.online_paid) || "");
-      setDiscountType((s.discount_type ?? "amount") as any);
-      setDiscountValue(num(s.discount_value) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
         product_id: it.product_id,
         name: it.products?.name ?? "Item",
@@ -130,13 +120,10 @@ function POS() {
     let rows = products as any[];
     if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
     if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q));
-    // Client-side priority bump for products just added this session
-    const sorted = [...rows].sort((a, b) => (priorityBump[b.id] ?? 0) - (priorityBump[a.id] ?? 0));
-    return sorted;
-  }, [products, search, catFilter, priorityBump]);
+    return rows;
+  }, [products, search, catFilter]);
 
   function addToCart(p: any) {
-    setPriorityBump((m) => ({ ...m, [p.id]: Date.now() }));
     setCart((c) => {
       const idx = c.findIndex((i) => i.product_id === p.id);
       if (idx >= 0) {
@@ -150,16 +137,19 @@ function POS() {
       return [
         ...c,
         {
-          product_id: p.id, name: p.name, category: p.category ?? "",
+          product_id: p.id,
+          name: p.name,
+          category: p.category ?? "",
           unit: p.unit ?? "pcs",
           selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight",
-          rate, quantity: 1, total: round2(rate),
+          rate,
+          quantity: 1,
+          total: round2(rate),
           current_stock: num(p.current_stock),
         },
       ];
     });
     setSearch("");
-    setHighlightIdx(0);
     searchRef.current?.focus();
   }
 
@@ -192,49 +182,33 @@ function POS() {
 
   function resetForm() {
     setCart([]); setCustomer(""); setPhone(""); setKatha(false);
-    setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
-    setCash(""); setOnline(""); setOrderType("walk_in");
-    setDiscountType("amount"); setDiscountValue("");
+    setDelivery(""); setDeliveryBoy(""); setCash(""); setOnline(""); setOrderType("walk_in");
     setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.total, 0), [cart]);
-  const discountAmount = useMemo(() => {
-    const v = num(discountValue);
-    if (v <= 0) return 0;
-    if (discountType === "percent") return round2(subtotal * Math.min(v, 100) / 100);
-    return round2(Math.min(v, subtotal));
-  }, [subtotal, discountType, discountValue]);
   const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
-  const grandTotal = round2(Math.max(0, subtotal - discountAmount) + effectiveDelivery);
+  const grandTotal = round2(subtotal + effectiveDelivery);
   const paid = round2(num(cash) + num(online));
   const remaining = Math.max(0, round2(grandTotal - paid));
   const change = Math.max(0, round2(paid - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
+  // Auto-disable katha when fully paid
   useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
-  // Keyboard: '/' focus search, arrows navigate grid, Enter adds, Esc closes
+  // Keyboard: '/' focuses search, Esc closes invoice popover
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const active = document.activeElement as HTMLElement | null;
-      const inField = active?.tagName === "INPUT" || active?.tagName === "TEXTAREA";
-      if (e.key === "/" && !inField) { e.preventDefault(); searchRef.current?.focus(); return; }
-      if (e.key === "Escape") { setShowInvoiceResults(false); setShowCustomerResults(false); (active as HTMLInputElement)?.blur?.(); return; }
-      // Arrow / Enter work when search is focused or nothing focused
-      const searchFocused = active === searchRef.current;
-      if (!searchFocused && inField) return;
-      if (filtered.length === 0) return;
-      const cols = window.innerWidth >= 1280 ? 7 : window.innerWidth >= 1024 ? 6 : window.innerWidth >= 768 ? 5 : window.innerWidth >= 640 ? 4 : 3;
-      if (e.key === "ArrowRight") { e.preventDefault(); setHighlightIdx((i) => Math.min(filtered.length - 1, i + 1)); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); setHighlightIdx((i) => Math.max(0, i - 1)); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); setHighlightIdx((i) => Math.min(filtered.length - 1, i + cols)); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightIdx((i) => Math.max(0, i - cols)); }
-      else if (e.key === "Enter" && searchFocused) { e.preventDefault(); addToCart(filtered[highlightIdx] ?? filtered[0]); }
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === "Escape") setShowInvoiceResults(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [filtered, highlightIdx]);
+  }, []);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -271,9 +245,6 @@ function POS() {
         _delivery_boy: deliveryBoy,
         _customer_phone: phone,
         _katha: katha,
-        _discount_type: discountType,
-        _discount_value: num(discountValue),
-        _delivery_address: deliveryAddress,
       };
       if (editId) {
         const { data, error } = await supabase.rpc("update_pending_sale" as any, { _sale_id: editId, ...args });
