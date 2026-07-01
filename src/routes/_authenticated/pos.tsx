@@ -56,15 +56,22 @@ function POS() {
   const [orderType, setOrderType] = useState<"walk_in" | "take_away" | "delivery">("walk_in");
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [cash, setCash] = useState<number | "">("");
   const [online, setOnline] = useState<number | "">("");
+  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
+  const [discountValue, setDiscountValue] = useState<number | "">("");
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const [priorityBump, setPriorityBump] = useState<Record<string, number>>({});
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
-    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
+      .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
+      .order("name")).data ?? [],
   });
 
   const { data: editingSale } = useQuery({
