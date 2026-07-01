@@ -20,6 +20,7 @@ import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedRecipesRouteImport } from './routes/_authenticated/recipes'
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
+import { Route as AuthenticatedProductionRouteImport } from './routes/_authenticated/production'
 import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
@@ -82,6 +83,11 @@ const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProductionRoute = AuthenticatedProductionRouteImport.update({
+  id: '/production',
+  path: '/production',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPosRoute = AuthenticatedPosRouteImport.update({
   id: '/pos',
   path: '/pos',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
+  '/production': typeof AuthenticatedProductionRoute
   '/products': typeof AuthenticatedProductsRoute
   '/purchases': typeof AuthenticatedPurchasesRoute
   '/recipes': typeof AuthenticatedRecipesRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
+  '/production': typeof AuthenticatedProductionRoute
   '/products': typeof AuthenticatedProductsRoute
   '/purchases': typeof AuthenticatedPurchasesRoute
   '/recipes': typeof AuthenticatedRecipesRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/pos': typeof AuthenticatedPosRoute
+  '/_authenticated/production': typeof AuthenticatedProductionRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/purchases': typeof AuthenticatedPurchasesRoute
   '/_authenticated/recipes': typeof AuthenticatedRecipesRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/delivery-report'
     | '/expenses'
     | '/pos'
+    | '/production'
     | '/products'
     | '/purchases'
     | '/recipes'
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/delivery-report'
     | '/expenses'
     | '/pos'
+    | '/production'
     | '/products'
     | '/purchases'
     | '/recipes'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/_authenticated/delivery-report'
     | '/_authenticated/expenses'
     | '/_authenticated/pos'
+    | '/_authenticated/production'
     | '/_authenticated/products'
     | '/_authenticated/purchases'
     | '/_authenticated/recipes'
@@ -326,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProductsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/production': {
+      id: '/_authenticated/production'
+      path: '/production'
+      fullPath: '/production'
+      preLoaderRoute: typeof AuthenticatedProductionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/pos': {
       id: '/_authenticated/pos'
       path: '/pos'
@@ -385,6 +404,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedPosRoute: typeof AuthenticatedPosRoute
+  AuthenticatedProductionRoute: typeof AuthenticatedProductionRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedPurchasesRoute: typeof AuthenticatedPurchasesRoute
   AuthenticatedRecipesRoute: typeof AuthenticatedRecipesRoute
@@ -403,6 +423,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedPosRoute: AuthenticatedPosRoute,
+  AuthenticatedProductionRoute: AuthenticatedProductionRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedPurchasesRoute: AuthenticatedPurchasesRoute,
   AuthenticatedRecipesRoute: AuthenticatedRecipesRoute,
