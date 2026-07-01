@@ -308,6 +308,120 @@ export type Database = {
           },
         ]
       }
+      production_batch_items: {
+        Row: {
+          batch_id: string
+          component_product_id: string | null
+          component_stock_item_id: string | null
+          component_type: string
+          created_at: string
+          id: string
+          quantity: number
+          source_category: string | null
+          target_category: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          batch_id: string
+          component_product_id?: string | null
+          component_stock_item_id?: string | null
+          component_type: string
+          created_at?: string
+          id?: string
+          quantity: number
+          source_category?: string | null
+          target_category?: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Update: {
+          batch_id?: string
+          component_product_id?: string | null
+          component_stock_item_id?: string | null
+          component_type?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          source_category?: string | null
+          target_category?: string | null
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batch_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_items_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_items_component_stock_item_id_fkey"
+            columns: ["component_stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batches: {
+        Row: {
+          batch_date: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          target_category: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          batch_date?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity: number
+          target_category?: string | null
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          batch_date?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          target_category?: string | null
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
@@ -318,6 +432,7 @@ export type Database = {
           current_stock: number
           deleted_at: string | null
           id: string
+          last_sold_at: string | null
           minimum_stock: number
           name: string
           opening_stock: number
@@ -335,6 +450,7 @@ export type Database = {
           current_stock?: number
           deleted_at?: string | null
           id?: string
+          last_sold_at?: string | null
           minimum_stock?: number
           name: string
           opening_stock?: number
@@ -352,6 +468,7 @@ export type Database = {
           current_stock?: number
           deleted_at?: string | null
           id?: string
+          last_sold_at?: string | null
           minimum_stock?: number
           name?: string
           opening_stock?: number
@@ -364,7 +481,8 @@ export type Database = {
       }
       recipes: {
         Row: {
-          component_product_id: string
+          component_product_id: string | null
+          component_stock_item_id: string | null
           created_at: string
           deleted_at: string | null
           id: string
@@ -374,7 +492,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          component_product_id: string
+          component_product_id?: string | null
+          component_stock_item_id?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
@@ -384,7 +503,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          component_product_id?: string
+          component_product_id?: string | null
+          component_stock_item_id?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
@@ -399,6 +519,13 @@ export type Database = {
             columns: ["component_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_component_stock_item_id_fkey"
+            columns: ["component_stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
             referencedColumns: ["id"]
           },
           {
@@ -464,8 +591,12 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           deleted_at: string | null
+          delivery_address: string | null
           delivery_boy: string | null
           delivery_charges: number
+          discount_amount: number
+          discount_type: string
+          discount_value: number
           grand_total: number
           id: string
           invoice_no: string
@@ -486,8 +617,12 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           deleted_at?: string | null
+          delivery_address?: string | null
           delivery_boy?: string | null
           delivery_charges?: number
+          discount_amount?: number
+          discount_type?: string
+          discount_value?: number
           grand_total?: number
           id?: string
           invoice_no?: string
@@ -508,8 +643,12 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           deleted_at?: string | null
+          delivery_address?: string | null
           delivery_boy?: string | null
           delivery_charges?: number
+          discount_amount?: number
+          discount_type?: string
+          discount_value?: number
           grand_total?: number
           id?: string
           invoice_no?: string
@@ -772,6 +911,10 @@ export type Database = {
           top_product: string
         }[]
       }
+      delete_production_batch: {
+        Args: { _batch_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -784,6 +927,28 @@ export type Database = {
         Returns: undefined
       }
       restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
+      save_production: {
+        Args: { _notes?: string; _product_id: string; _quantity: number }
+        Returns: {
+          batch_date: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          target_category: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "production_batches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       save_sale:
         | {
             Args: {
@@ -801,8 +966,12 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -842,8 +1011,12 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -885,8 +1058,62 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              katha: boolean
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _customer_phone?: string
+              _delivery_address?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _discount_type?: string
+              _discount_value?: number
+              _items: Json
+              _katha?: boolean
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_id: string | null
+              customer_name: string | null
+              customer_phone: string | null
+              deleted_at: string | null
+              delivery_address: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -924,8 +1151,12 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -966,8 +1197,12 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -1010,8 +1245,63 @@ export type Database = {
               customer_name: string | null
               customer_phone: string | null
               deleted_at: string | null
+              delivery_address: string | null
               delivery_boy: string | null
               delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
+              grand_total: number
+              id: string
+              invoice_no: string
+              katha: boolean
+              online_paid: number
+              order_type: string
+              payment_method: string
+              sale_date: string
+              status: string
+              whatsapp_sent_at: string | null
+              whatsapp_status: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "sales"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _cash_paid?: number
+              _customer_name?: string
+              _customer_phone?: string
+              _delivery_address?: string
+              _delivery_boy?: string
+              _delivery_charges?: number
+              _discount_type?: string
+              _discount_value?: number
+              _items: Json
+              _katha?: boolean
+              _online_paid?: number
+              _order_type?: string
+              _payment_method?: string
+              _sale_id: string
+              _status?: string
+            }
+            Returns: {
+              cash_paid: number
+              created_at: string
+              created_by: string | null
+              customer_id: string | null
+              customer_name: string | null
+              customer_phone: string | null
+              deleted_at: string | null
+              delivery_address: string | null
+              delivery_boy: string | null
+              delivery_charges: number
+              discount_amount: number
+              discount_type: string
+              discount_value: number
               grand_total: number
               id: string
               invoice_no: string
@@ -1048,8 +1338,12 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           deleted_at: string | null
+          delivery_address: string | null
           delivery_boy: string | null
           delivery_charges: number
+          discount_amount: number
+          discount_type: string
+          discount_value: number
           grand_total: number
           id: string
           invoice_no: string
