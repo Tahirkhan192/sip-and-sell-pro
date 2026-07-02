@@ -306,8 +306,8 @@ function POS() {
             customer_phone: phone,
             customer_name: customer,
             grand_total: num(sale.grand_total),
-            cash_paid: num(cash),
-            online_paid: num(online),
+            cash_paid: paymentMethod === "cash" ? paidNum : 0,
+            online_paid: paymentMethod === "online" ? paidNum : 0,
             items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
             if (r.ok) toast.success("WhatsApp invoice sent");
