@@ -57,10 +57,11 @@ function POS() {
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [cash, setCash] = useState<number | "">("");
-  const [online, setOnline] = useState<number | "">("");
+  const [paid, setPaid] = useState<number | "">("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [discountValue, setDiscountValue] = useState<number | "">("");
+  const [saleDate, setSaleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
@@ -90,8 +91,10 @@ function POS() {
       setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
       setDeliveryAddress(s.delivery_address ?? "");
-      setCash(num(s.cash_paid) || "");
-      setOnline(num(s.online_paid) || "");
+      const totalPaid = num(s.cash_paid) + num(s.online_paid);
+      setPaid(totalPaid > 0 ? totalPaid : "");
+      setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
+      if (s.sale_date) setSaleDate(new Date(s.sale_date).toISOString().slice(0, 10));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
@@ -193,8 +196,9 @@ function POS() {
   function resetForm() {
     setCart([]); setCustomer(""); setPhone(""); setKatha(false);
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
-    setCash(""); setOnline(""); setOrderType("walk_in");
+    setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
+    setSaleDate(new Date().toISOString().slice(0, 10));
     setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
@@ -208,9 +212,9 @@ function POS() {
   }, [subtotal, discountType, discountValue]);
   const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
   const grandTotal = round2(Math.max(0, subtotal - discountAmount) + effectiveDelivery);
-  const paid = round2(num(cash) + num(online));
-  const remaining = Math.max(0, round2(grandTotal - paid));
-  const change = Math.max(0, round2(paid - grandTotal));
+  const paidNum = num(paid);
+  const remaining = Math.max(0, round2(grandTotal - paidNum));
+  const change = Math.max(0, round2(paidNum - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
   useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
@@ -264,9 +268,9 @@ function POS() {
         _customer_name: customer,
         _status: status,
         _delivery_charges: effectiveDelivery,
-        _payment_method: num(online) > 0 && num(cash) === 0 ? "card" : "cash",
-        _cash_paid: num(cash),
-        _online_paid: num(online),
+        _payment_method: paymentMethod === "online" ? "card" : "cash",
+        _cash_paid: paymentMethod === "cash" ? paidNum : 0,
+        _online_paid: paymentMethod === "online" ? paidNum : 0,
         _order_type: orderType,
         _delivery_boy: deliveryBoy,
         _customer_phone: phone,
@@ -276,12 +280,19 @@ function POS() {
         _delivery_address: deliveryAddress,
       };
       if (editId) {
-        const { data, error } = await supabase.rpc("update_pending_sale" as any, { _sale_id: editId, ...args });
+        const { data, error } = await supabase.rpc("update_sale" as any, {
+          _sale_id: editId, ...args,
+          _sale_date: saleDate ? new Date(saleDate).toISOString() : null,
+        });
         if (error) throw error;
         return { sale: data, status };
       }
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
+      // If cashier chose a back-date, sync it
+      if (data && saleDate && saleDate !== new Date().toISOString().slice(0, 10)) {
+        await supabase.from("sales").update({ sale_date: new Date(saleDate).toISOString() } as any).eq("id", (data as any).id);
+      }
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
@@ -295,8 +306,8 @@ function POS() {
             customer_phone: phone,
             customer_name: customer,
             grand_total: num(sale.grand_total),
-            cash_paid: num(cash),
-            online_paid: num(online),
+            cash_paid: paymentMethod === "cash" ? paidNum : 0,
+            online_paid: paymentMethod === "online" ? paidNum : 0,
             items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
             if (r.ok) toast.success("WhatsApp invoice sent");
@@ -519,20 +530,46 @@ function POS() {
 
           {/* Totals + payment */}
           <div className="border-t pt-3 space-y-2 text-sm">
+            {/* Invoice date + discount */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Invoice Date</Label>
+                <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Discount</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" value={discountValue} placeholder="0"
+                    onChange={(e) => setDiscountValue(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
+                    onClick={() => setDiscountType(discountType === "amount" ? "percent" : "amount")}>
+                    {discountType === "amount" ? "Rs" : "%"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+            {discountAmount > 0 && <div className="flex items-center justify-between"><span className="text-muted-foreground">Discount</span><span className="text-destructive">− {money(discountAmount)}</span></div>}
             {effectiveDelivery > 0 && <div className="flex items-center justify-between"><span className="text-muted-foreground">Delivery</span><span>{money(effectiveDelivery)}</span></div>}
             <div className="flex items-center justify-between pt-1 border-t">
               <span className="text-muted-foreground">Grand Total</span>
               <span className="text-xl font-bold">{money(grandTotal)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Cash Paid</Label>
-                <Input type="number" step="0.01" value={cash} placeholder="0.00" onChange={(e) => setCash(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Online Paid</Label>
-                <Input type="number" step="0.01" value={online} placeholder="0.00" onChange={(e) => setOnline(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+
+            {/* Payment method */}
+            <div className="grid grid-cols-2 gap-1">
+              <Button type="button" size="sm" variant={paymentMethod === "cash" ? "default" : "outline"} onClick={() => setPaymentMethod("cash")}>Cash</Button>
+              <Button type="button" size="sm" variant={paymentMethod === "online" ? "default" : "outline"} onClick={() => setPaymentMethod("online")}>Online</Button>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Paid Amount</Label>
+              <div className="flex gap-1">
+                <Input type="number" step="0.01" value={paid} placeholder="0.00"
+                  onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                <Button type="button" size="sm" variant="outline" className="h-9 shrink-0"
+                  onClick={() => setPaid(grandTotal)} disabled={grandTotal <= 0}>Paid All</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">

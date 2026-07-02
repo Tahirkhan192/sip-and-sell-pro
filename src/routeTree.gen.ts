@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedStockTransferRouteImport } from './routes/_authenticated/stock-transfer'
 import { Route as AuthenticatedStockItemsRouteImport } from './routes/_authenticated/stock-items'
 import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -43,6 +44,12 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedStockTransferRoute =
+  AuthenticatedStockTransferRouteImport.update({
+    id: '/stock-transfer',
+    path: '/stock-transfer',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedStockItemsRoute = AuthenticatedStockItemsRouteImport.update({
   id: '/stock-items',
   path: '/stock-items',
@@ -145,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
+  '/stock-transfer': typeof AuthenticatedStockTransferRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRoutesByTo {
@@ -164,6 +172,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
+  '/stock-transfer': typeof AuthenticatedStockTransferRoute
   '/': typeof AuthenticatedIndexRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
@@ -186,6 +195,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/stock-items': typeof AuthenticatedStockItemsRoute
+  '/_authenticated/stock-transfer': typeof AuthenticatedStockTransferRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock'
     | '/stock-items'
+    | '/stock-transfer'
     | '/api/public/whatsapp-invoice'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock'
     | '/stock-items'
+    | '/stock-transfer'
     | '/'
     | '/api/public/whatsapp-invoice'
   id:
@@ -249,6 +261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/stock'
     | '/_authenticated/stock-items'
+    | '/_authenticated/stock-transfer'
     | '/_authenticated/'
     | '/api/public/whatsapp-invoice'
   fileRoutesById: FileRoutesById
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/stock-transfer': {
+      id: '/_authenticated/stock-transfer'
+      path: '/stock-transfer'
+      fullPath: '/stock-transfer'
+      preLoaderRoute: typeof AuthenticatedStockTransferRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/stock-items': {
@@ -413,6 +433,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStockRoute: typeof AuthenticatedStockRoute
   AuthenticatedStockItemsRoute: typeof AuthenticatedStockItemsRoute
+  AuthenticatedStockTransferRoute: typeof AuthenticatedStockTransferRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -432,6 +453,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStockRoute: AuthenticatedStockRoute,
   AuthenticatedStockItemsRoute: AuthenticatedStockItemsRoute,
+  AuthenticatedStockTransferRoute: AuthenticatedStockTransferRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 
