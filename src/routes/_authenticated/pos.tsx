@@ -196,8 +196,9 @@ function POS() {
   function resetForm() {
     setCart([]); setCustomer(""); setPhone(""); setKatha(false);
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
-    setCash(""); setOnline(""); setOrderType("walk_in");
+    setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
+    setSaleDate(new Date().toISOString().slice(0, 10));
     setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
@@ -211,9 +212,9 @@ function POS() {
   }, [subtotal, discountType, discountValue]);
   const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
   const grandTotal = round2(Math.max(0, subtotal - discountAmount) + effectiveDelivery);
-  const paid = round2(num(cash) + num(online));
-  const remaining = Math.max(0, round2(grandTotal - paid));
-  const change = Math.max(0, round2(paid - grandTotal));
+  const paidNum = num(paid);
+  const remaining = Math.max(0, round2(grandTotal - paidNum));
+  const change = Math.max(0, round2(paidNum - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
   useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
