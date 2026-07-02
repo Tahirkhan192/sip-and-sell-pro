@@ -530,20 +530,46 @@ function POS() {
 
           {/* Totals + payment */}
           <div className="border-t pt-3 space-y-2 text-sm">
+            {/* Invoice date + discount */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Invoice Date</Label>
+                <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Discount</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" value={discountValue} placeholder="0"
+                    onChange={(e) => setDiscountValue(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
+                    onClick={() => setDiscountType(discountType === "amount" ? "percent" : "amount")}>
+                    {discountType === "amount" ? "Rs" : "%"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+            {discountAmount > 0 && <div className="flex items-center justify-between"><span className="text-muted-foreground">Discount</span><span className="text-destructive">− {money(discountAmount)}</span></div>}
             {effectiveDelivery > 0 && <div className="flex items-center justify-between"><span className="text-muted-foreground">Delivery</span><span>{money(effectiveDelivery)}</span></div>}
             <div className="flex items-center justify-between pt-1 border-t">
               <span className="text-muted-foreground">Grand Total</span>
               <span className="text-xl font-bold">{money(grandTotal)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Cash Paid</Label>
-                <Input type="number" step="0.01" value={cash} placeholder="0.00" onChange={(e) => setCash(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Online Paid</Label>
-                <Input type="number" step="0.01" value={online} placeholder="0.00" onChange={(e) => setOnline(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+
+            {/* Payment method */}
+            <div className="grid grid-cols-2 gap-1">
+              <Button type="button" size="sm" variant={paymentMethod === "cash" ? "default" : "outline"} onClick={() => setPaymentMethod("cash")}>Cash</Button>
+              <Button type="button" size="sm" variant={paymentMethod === "online" ? "default" : "outline"} onClick={() => setPaymentMethod("online")}>Online</Button>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Paid Amount</Label>
+              <div className="flex gap-1">
+                <Input type="number" step="0.01" value={paid} placeholder="0.00"
+                  onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                <Button type="button" size="sm" variant="outline" className="h-9 shrink-0"
+                  onClick={() => setPaid(grandTotal)} disabled={grandTotal <= 0}>Paid All</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
