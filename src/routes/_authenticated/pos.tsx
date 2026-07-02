@@ -268,9 +268,9 @@ function POS() {
         _customer_name: customer,
         _status: status,
         _delivery_charges: effectiveDelivery,
-        _payment_method: num(online) > 0 && num(cash) === 0 ? "card" : "cash",
-        _cash_paid: num(cash),
-        _online_paid: num(online),
+        _payment_method: paymentMethod === "online" ? "card" : "cash",
+        _cash_paid: paymentMethod === "cash" ? paidNum : 0,
+        _online_paid: paymentMethod === "online" ? paidNum : 0,
         _order_type: orderType,
         _delivery_boy: deliveryBoy,
         _customer_phone: phone,
@@ -280,12 +280,19 @@ function POS() {
         _delivery_address: deliveryAddress,
       };
       if (editId) {
-        const { data, error } = await supabase.rpc("update_pending_sale" as any, { _sale_id: editId, ...args });
+        const { data, error } = await supabase.rpc("update_sale" as any, {
+          _sale_id: editId, ...args,
+          _sale_date: saleDate ? new Date(saleDate).toISOString() : null,
+        });
         if (error) throw error;
         return { sale: data, status };
       }
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
+      // If cashier chose a back-date, sync it
+      if (data && saleDate && saleDate !== new Date().toISOString().slice(0, 10)) {
+        await supabase.from("sales").update({ sale_date: new Date(saleDate).toISOString() } as any).eq("id", (data as any).id);
+      }
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
