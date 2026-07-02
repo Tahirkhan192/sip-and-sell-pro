@@ -815,6 +815,78 @@ export type Database = {
           },
         ]
       }
+      stock_transfers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          from_category: string
+          id: string
+          item_name: string
+          item_type: string
+          notes: string | null
+          product_id: string | null
+          quantity: number
+          reason: string | null
+          stock_item_id: string | null
+          to_category: string
+          total_cost: number
+          unit: string
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          from_category: string
+          id?: string
+          item_name: string
+          item_type: string
+          notes?: string | null
+          product_id?: string | null
+          quantity: number
+          reason?: string | null
+          stock_item_id?: string | null
+          to_category: string
+          total_cost?: number
+          unit?: string
+          unit_cost?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          from_category?: string
+          id?: string
+          item_name?: string
+          item_type?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number
+          reason?: string | null
+          stock_item_id?: string | null
+          to_category?: string
+          total_cost?: number
+          unit?: string
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null
@@ -1133,6 +1205,42 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      save_stock_transfer: {
+        Args: {
+          _from_category: string
+          _item_type: string
+          _notes?: string
+          _product_id: string
+          _quantity: number
+          _reason?: string
+          _stock_item_id: string
+          _to_category: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          from_category: string
+          id: string
+          item_name: string
+          item_type: string
+          notes: string | null
+          product_id: string | null
+          quantity: number
+          reason: string | null
+          stock_item_id: string | null
+          to_category: string
+          total_cost: number
+          unit: string
+          unit_cost: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "stock_transfers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_pending_sale:
         | {
             Args: {
@@ -1321,6 +1429,58 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      update_sale: {
+        Args: {
+          _cash_paid?: number
+          _customer_name?: string
+          _customer_phone?: string
+          _delivery_address?: string
+          _delivery_boy?: string
+          _delivery_charges?: number
+          _discount_type?: string
+          _discount_value?: number
+          _items: Json
+          _katha?: boolean
+          _online_paid?: number
+          _order_type?: string
+          _payment_method?: string
+          _sale_date?: string
+          _sale_id: string
+          _status?: string
+        }
+        Returns: {
+          cash_paid: number
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          deleted_at: string | null
+          delivery_address: string | null
+          delivery_boy: string | null
+          delivery_charges: number
+          discount_amount: number
+          discount_type: string
+          discount_value: number
+          grand_total: number
+          id: string
+          invoice_no: string
+          katha: boolean
+          online_paid: number
+          order_type: string
+          payment_method: string
+          sale_date: string
+          status: string
+          whatsapp_sent_at: string | null
+          whatsapp_status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_sale_payment: {
         Args: {
           _cash_paid?: number
