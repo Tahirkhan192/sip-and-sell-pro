@@ -151,10 +151,11 @@ function Page() {
               <div className="flex items-center gap-2">
                 <div className="text-lg font-bold">{money(s.grand_total)}</div>
                 {s.status === "pending" && (
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to="/pos" search={{ edit: s.id }}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
-                  </Button>
+                  <Badge variant="outline" className="text-[10px]">Pending</Badge>
                 )}
+                <Button size="sm" variant="outline" asChild>
+                  <Link to="/pos" search={{ edit: s.id }}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
+                </Button>
                 <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete invoice ${s.invoice_no}? ${s.status === "completed" ? "Stock will be restored." : ""}`)) deleteMutation.mutate(s); }}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
