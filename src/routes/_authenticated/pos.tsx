@@ -91,8 +91,10 @@ function POS() {
       setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
       setDeliveryAddress(s.delivery_address ?? "");
-      setCash(num(s.cash_paid) || "");
-      setOnline(num(s.online_paid) || "");
+      const totalPaid = num(s.cash_paid) + num(s.online_paid);
+      setPaid(totalPaid > 0 ? totalPaid : "");
+      setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
+      if (s.sale_date) setSaleDate(new Date(s.sale_date).toISOString().slice(0, 10));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
