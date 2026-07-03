@@ -128,6 +128,25 @@ function Page() {
         <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       </CrudDialog>
+
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Manage Expense Categories</DialogTitle></DialogHeader>
+          <div className="flex gap-2">
+            <Input placeholder="New category name" value={newCat} onChange={(e) => setNewCat(e.target.value)} />
+            <Button onClick={async () => { if (!newCat.trim()) return; await catMut.add.mutateAsync(newCat.trim()); setNewCat(""); }}>Add</Button>
+          </div>
+          <div className="max-h-[50vh] overflow-auto divide-y">
+            {allCategories.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 py-2">
+                <Input defaultValue={c.name} className="h-8" onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) catMut.rename.mutate({ id: c.id, name: v }); }} />
+                <div className="flex items-center gap-1 text-xs"><Switch checked={c.active} onCheckedChange={(v) => catMut.toggle.mutate({ id: c.id, active: v })} /><span>{c.active ? "Active" : "Off"}</span></div>
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete "${c.name}"?`)) catMut.remove.mutate(c.id); }}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
