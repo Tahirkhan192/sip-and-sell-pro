@@ -121,7 +121,7 @@ function Page() {
           <div className="space-y-2"><Label>Category</Label>
             <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{EXPENSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
