@@ -221,6 +221,36 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
@@ -998,6 +1028,11 @@ export type Database = {
         Args: { _sale_id: string; _status: string }
         Returns: undefined
       }
+      recompute_product_wac: {
+        Args: { _product_id: string }
+        Returns: undefined
+      }
+      recompute_stock_item_wac: { Args: { _id: string }; Returns: undefined }
       restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
       save_production: {
         Args: { _notes?: string; _product_id: string; _quantity: number }
