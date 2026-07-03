@@ -11,7 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
-import { EXPENSE_CATEGORIES } from "@/lib/categories";
+import { useExpenseCategories, useExpenseCategoryMutations } from "@/lib/use-expense-categories";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Settings2 } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
