@@ -79,6 +79,8 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["stock_transfers"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["report"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_items"] });
       setOpen(false);
       setForm(empty);
     },
@@ -90,7 +92,14 @@ function Page() {
       const { error } = await (supabase as any).from("stock_transfers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock_transfers"] }); toast.success("Transfer removed"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock_transfers"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_items"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
+      toast.success("Transfer removed");
+    },
   });
 
   return (

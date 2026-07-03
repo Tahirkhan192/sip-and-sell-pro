@@ -208,21 +208,22 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
         catData[c].cogs = catData[c].opening + catData[c].purchases - catData[c].closing;
       }
 
-      // Allocate general expenses proportionally to sales
-      const totalCatSales = Object.values(catData).reduce((s, c) => s + c.sales, 0);
+      // Category Net Profit = Sales + Closing - (Opening + Purchases).
+      // General expenses are NEVER subtracted from individual category profits.
       const catRows = Object.entries(catData).map(([category, c]) => {
-        const allocatedExp = totalCatSales > 0 ? (c.sales / totalCatSales) * monthExp : 0;
         const grossProfit = c.sales - c.cogs;
-        const netProfit = grossProfit - allocatedExp;
-        return { category, ...c, allocatedExp, grossProfit, netProfit };
+        const netProfit = c.sales + c.closing - (c.opening + c.purchases);
+        return { category, ...c, allocatedExp: 0, grossProfit, netProfit };
       });
 
       // Totals
       const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
       const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
       const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-      const businessProfit = monthSalesExDel - (totalOpening + totalPurch - totalClosing) - monthExp;
+      const sumCategoryNet = catRows.reduce((s, c) => s + c.netProfit, 0);
+      // Overall = Σ category net − general expenses + delivery profit
       const deliveryProfit = monthDelCharges - monthDelExp;
+      const businessProfit = sumCategoryNet - monthExp;
       const overall = businessProfit + deliveryProfit;
 
       return {

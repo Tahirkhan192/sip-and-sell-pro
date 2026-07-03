@@ -11,7 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
-import { EXPENSE_CATEGORIES } from "@/lib/categories";
+import { useExpenseCategories, useExpenseCategoryMutations } from "@/lib/use-expense-categories";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Settings2 } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
@@ -26,6 +29,11 @@ function Page() {
   const [form, setForm] = useState<E>(empty);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [manageOpen, setManageOpen] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const { data: categories = [] } = useExpenseCategories({ activeOnly: true });
+  const { data: allCategories = [] } = useExpenseCategories({ activeOnly: false });
+  const catMut = useExpenseCategoryMutations();
 
   const { data = [] } = useQuery({
     queryKey: ["expenses"],
@@ -74,9 +82,10 @@ function Page() {
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {EXPENSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Manage</Button>
       </div>
       <Card>
         <Table>
@@ -112,13 +121,32 @@ function Page() {
           <div className="space-y-2"><Label>Category</Label>
             <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{EXPENSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
         <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       </CrudDialog>
+
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Manage Expense Categories</DialogTitle></DialogHeader>
+          <div className="flex gap-2">
+            <Input placeholder="New category name" value={newCat} onChange={(e) => setNewCat(e.target.value)} />
+            <Button onClick={async () => { if (!newCat.trim()) return; await catMut.add.mutateAsync(newCat.trim()); setNewCat(""); }}>Add</Button>
+          </div>
+          <div className="max-h-[50vh] overflow-auto divide-y">
+            {allCategories.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 py-2">
+                <Input defaultValue={c.name} className="h-8" onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) catMut.rename.mutate({ id: c.id, name: v }); }} />
+                <div className="flex items-center gap-1 text-xs"><Switch checked={c.active} onCheckedChange={(v) => catMut.toggle.mutate({ id: c.id, active: v })} /><span>{c.active ? "Active" : "Off"}</span></div>
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete "${c.name}"?`)) catMut.remove.mutate(c.id); }}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
