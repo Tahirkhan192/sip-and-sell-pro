@@ -29,6 +29,11 @@ function Page() {
   const [form, setForm] = useState<E>(empty);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [manageOpen, setManageOpen] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const { data: categories = [] } = useExpenseCategories({ activeOnly: true });
+  const { data: allCategories = [] } = useExpenseCategories({ activeOnly: false });
+  const catMut = useExpenseCategoryMutations();
 
   const { data = [] } = useQuery({
     queryKey: ["expenses"],
