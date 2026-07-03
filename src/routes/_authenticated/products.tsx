@@ -201,7 +201,7 @@ function ProductsPage() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-2"><Label>{form.selling_method === "weight" ? `Sale price per ${form.unit.toUpperCase()}` : "Sale price"}</Label><Input type="number" step="0.01" placeholder="0.00" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Cost / Purchase price</Label><Input type="number" step="0.01" placeholder="0.00" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Cost price <span className="text-xs text-muted-foreground">(auto — Weighted Avg from Purchases)</span></Label><Input type="number" step="0.01" placeholder="0.00" value={form.cost_price} readOnly disabled /></div>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" placeholder="" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
