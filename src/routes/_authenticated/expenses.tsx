@@ -42,7 +42,7 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: E) => {
-      const payload = { date: p.date, category: p.category, amount: p.amount, description: p.description || null };
+      const payload = { date: p.date, category: p.category, amount: Number(p.amount || 0), description: p.description || null, payment_method: p.payment_method };
       const res = p.id
         ? await supabase.from("expenses").update(payload).eq("id", p.id)
         : await supabase.from("expenses").insert(payload);
