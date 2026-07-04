@@ -126,7 +126,18 @@ function Page() {
             </Select>
           </div>
         </div>
-        <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2"><Label>Payment Method</Label>
+            <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v as "cash" | "online" })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" placeholder="" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+        </div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       </CrudDialog>
 
