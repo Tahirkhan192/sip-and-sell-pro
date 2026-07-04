@@ -89,12 +89,13 @@ function Page() {
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Payment</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
+                <TableCell className="capitalize">{p.payment_method ?? "cash"}</TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
