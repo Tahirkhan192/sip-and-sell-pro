@@ -68,6 +68,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_movements: {
+        Row: {
+          amount: number
+          business_date: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          occurred_at: string
+          reason: string | null
+          type: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          business_date?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          reason?: string | null
+          type: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          business_date?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          reason?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           active: boolean
@@ -149,6 +191,39 @@ export type Database = {
           phone?: string | null
           total_orders?: number
           total_purchases?: number
+        }
+        Relationships: []
+      }
+      daily_closings: {
+        Row: {
+          actual_cash: number
+          actual_wallet: number
+          closed_at: string
+          closing_date: string
+          created_at: string
+          id: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_cash?: number
+          actual_wallet?: number
+          closed_at?: string
+          closing_date: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_cash?: number
+          actual_wallet?: number
+          closed_at?: string
+          closing_date?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -260,6 +335,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: string
+          payment_method: string
         }
         Insert: {
           amount: number
@@ -269,6 +345,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          payment_method?: string
         }
         Update: {
           amount?: number
@@ -278,6 +355,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          payment_method?: string
         }
         Relationships: []
       }
@@ -981,6 +1059,7 @@ export type Database = {
         Returns: undefined
       }
       business_date: { Args: { ts: string }; Returns: string }
+      business_date_of: { Args: { _ts: string }; Returns: string }
       category_monthly_report: {
         Args: { _month: string }
         Returns: {
@@ -998,6 +1077,7 @@ export type Database = {
           stock_purchased_value: number
         }[]
       }
+      daily_closing_summary: { Args: { _date: string }; Returns: Json }
       dashboard_category_cards: {
         Args: never
         Returns: {
@@ -1276,6 +1356,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_opening_stock_from_current: { Args: never; Returns: undefined }
       update_pending_sale:
         | {
             Args: {

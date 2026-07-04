@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,17 +9,52 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
-import { Search } from "lucide-react";
+import { Search, CalendarClock } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/stock")({ component: Page });
 
 function Page() {
+  const qc = useQueryClient();
+  const setOpening = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("set_opening_stock_from_current" as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Opening stock updated for all products and stock items");
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["stock-monthly"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Failed"),
+  });
+
   return (
     <div>
-      <PageHeader title="Stock" subtitle="Current stock & monthly movement" />
+      <PageHeader
+        title="Stock"
+        subtitle="Current stock & monthly movement"
+        action={
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (confirm("Copy current stock into Opening Stock for ALL products and stock items? Use this at month start after physical adjustment.")) {
+                setOpening.mutate();
+              }
+            }}
+            disabled={setOpening.isPending}
+          >
+            <CalendarClock className="h-4 w-4 mr-1" />Set Current Stock As Opening Stock
+          </Button>
+        }
+      />
+
       <Tabs defaultValue="current">
         <TabsList>
           <TabsTrigger value="current">Current Stock</TabsTrigger>
