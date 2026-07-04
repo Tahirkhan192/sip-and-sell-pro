@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { money, today, num } from "@/lib/format";
+import { money, num } from "@/lib/format";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Pencil, Trash2, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
