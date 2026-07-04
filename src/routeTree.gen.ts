@@ -26,6 +26,7 @@ import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/po
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
 import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
+import { Route as AuthenticatedDailyClosingRouteImport } from './routes/_authenticated/daily-closing'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
 import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
@@ -118,6 +119,12 @@ const AuthenticatedDeliveryExpensesRoute =
     path: '/delivery-expenses',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDailyClosingRoute =
+  AuthenticatedDailyClosingRouteImport.update({
+    id: '/daily-closing',
+    path: '/daily-closing',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
@@ -147,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
+  '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -168,6 +176,7 @@ export interface FileRoutesByTo {
   '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
+  '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -192,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
+  '/_authenticated/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/cash-movements'
     | '/categories'
     | '/customers'
+    | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/cash-movements'
     | '/categories'
     | '/customers'
+    | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -261,6 +273,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cash-movements'
     | '/_authenticated/categories'
     | '/_authenticated/customers'
+    | '/_authenticated/daily-closing'
     | '/_authenticated/delivery-expenses'
     | '/_authenticated/delivery-report'
     | '/_authenticated/expenses'
@@ -406,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/daily-closing': {
+      id: '/_authenticated/daily-closing'
+      path: '/daily-closing'
+      fullPath: '/daily-closing'
+      preLoaderRoute: typeof AuthenticatedDailyClosingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/customers': {
       id: '/_authenticated/customers'
       path: '/customers'
@@ -441,6 +461,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCashMovementsRoute: typeof AuthenticatedCashMovementsRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
+  AuthenticatedDailyClosingRoute: typeof AuthenticatedDailyClosingRoute
   AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
@@ -462,6 +483,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCashMovementsRoute: AuthenticatedCashMovementsRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
+  AuthenticatedDailyClosingRoute: AuthenticatedDailyClosingRoute,
   AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
