@@ -20,8 +20,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
-type E = { id?: string; date: string; category: string; amount: number; description: string };
-const empty: E = { date: today(), category: "Miscellaneous", amount: 0, description: "" };
+type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" };
+const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash" };
 
 function Page() {
   const qc = useQueryClient();
