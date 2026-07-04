@@ -26,10 +26,8 @@ import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/po
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
 import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
-import { Route as AuthenticatedDailyClosingRouteImport } from './routes/_authenticated/daily-closing'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
-import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
 import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
 
 const AuthRoute = AuthRouteImport.update({
@@ -119,12 +117,6 @@ const AuthenticatedDeliveryExpensesRoute =
     path: '/delivery-expenses',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedDailyClosingRoute =
-  AuthenticatedDailyClosingRouteImport.update({
-    id: '/daily-closing',
-    path: '/daily-closing',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
@@ -135,12 +127,6 @@ const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedCashMovementsRoute =
-  AuthenticatedCashMovementsRouteImport.update({
-    id: '/cash-movements',
-    path: '/cash-movements',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const ApiPublicWhatsappInvoiceRoute =
   ApiPublicWhatsappInvoiceRouteImport.update({
     id: '/api/public/whatsapp-invoice',
@@ -151,10 +137,8 @@ const ApiPublicWhatsappInvoiceRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
-  '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
-  '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -173,10 +157,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
-  '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
-  '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -198,10 +180,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
-  '/_authenticated/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
@@ -224,10 +204,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
-    | '/cash-movements'
     | '/categories'
     | '/customers'
-    | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -246,10 +224,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
-    | '/cash-movements'
     | '/categories'
     | '/customers'
-    | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
     | '/expenses'
@@ -270,10 +246,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
-    | '/_authenticated/cash-movements'
     | '/_authenticated/categories'
     | '/_authenticated/customers'
-    | '/_authenticated/daily-closing'
     | '/_authenticated/delivery-expenses'
     | '/_authenticated/delivery-report'
     | '/_authenticated/expenses'
@@ -419,13 +393,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/daily-closing': {
-      id: '/_authenticated/daily-closing'
-      path: '/daily-closing'
-      fullPath: '/daily-closing'
-      preLoaderRoute: typeof AuthenticatedDailyClosingRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/customers': {
       id: '/_authenticated/customers'
       path: '/customers'
@@ -440,13 +407,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/cash-movements': {
-      id: '/_authenticated/cash-movements'
-      path: '/cash-movements'
-      fullPath: '/cash-movements'
-      preLoaderRoute: typeof AuthenticatedCashMovementsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/api/public/whatsapp-invoice': {
       id: '/api/public/whatsapp-invoice'
       path: '/api/public/whatsapp-invoice'
@@ -458,10 +418,8 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedCashMovementsRoute: typeof AuthenticatedCashMovementsRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
-  AuthenticatedDailyClosingRoute: typeof AuthenticatedDailyClosingRoute
   AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
@@ -480,10 +438,8 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedCashMovementsRoute: AuthenticatedCashMovementsRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
-  AuthenticatedDailyClosingRoute: AuthenticatedDailyClosingRoute,
   AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,

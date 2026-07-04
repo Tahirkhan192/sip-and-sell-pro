@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { money, num } from "@/lib/format";
+import { money, today, num } from "@/lib/format";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Pencil, Trash2, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
@@ -30,47 +30,25 @@ function StatusBadge({ s }: { s: any }) {
   return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Not Paid Fully</Badge>;
 }
 
-type QuickRange = "today" | "yesterday" | "week" | "month" | "overall";
-
-function rangeFor(q: QuickRange): { from?: string; to?: string } {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (q === "today") return { from: iso(midnight), to: iso(new Date(midnight.getTime() + 86400000)) };
-  if (q === "yesterday") return { from: iso(new Date(midnight.getTime() - 86400000)), to: iso(midnight) };
-  if (q === "week") {
-    const dow = midnight.getDay(); const back = dow === 0 ? 6 : dow - 1;
-    return { from: iso(new Date(midnight.getTime() - back * 86400000)), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  if (q === "month") {
-    const m = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { from: iso(m), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  return {};
-}
-
 function Page() {
   const qc = useQueryClient();
-  const [quick, setQuick] = useState<QuickRange>("today");
+  const [date, setDate] = useState(today());
   const [inv, setInv] = useState("");
   const [customer, setCustomer] = useState("");
   const [status, setStatus] = useState<"all" | "pending" | "completed">("all");
   const [pay, setPay] = useState<PayFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
 
-  const range = rangeFor(quick);
-
   const { data = [] } = useQuery({
-    queryKey: ["sales", quick, inv, customer, status, pay, type],
+    queryKey: ["sales", date, inv, customer, status, pay, type],
     queryFn: async () => {
       let q = supabase
         .from("sales")
         .select("*, sale_items(quantity, price, total, products(name))")
         .is("deleted_at", null)
         .order("sale_date", { ascending: false })
-        .limit(1000);
-      if (range.from) q = q.gte("sale_date", range.from);
-      if (range.to) q = q.lt("sale_date", range.to);
+        .limit(500);
+      if (date) q = q.gte("sale_date", date).lt("sale_date", new Date(new Date(date).getTime() + 86400000).toISOString().slice(0, 10));
       if (inv) q = q.ilike("invoice_no", `%${inv}%`);
       if (customer) q = q.ilike("customer_name", `%${customer}%`);
       if (status !== "all") q = q.eq("status", status);
@@ -98,40 +76,27 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
       qc.invalidateQueries({ queryKey: ["report"] });
-      qc.invalidateQueries({ queryKey: ["daily_closing"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed"),
   });
 
-  const summary = (data as any[]).reduce(
-    (a, s) => {
-      const rem = Math.max(0, num(s.grand_total) - num(s.cash_paid) - num(s.online_paid));
-      const st = paymentStatus(s);
-      a.count += 1;
-      a.sales += num(s.grand_total);
-      a.paid += num(s.cash_paid) + num(s.online_paid);
-      a.remaining += rem;
-      if (st === "paid") a.paidInvoices += 1;
-      else if (st === "katha") { a.kathaInvoices += 1; a.kathaAmt += rem; }
-      else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
-      return a;
-    },
-    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0 },
+  const totals = data.reduce(
+    (a: any, s: any) => ({
+      count: a.count + 1,
+      sales: a.sales + num(s.grand_total),
+      delivery: a.delivery + num(s.delivery_charges),
+      cash: a.cash + num(s.cash_paid),
+      online: a.online + num(s.online_paid),
+      remaining: a.remaining + Math.max(0, num(s.grand_total) - num(s.cash_paid) - num(s.online_paid)),
+    }),
+    { count: 0, sales: 0, delivery: 0, cash: 0, online: 0, remaining: 0 },
   );
 
   return (
     <div>
-      <PageHeader title="Sales & Invoices" subtitle="Quick filters, payment summary and edit/delete" />
-
-      <div className="flex flex-wrap gap-1 mb-3">
-        {(["today", "yesterday", "week", "month", "overall"] as const).map((q) => (
-          <Button key={q} size="sm" variant={quick === q ? "default" : "outline"} onClick={() => setQuick(q)} className="capitalize">
-            {q === "week" ? "This Week" : q === "month" ? "This Month" : q}
-          </Button>
-        ))}
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+      <PageHeader title="Sales & Invoices" subtitle="All invoices with payment status, filters and edit/delete" />
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input placeholder="Invoice #" value={inv} onChange={(e) => setInv(e.target.value)} />
         <Input placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} />
         <div className="flex gap-1">
@@ -155,17 +120,16 @@ function Page() {
         </div>
       </div>
 
-      <Card className="mb-3 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <div><div className="text-xs text-muted-foreground">Total Invoices</div><div className="font-semibold">{summary.count}</div></div>
-        <div><div className="text-xs text-muted-foreground">Total Sales</div><div className="font-semibold">{money(summary.sales)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Total Paid</div><div className="font-semibold text-emerald-600">{money(summary.paid)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Remaining Balance</div><div className="font-semibold text-destructive">{money(summary.remaining)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Fully Paid Invoices</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
-        <div><div className="text-xs text-muted-foreground">Katha Invoices</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
-      </Card>
-
+      {data.length > 0 && (
+        <Card className="mb-3 p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
+          <div><div className="text-xs text-muted-foreground">Invoices</div><div className="font-semibold">{totals.count}</div></div>
+          <div><div className="text-xs text-muted-foreground">Total Sales</div><div className="font-semibold">{money(totals.sales)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Cash</div><div className="font-semibold">{money(totals.cash)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Online</div><div className="font-semibold">{money(totals.online)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Delivery</div><div className="font-semibold">{money(totals.delivery)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Remaining</div><div className="font-semibold text-destructive">{money(totals.remaining)}</div></div>
+        </Card>
+      )}
 
       <div className="space-y-3">
         {data.map((s: any) => (
