@@ -28,6 +28,7 @@ import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authe
 import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
+import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
 import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
 
 const AuthRoute = AuthRouteImport.update({
@@ -127,6 +128,12 @@ const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCashMovementsRoute =
+  AuthenticatedCashMovementsRouteImport.update({
+    id: '/cash-movements',
+    path: '/cash-movements',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicWhatsappInvoiceRoute =
   ApiPublicWhatsappInvoiceRouteImport.update({
     id: '/api/public/whatsapp-invoice',
@@ -137,6 +144,7 @@ const ApiPublicWhatsappInvoiceRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
@@ -157,6 +165,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/customers': typeof AuthenticatedCustomersRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
@@ -180,6 +189,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/cash-movements': typeof AuthenticatedCashMovementsRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
   '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/cash-movements'
     | '/categories'
     | '/customers'
     | '/delivery-expenses'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/cash-movements'
     | '/categories'
     | '/customers'
     | '/delivery-expenses'
@@ -246,6 +258,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/cash-movements'
     | '/_authenticated/categories'
     | '/_authenticated/customers'
     | '/_authenticated/delivery-expenses'
@@ -407,6 +420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cash-movements': {
+      id: '/_authenticated/cash-movements'
+      path: '/cash-movements'
+      fullPath: '/cash-movements'
+      preLoaderRoute: typeof AuthenticatedCashMovementsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/whatsapp-invoice': {
       id: '/api/public/whatsapp-invoice'
       path: '/api/public/whatsapp-invoice'
@@ -418,6 +438,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCashMovementsRoute: typeof AuthenticatedCashMovementsRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
   AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
@@ -438,6 +459,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCashMovementsRoute: AuthenticatedCashMovementsRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
   AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
