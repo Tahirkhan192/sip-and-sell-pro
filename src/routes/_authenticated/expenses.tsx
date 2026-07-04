@@ -20,8 +20,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
-type E = { id?: string; date: string; category: string; amount: number; description: string };
-const empty: E = { date: today(), category: "Miscellaneous", amount: 0, description: "" };
+type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" };
+const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash" };
 
 function Page() {
   const qc = useQueryClient();
@@ -42,7 +42,7 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: E) => {
-      const payload = { date: p.date, category: p.category, amount: p.amount, description: p.description || null };
+      const payload = { date: p.date, category: p.category, amount: Number(p.amount || 0), description: p.description || null, payment_method: p.payment_method };
       const res = p.id
         ? await supabase.from("expenses").update(payload).eq("id", p.id)
         : await supabase.from("expenses").insert(payload);
@@ -89,22 +89,23 @@ function Page() {
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Payment</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
+                <TableCell className="capitalize">{p.payment_method ?? "cash"}</TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "" }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
@@ -125,7 +126,18 @@ function Page() {
             </Select>
           </div>
         </div>
-        <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2"><Label>Payment Method</Label>
+            <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v as "cash" | "online" })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" placeholder="" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+        </div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       </CrudDialog>
 
