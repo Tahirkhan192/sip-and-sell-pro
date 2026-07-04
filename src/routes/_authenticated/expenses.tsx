@@ -105,7 +105,7 @@ function Page() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
