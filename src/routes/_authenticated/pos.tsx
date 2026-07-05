@@ -246,7 +246,7 @@ function POS() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Pending invoice deleted");
+      toast.success("Pending KDF deleted");
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -296,7 +296,7 @@ function POS() {
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
-      toast.success(status === "pending" ? `Invoice ${sale.invoice_no} saved as pending` : `Invoice ${sale.invoice_no} completed`);
+      toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart });
         // Silent WhatsApp send (non-blocking)
@@ -310,9 +310,9 @@ function POS() {
             online_paid: paymentMethod === "online" ? paidNum : 0,
             items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
-            if (r.ok) toast.success("WhatsApp invoice sent");
+            if (r.ok) toast.success("WhatsApp KDF sent");
             else if (r.reason !== "not-configured" && r.reason !== "no-phone")
-              toast.message("WhatsApp not sent — invoice saved", { description: r.reason });
+              toast.message("WhatsApp not sent — KDF saved", { description: r.reason });
           });
         }
       }
@@ -371,7 +371,7 @@ function POS() {
             <div className="font-semibold">{editId ? `Editing ${(editingSale as any)?.invoice_no ?? "…"}` : "Current Order"}</div>
             {editId && (
               <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this pending invoice?")) deleteMutation.mutate(editId); }} disabled={deleteMutation.isPending}>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this pending KDF?")) deleteMutation.mutate(editId); }} disabled={deleteMutation.isPending}>
                   <Trash className="h-4 w-4 mr-1" /> Delete
                 </Button>
                 <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancel</Button>
@@ -383,12 +383,12 @@ function POS() {
             <div className="relative">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input placeholder="Find pending invoice by customer…" value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceResults(true); }} onFocus={() => setShowInvoiceResults(true)} className="h-9 text-sm" />
+                <Input placeholder="Find pending KDF by customer…" value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceResults(true); }} onFocus={() => setShowInvoiceResults(true)} className="h-9 text-sm" />
               </div>
               {showInvoiceResults && invoiceSearch.trim().length >= 2 && (
                 <div className="absolute z-20 w-full mt-1 rounded-md border bg-popover shadow-md max-h-60 overflow-auto">
                   {pendingInvoices.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No pending invoices found</div>
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No pending KDFs found</div>
                   ) : (
                     (pendingInvoices as any[]).map((inv) => (
                       <button key={inv.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2" onClick={() => { navigate({ to: "/pos", search: { edit: inv.id } }); setInvoiceSearch(""); setShowInvoiceResults(false); }}>
@@ -530,10 +530,10 @@ function POS() {
 
           {/* Totals + payment */}
           <div className="border-t pt-3 space-y-2 text-sm">
-            {/* Invoice date + discount */}
+            {/* KDF date + discount */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Invoice Date</Label>
+                <Label className="text-xs">KDF Date</Label>
                 <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
@@ -634,7 +634,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
     <div className="p-8 text-black bg-white max-w-md mx-auto font-mono text-sm">
       <div className="text-center border-b border-dashed pb-2 mb-2">
         <div className="text-lg font-bold">Café Manager</div>
-        <div className="text-xs">Tax Invoice</div>
+        <div className="text-xs">KDF</div>
       </div>
       <div className="flex justify-between text-xs mb-1">
         <span>{invoice.invoice_no}</span>

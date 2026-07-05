@@ -32,21 +32,13 @@ function StatusBadge({ s }: { s: any }) {
 
 type QuickRange = "today" | "yesterday" | "week" | "month" | "overall";
 
-function rangeFor(q: QuickRange): { from?: string; to?: string } {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (q === "today") return { from: iso(midnight), to: iso(new Date(midnight.getTime() + 86400000)) };
-  if (q === "yesterday") return { from: iso(new Date(midnight.getTime() - 86400000)), to: iso(midnight) };
-  if (q === "week") {
-    const dow = midnight.getDay(); const back = dow === 0 ? 6 : dow - 1;
-    return { from: iso(new Date(midnight.getTime() - back * 86400000)), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  if (q === "month") {
-    const m = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { from: iso(m), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  return {};
+import { buildRange } from "@/lib/business-date";
+
+function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string } {
+  if (q === "overall") return {};
+  const map = { today: "today", yesterday: "yesterday", week: "week", month: "month" } as const;
+  const r = buildRange(map[q]);
+  return { startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
 
 function Page() {
@@ -69,8 +61,8 @@ function Page() {
         .is("deleted_at", null)
         .order("sale_date", { ascending: false })
         .limit(1000);
-      if (range.from) q = q.gte("sale_date", range.from);
-      if (range.to) q = q.lt("sale_date", range.to);
+      if (range.startUTC) q = q.gte("sale_date", range.startUTC);
+      if (range.endExclusiveUTC) q = q.lt("sale_date", range.endExclusiveUTC);
       if (inv) q = q.ilike("invoice_no", `%${inv}%`);
       if (customer) q = q.ilike("customer_name", `%${customer}%`);
       if (status !== "all") q = q.eq("status", status);
@@ -91,7 +83,7 @@ function Page() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Invoice deleted");
+      toast.success("KDF deleted");
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -121,7 +113,7 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Sales & Invoices" subtitle="Quick filters, payment summary and edit/delete" />
+      <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" />
 
       <div className="flex flex-wrap gap-1 mb-3">
         {(["today", "yesterday", "week", "month", "overall"] as const).map((q) => (
@@ -132,7 +124,7 @@ function Page() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-        <Input placeholder="Invoice #" value={inv} onChange={(e) => setInv(e.target.value)} />
+        <Input placeholder="KDF #" value={inv} onChange={(e) => setInv(e.target.value)} />
         <Input placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} />
         <div className="flex gap-1">
           {(["all", "pending", "completed"] as const).map((s) => (
@@ -156,14 +148,14 @@ function Page() {
       </div>
 
       <Card className="mb-3 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <div><div className="text-xs text-muted-foreground">Total Invoices</div><div className="font-semibold">{summary.count}</div></div>
+        <div><div className="text-xs text-muted-foreground">Total KDFs</div><div className="font-semibold">{summary.count}</div></div>
         <div><div className="text-xs text-muted-foreground">Total Sales</div><div className="font-semibold">{money(summary.sales)}</div></div>
         <div><div className="text-xs text-muted-foreground">Total Paid</div><div className="font-semibold text-emerald-600">{money(summary.paid)}</div></div>
         <div><div className="text-xs text-muted-foreground">Remaining Balance</div><div className="font-semibold text-destructive">{money(summary.remaining)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Fully Paid Invoices</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
-        <div><div className="text-xs text-muted-foreground">Katha Invoices</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} KDFs)</span></div></div>
+        <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} KDFs)</span></div></div>
+        <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Katha KDFs</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
       </Card>
 
 
@@ -192,7 +184,7 @@ function Page() {
                 <Button size="sm" variant="outline" asChild>
                   <Link to="/pos" search={{ edit: s.id }}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
                 </Button>
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete invoice ${s.invoice_no}? ${s.status === "completed" ? "Stock will be restored." : ""}`)) deleteMutation.mutate(s); }}>
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete KDF ${s.invoice_no}? ${s.status === "completed" ? "Stock will be restored." : ""}`)) deleteMutation.mutate(s); }}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>

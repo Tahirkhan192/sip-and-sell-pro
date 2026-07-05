@@ -19,6 +19,7 @@ type Summary = {
   opening_cash: number; opening_wallet: number;
   cash_sales: number; online_sales: number; katha: number;
   cash_in: number; cash_out: number;
+  online_in: number; online_out: number;
   cash_expenses: number; online_expenses: number;
   invoices: number;
   expected_cash: number; expected_wallet: number;
@@ -118,6 +119,8 @@ function Page() {
           <Stat label="Online Sales" value={money(summary.online_sales)} tone="success" />
           <Stat label="Cash In" value={money(summary.cash_in)} tone="success" />
           <Stat label="Cash Out" value={money(summary.cash_out)} tone="danger" />
+          <Stat label="Online In" value={money(summary.online_in ?? 0)} tone="success" />
+          <Stat label="Online Out" value={money(summary.online_out ?? 0)} tone="danger" />
           <Stat label="Cash Expenses" value={money(summary.cash_expenses)} tone="danger" />
           <Stat label="Online Expenses" value={money(summary.online_expenses)} tone="danger" />
           <Stat label="Expected Cash" value={money(summary.expected_cash)} />

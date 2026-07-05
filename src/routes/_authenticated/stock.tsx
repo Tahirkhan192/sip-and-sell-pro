@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
+import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
-import { Search, CalendarClock } from "lucide-react";
+import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/stock")({ component: Page });
@@ -70,6 +71,7 @@ function Page() {
 function CurrentStock() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
+  const [transferTarget, setTransferTarget] = useState<any>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["stock", "products"],
@@ -113,6 +115,7 @@ function CurrentStock() {
               <TableHead className="text-right">Min</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {filtered.map((r: any) => (
@@ -124,9 +127,14 @@ function CurrentStock() {
                   <TableCell className="text-right text-muted-foreground">{num(r.minimum_stock).toFixed(2)}</TableCell>
                   <TableCell className="text-right">{money(num(r.current_stock) * num(r.cost_price))}</TableCell>
                   <TableCell>{num(r.current_stock) < num(r.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: num(r.cost_price), current: num(r.current_stock) })}>
+                      <ArrowRightLeft className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
@@ -143,6 +151,7 @@ function CurrentStock() {
               <TableHead className="text-right">Min</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {(items as any[]).map((r) => (
@@ -154,13 +163,19 @@ function CurrentStock() {
                   <TableCell className="text-right text-muted-foreground">{num(r.minimum_stock).toFixed(2)}</TableCell>
                   <TableCell className="text-right">{money(num(r.current_stock) * num(r.purchase_price))}</TableCell>
                   <TableCell>{num(r.current_stock) < num(r.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: num(r.purchase_price), current: num(r.current_stock) })}>
+                      <ArrowRightLeft className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
-              {items.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No stock items</TableCell></TableRow>}
+              {items.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No stock items</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
       </div>
+      <StockToExpenseDialog target={transferTarget} open={!!transferTarget} onOpenChange={(v) => { if (!v) setTransferTarget(null); }} />
     </div>
   );
 }
