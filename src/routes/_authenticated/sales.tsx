@@ -83,7 +83,7 @@ function Page() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Invoice deleted");
+      toast.success("KDF deleted");
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["products"] });
