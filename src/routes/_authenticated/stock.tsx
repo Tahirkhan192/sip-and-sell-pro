@@ -115,6 +115,7 @@ function CurrentStock() {
               <TableHead className="text-right">Min</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {filtered.map((r: any) => (
@@ -126,9 +127,14 @@ function CurrentStock() {
                   <TableCell className="text-right text-muted-foreground">{num(r.minimum_stock).toFixed(2)}</TableCell>
                   <TableCell className="text-right">{money(num(r.current_stock) * num(r.cost_price))}</TableCell>
                   <TableCell>{num(r.current_stock) < num(r.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: num(r.cost_price), current: num(r.current_stock) })}>
+                      <ArrowRightLeft className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
