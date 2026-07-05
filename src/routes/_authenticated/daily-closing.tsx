@@ -19,6 +19,7 @@ type Summary = {
   opening_cash: number; opening_wallet: number;
   cash_sales: number; online_sales: number; katha: number;
   cash_in: number; cash_out: number;
+  online_in: number; online_out: number;
   cash_expenses: number; online_expenses: number;
   invoices: number;
   expected_cash: number; expected_wallet: number;
