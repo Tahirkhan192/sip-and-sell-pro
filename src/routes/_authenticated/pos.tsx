@@ -310,9 +310,9 @@ function POS() {
             online_paid: paymentMethod === "online" ? paidNum : 0,
             items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
-            if (r.ok) toast.success("WhatsApp invoice sent");
+            if (r.ok) toast.success("WhatsApp KDF sent");
             else if (r.reason !== "not-configured" && r.reason !== "no-phone")
-              toast.message("WhatsApp not sent — invoice saved", { description: r.reason });
+              toast.message("WhatsApp not sent — KDF saved", { description: r.reason });
           });
         }
       }
