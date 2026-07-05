@@ -296,7 +296,7 @@ function POS() {
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
-      toast.success(status === "pending" ? `Invoice ${sale.invoice_no} saved as pending` : `Invoice ${sale.invoice_no} completed`);
+      toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart });
         // Silent WhatsApp send (non-blocking)
