@@ -77,6 +77,7 @@ export type Database = {
           id: string
           notes: string | null
           occurred_at: string
+          payment_source: string
           reason: string | null
           type: string
           updated_at: string
@@ -90,6 +91,7 @@ export type Database = {
           id?: string
           notes?: string | null
           occurred_at?: string
+          payment_source?: string
           reason?: string | null
           type: string
           updated_at?: string
@@ -103,6 +105,7 @@ export type Database = {
           id?: string
           notes?: string | null
           occurred_at?: string
+          payment_source?: string
           reason?: string | null
           type?: string
           updated_at?: string
@@ -1357,6 +1360,18 @@ export type Database = {
         }
       }
       set_opening_stock_from_current: { Args: never; Returns: undefined }
+      stock_to_expense_transfer: {
+        Args: {
+          _date: string
+          _expense_category: string
+          _notes: string
+          _product_id: string
+          _quantity: number
+          _reason: string
+          _stock_item_id: string
+        }
+        Returns: string
+      }
       update_pending_sale:
         | {
             Args: {
