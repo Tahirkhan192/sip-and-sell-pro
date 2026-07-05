@@ -113,7 +113,7 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Sales & Invoices" subtitle="Quick filters, payment summary and edit/delete" />
+      <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" />
 
       <div className="flex flex-wrap gap-1 mb-3">
         {(["today", "yesterday", "week", "month", "overall"] as const).map((q) => (
