@@ -71,6 +71,7 @@ function Page() {
 function CurrentStock() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
+  const [transferTarget, setTransferTarget] = useState<any>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["stock", "products"],
