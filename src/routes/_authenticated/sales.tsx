@@ -148,14 +148,14 @@ function Page() {
       </div>
 
       <Card className="mb-3 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <div><div className="text-xs text-muted-foreground">Total Invoices</div><div className="font-semibold">{summary.count}</div></div>
+        <div><div className="text-xs text-muted-foreground">Total KDFs</div><div className="font-semibold">{summary.count}</div></div>
         <div><div className="text-xs text-muted-foreground">Total Sales</div><div className="font-semibold">{money(summary.sales)}</div></div>
         <div><div className="text-xs text-muted-foreground">Total Paid</div><div className="font-semibold text-emerald-600">{money(summary.paid)}</div></div>
         <div><div className="text-xs text-muted-foreground">Remaining Balance</div><div className="font-semibold text-destructive">{money(summary.remaining)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} inv)</span></div></div>
-        <div><div className="text-xs text-muted-foreground">Fully Paid Invoices</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
-        <div><div className="text-xs text-muted-foreground">Katha Invoices</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} KDFs)</span></div></div>
+        <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} KDFs)</span></div></div>
+        <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Katha KDFs</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
       </Card>
 
 
