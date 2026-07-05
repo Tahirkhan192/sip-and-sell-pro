@@ -119,6 +119,8 @@ function Page() {
           <Stat label="Online Sales" value={money(summary.online_sales)} tone="success" />
           <Stat label="Cash In" value={money(summary.cash_in)} tone="success" />
           <Stat label="Cash Out" value={money(summary.cash_out)} tone="danger" />
+          <Stat label="Online In" value={money(summary.online_in ?? 0)} tone="success" />
+          <Stat label="Online Out" value={money(summary.online_out ?? 0)} tone="danger" />
           <Stat label="Cash Expenses" value={money(summary.cash_expenses)} tone="danger" />
           <Stat label="Online Expenses" value={money(summary.online_expenses)} tone="danger" />
           <Stat label="Expected Cash" value={money(summary.expected_cash)} />
