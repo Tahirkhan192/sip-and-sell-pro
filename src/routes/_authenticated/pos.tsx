@@ -371,7 +371,7 @@ function POS() {
             <div className="font-semibold">{editId ? `Editing ${(editingSale as any)?.invoice_no ?? "…"}` : "Current Order"}</div>
             {editId && (
               <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this pending invoice?")) deleteMutation.mutate(editId); }} disabled={deleteMutation.isPending}>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this pending KDF?")) deleteMutation.mutate(editId); }} disabled={deleteMutation.isPending}>
                   <Trash className="h-4 w-4 mr-1" /> Delete
                 </Button>
                 <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancel</Button>
