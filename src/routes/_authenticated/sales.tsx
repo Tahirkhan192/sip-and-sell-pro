@@ -32,21 +32,13 @@ function StatusBadge({ s }: { s: any }) {
 
 type QuickRange = "today" | "yesterday" | "week" | "month" | "overall";
 
-function rangeFor(q: QuickRange): { from?: string; to?: string } {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (q === "today") return { from: iso(midnight), to: iso(new Date(midnight.getTime() + 86400000)) };
-  if (q === "yesterday") return { from: iso(new Date(midnight.getTime() - 86400000)), to: iso(midnight) };
-  if (q === "week") {
-    const dow = midnight.getDay(); const back = dow === 0 ? 6 : dow - 1;
-    return { from: iso(new Date(midnight.getTime() - back * 86400000)), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  if (q === "month") {
-    const m = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { from: iso(m), to: iso(new Date(midnight.getTime() + 86400000)) };
-  }
-  return {};
+import { buildRange } from "@/lib/business-date";
+
+function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string } {
+  if (q === "overall") return {};
+  const map = { today: "today", yesterday: "yesterday", week: "week", month: "month" } as const;
+  const r = buildRange(map[q]);
+  return { startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
 
 function Page() {
@@ -69,8 +61,8 @@ function Page() {
         .is("deleted_at", null)
         .order("sale_date", { ascending: false })
         .limit(1000);
-      if (range.from) q = q.gte("sale_date", range.from);
-      if (range.to) q = q.lt("sale_date", range.to);
+      if (range.startUTC) q = q.gte("sale_date", range.startUTC);
+      if (range.endExclusiveUTC) q = q.lt("sale_date", range.endExclusiveUTC);
       if (inv) q = q.ilike("invoice_no", `%${inv}%`);
       if (customer) q = q.ilike("customer_name", `%${customer}%`);
       if (status !== "all") q = q.eq("status", status);
