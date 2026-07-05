@@ -530,10 +530,10 @@ function POS() {
 
           {/* Totals + payment */}
           <div className="border-t pt-3 space-y-2 text-sm">
-            {/* Invoice date + discount */}
+            {/* KDF date + discount */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Invoice Date</Label>
+                <Label className="text-xs">KDF Date</Label>
                 <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
