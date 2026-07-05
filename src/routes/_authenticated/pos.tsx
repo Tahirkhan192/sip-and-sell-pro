@@ -383,12 +383,12 @@ function POS() {
             <div className="relative">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input placeholder="Find pending invoice by customer…" value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceResults(true); }} onFocus={() => setShowInvoiceResults(true)} className="h-9 text-sm" />
+                <Input placeholder="Find pending KDF by customer…" value={invoiceSearch} onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceResults(true); }} onFocus={() => setShowInvoiceResults(true)} className="h-9 text-sm" />
               </div>
               {showInvoiceResults && invoiceSearch.trim().length >= 2 && (
                 <div className="absolute z-20 w-full mt-1 rounded-md border bg-popover shadow-md max-h-60 overflow-auto">
                   {pendingInvoices.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No pending invoices found</div>
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No pending KDFs found</div>
                   ) : (
                     (pendingInvoices as any[]).map((inv) => (
                       <button key={inv.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2" onClick={() => { navigate({ to: "/pos", search: { edit: inv.id } }); setInvoiceSearch(""); setShowInvoiceResults(false); }}>
