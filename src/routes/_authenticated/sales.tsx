@@ -124,7 +124,7 @@ function Page() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-        <Input placeholder="Invoice #" value={inv} onChange={(e) => setInv(e.target.value)} />
+        <Input placeholder="KDF #" value={inv} onChange={(e) => setInv(e.target.value)} />
         <Input placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} />
         <div className="flex gap-1">
           {(["all", "pending", "completed"] as const).map((s) => (
