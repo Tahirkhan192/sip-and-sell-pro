@@ -246,7 +246,7 @@ function POS() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Pending invoice deleted");
+      toast.success("Pending KDF deleted");
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
