@@ -75,10 +75,14 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          movement_category: string | null
           notes: string | null
           occurred_at: string
           payment_source: string
           reason: string | null
+          reference_id: string | null
+          reference_type: string | null
+          subcategory: string | null
           type: string
           updated_at: string
           user_id: string | null
@@ -89,10 +93,14 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          movement_category?: string | null
           notes?: string | null
           occurred_at?: string
           payment_source?: string
           reason?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          subcategory?: string | null
           type: string
           updated_at?: string
           user_id?: string | null
@@ -103,10 +111,14 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          movement_category?: string | null
           notes?: string | null
           occurred_at?: string
           payment_source?: string
           reason?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          subcategory?: string | null
           type?: string
           updated_at?: string
           user_id?: string | null
@@ -338,7 +350,13 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: string
+          notes: string | null
+          paid_amount: number
+          paid_at: string | null
           payment_method: string
+          payment_source: string
+          payment_status: string
+          supplier: string | null
         }
         Insert: {
           amount: number
@@ -348,7 +366,13 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          notes?: string | null
+          paid_amount?: number
+          paid_at?: string | null
           payment_method?: string
+          payment_source?: string
+          payment_status?: string
+          supplier?: string | null
         }
         Update: {
           amount?: number
@@ -358,7 +382,46 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          notes?: string | null
+          paid_amount?: number
+          paid_at?: string | null
           payment_method?: string
+          payment_source?: string
+          payment_status?: string
+          supplier?: string | null
+        }
+        Relationships: []
+      }
+      money_movement_subcategories: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -874,6 +937,10 @@ export type Database = {
           deleted_at: string | null
           id: string
           notes: string | null
+          paid_amount: number
+          paid_at: string | null
+          payment_source: string
+          payment_status: string
           product_id: string | null
           quantity: number
           stock_item_id: string | null
@@ -888,6 +955,10 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           notes?: string | null
+          paid_amount?: number
+          paid_at?: string | null
+          payment_source?: string
+          payment_status?: string
           product_id?: string | null
           quantity: number
           stock_item_id?: string | null
@@ -902,6 +973,10 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           notes?: string | null
+          paid_amount?: number
+          paid_at?: string | null
+          payment_source?: string
+          payment_status?: string
           product_id?: string | null
           quantity?: number
           stock_item_id?: string | null
@@ -1110,6 +1185,10 @@ export type Database = {
       mark_whatsapp_status: {
         Args: { _sale_id: string; _status: string }
         Returns: undefined
+      }
+      monthly_financial_summary: {
+        Args: { _month_start: string }
+        Returns: Json
       }
       recompute_product_wac: {
         Args: { _product_id: string }
