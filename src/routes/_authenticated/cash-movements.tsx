@@ -1,17 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, ArrowDownCircle, ArrowUpCircle, Save } from "lucide-react";
-import { money, today } from "@/lib/format";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Pencil, Trash2, ArrowDownCircle, ArrowUpCircle, Save, X } from "lucide-react";
+import { money } from "@/lib/format";
+import { businessToday, formatBusinessTime, formatBusinessDate } from "@/lib/business-date";
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
@@ -22,172 +23,39 @@ type PaymentSource = "cash" | "online";
 
 type FormState = {
   id?: string;
-  business_date: string;
-  business_time: string; // HH:MM
-  movement_category: string;
-  subcategory: string;
-  amount: number | "";
+  direction: Direction;
   payment_source: PaymentSource;
+  amount: number | "";
   notes: string;
 };
 
-const nowHM = () => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
 const emptyForm = (): FormState => ({
-  business_date: today(),
-  business_time: nowHM(),
-  movement_category: "",
-  subcategory: "",
-  amount: "",
+  direction: "cash_in",
   payment_source: "cash",
+  amount: "",
   notes: "",
 });
 
-function occurredAtISO(date: string, time: string): string {
-  const t = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : "00:00:00";
-  // Use local time — matches user's business time
-  const d = new Date(`${date}T${t}`);
-  return d.toISOString();
-}
-
-function useSubcategories() {
-  return useQuery({
-    queryKey: ["money_movement_subcategories"],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("money_movement_subcategories")
-        .select("id, category, name, active")
-        .is("deleted_at", null)
-        .eq("active", true)
-        .order("category").order("sort_order").order("name");
-      return (data ?? []) as { id: string; category: string; name: string }[];
-    },
-    staleTime: 60_000,
-  });
-}
-
-const CATEGORY_OPTIONS = ["Expense", "Owner", "Customer", "Other"] as const;
-
-function MovementForm({
-  direction,
-  form,
-  onChange,
-  onSubmit,
-  onReset,
-  saving,
-  subcategories,
-}: {
-  direction: Direction;
-  form: FormState;
-  onChange: (patch: Partial<FormState>) => void;
-  onSubmit: () => void;
-  onReset: () => void;
-  saving: boolean;
-  subcategories: { category: string; name: string }[];
-}) {
-  const isIn = direction === "cash_in";
-  const subs = subcategories.filter((s) => s.category === form.movement_category);
-  return (
-    <Card className={`p-4 border-t-4 ${isIn ? "border-t-emerald-500" : "border-t-destructive"}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {isIn
-            ? <ArrowDownCircle className="h-5 w-5 text-emerald-600" />
-            : <ArrowUpCircle className="h-5 w-5 text-destructive" />}
-          <h3 className="font-semibold text-lg">{isIn ? "Money In" : "Money Out"}</h3>
-        </div>
-        {form.id && <Badge variant="outline" className="text-[10px]">Editing</Badge>}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label>Category</Label>
-          <Select value={form.movement_category} onValueChange={(v) => onChange({ movement_category: v, subcategory: "" })}>
-            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>
-              {CATEGORY_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>Sub Category</Label>
-          <Select value={form.subcategory} onValueChange={(v) => onChange({ subcategory: v })} disabled={!form.movement_category}>
-            <SelectTrigger><SelectValue placeholder={form.movement_category ? "Select" : "Pick category first"} /></SelectTrigger>
-            <SelectContent>
-              {subs.map((s) => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mt-2">
-        <div className="space-y-1">
-          <Label>Amount</Label>
-          <Input type="number" step="0.01" placeholder="" value={form.amount}
-            onChange={(e) => onChange({ amount: e.target.value === "" ? "" : Number(e.target.value) })} />
-        </div>
-        <div className="space-y-1">
-          <Label>Payment Method</Label>
-          <Select value={form.payment_source} onValueChange={(v) => onChange({ payment_source: v as PaymentSource })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cash">Cash</SelectItem>
-              <SelectItem value="online">Online (Wallet)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mt-2">
-        <div className="space-y-1">
-          <Label>Date</Label>
-          <Input type="date" value={form.business_date} onChange={(e) => onChange({ business_date: e.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label>Business Time</Label>
-          <Input type="time" value={form.business_time} onChange={(e) => onChange({ business_time: e.target.value })} />
-        </div>
-      </div>
-
-      <div className="space-y-1 mt-2">
-        <Label>Notes</Label>
-        <Textarea rows={2} value={form.notes} onChange={(e) => onChange({ notes: e.target.value })} />
-      </div>
-
-      <div className="flex gap-2 mt-3">
-        <Button
-          className={`flex-1 ${isIn ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-          variant={isIn ? "default" : "destructive"}
-          onClick={onSubmit}
-          disabled={saving}
-        >
-          <Save className="h-4 w-4 mr-1" />
-          {form.id ? "Update" : `Save ${isIn ? "Money In" : "Money Out"}`}
-        </Button>
-        {form.id && <Button variant="outline" onClick={onReset}>Cancel</Button>}
-      </div>
-    </Card>
-  );
-}
-
 function Page() {
   const qc = useQueryClient();
-  const [inForm, setInForm] = useState<FormState>(emptyForm());
-  const [outForm, setOutForm] = useState<FormState>(emptyForm());
-  const [date, setDate] = useState(today());
-  const [typeFilter, setTypeFilter] = useState<"all" | Direction>("all");
-  const [sourceFilter, setSourceFilter] = useState<"all" | PaymentSource>("all");
-  const { data: subcategories = [] } = useSubcategories();
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [now, setNow] = useState(() => new Date());
+  const [date, setDate] = useState(businessToday());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const businessDate = businessToday(now);
+  const businessTimeStr = formatBusinessTime(now);
+  const businessDateStr = formatBusinessDate(now);
 
   const { data = [] } = useQuery({
-    queryKey: ["cash_movements", date, typeFilter, sourceFilter],
+    queryKey: ["cash_movements", date],
     queryFn: async () => {
       let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
-      if (typeFilter !== "all") q = q.eq("type", typeFilter);
-      if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
       return (await q).data ?? [];
     },
   });
@@ -200,31 +68,31 @@ function Page() {
   };
 
   const save = useMutation({
-    mutationFn: async (p: { form: FormState; direction: Direction }) => {
-      const f = p.form;
-      if (!f.amount || Number(f.amount) <= 0) throw new Error("Amount required");
-      if (!f.movement_category) throw new Error("Category required");
-      const payload = {
-        business_date: f.business_date,
-        occurred_at: occurredAtISO(f.business_date, f.business_time),
-        type: p.direction,
+    mutationFn: async (f: FormState) => {
+      if (!f.amount || Number(f.amount) <= 0) throw new Error("Enter a valid amount");
+      const editing = !!f.id;
+      const payload: any = {
+        type: f.direction,
         payment_source: f.payment_source,
         amount: Number(f.amount),
-        movement_category: f.movement_category || null,
-        subcategory: f.subcategory || null,
-        reason: f.subcategory || f.movement_category || null,
         notes: f.notes || null,
+        movement_category: null,
+        subcategory: null,
+        reason: f.notes || null,
       };
-      const res = f.id
-        ? await supabase.from("cash_movements" as any).update(payload).eq("id", f.id)
+      if (!editing) {
+        payload.business_date = businessDate;
+        payload.occurred_at = new Date().toISOString();
+      }
+      const res = editing
+        ? await supabase.from("cash_movements" as any).update(payload).eq("id", f.id!)
         : await supabase.from("cash_movements" as any).insert(payload);
       if (res.error) throw res.error;
     },
-    onSuccess: (_data, vars) => {
-      toast.success(vars.direction === "cash_in" ? "Money In saved" : "Money Out saved");
+    onSuccess: () => {
+      toast.success(form.id ? "Movement updated" : `${form.direction === "cash_in" ? "Money In" : "Money Out"} saved`);
       invalidateAll();
-      if (vars.direction === "cash_in") setInForm(emptyForm());
-      else setOutForm(emptyForm());
+      setForm(emptyForm());
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -238,19 +106,14 @@ function Page() {
   });
 
   const editRow = (r: any) => {
-    const d = new Date(r.occurred_at);
-    const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    const f: FormState = {
+    setForm({
       id: r.id,
-      business_date: r.business_date,
-      business_time: hm,
-      movement_category: r.movement_category ?? "",
-      subcategory: r.subcategory ?? "",
-      amount: Number(r.amount),
+      direction: r.type as Direction,
       payment_source: (r.payment_source ?? "cash") as PaymentSource,
+      amount: Number(r.amount),
       notes: r.notes ?? "",
-    };
-    if (r.type === "cash_in") setInForm(f); else setOutForm(f);
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const totals = useMemo(() => {
@@ -262,63 +125,151 @@ function Page() {
     return { cin, cout, oin, oout, cashBal: cin - cout, walletBal: oin - oout };
   }, [data]);
 
+  const isIn = form.direction === "cash_in";
+
   return (
     <div>
-      <PageHeader title="Money Movements" subtitle="Money In and Money Out — Cash or Online. Updates Cash Balance, Online Wallet, Daily Closing and Dashboard automatically." />
+      <PageHeader title="Money Movement" subtitle="Record a single Money In or Money Out transaction. Updates Cash Balance, Online Wallet, Daily Closing and Reports automatically." />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-        <MovementForm
-          direction="cash_in"
-          form={inForm}
-          onChange={(p) => setInForm((f) => ({ ...f, ...p }))}
-          onSubmit={() => save.mutate({ form: inForm, direction: "cash_in" })}
-          onReset={() => setInForm(emptyForm())}
-          saving={save.isPending}
-          subcategories={subcategories}
-        />
-        <MovementForm
-          direction="cash_out"
-          form={outForm}
-          onChange={(p) => setOutForm((f) => ({ ...f, ...p }))}
-          onSubmit={() => save.mutate({ form: outForm, direction: "cash_out" })}
-          onReset={() => setOutForm(emptyForm())}
-          saving={save.isPending}
-          subcategories={subcategories}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,480px)_1fr] gap-4 mb-4">
+        <Card className={`p-5 border-t-4 ${isIn ? "border-t-emerald-500" : "border-t-destructive"}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">Money Movement</h3>
+            {form.id && <Badge variant="outline">Editing</Badge>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Business Date</Label>
+              <Input readOnly value={businessDateStr} className="bg-muted/50" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Business Time</Label>
+              <Input readOnly value={businessTimeStr} className="bg-muted/50" />
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label>Movement Type</Label>
+            <RadioGroup
+              value={form.direction}
+              onValueChange={(v) => setForm((f) => ({ ...f, direction: v as Direction }))}
+              className="grid grid-cols-2 gap-2"
+            >
+              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_in" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}>
+                <RadioGroupItem value="cash_in" id="mv-in" />
+                <ArrowDownCircle className="h-4 w-4 text-emerald-600" />
+                <span>Money In</span>
+              </label>
+              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_out" ? "border-destructive bg-destructive/10" : ""}`}>
+                <RadioGroupItem value="cash_out" id="mv-out" />
+                <ArrowUpCircle className="h-4 w-4 text-destructive" />
+                <span>Money Out</span>
+              </label>
+            </RadioGroup>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label>Payment Method</Label>
+            <RadioGroup
+              value={form.payment_source}
+              onValueChange={(v) => setForm((f) => ({ ...f, payment_source: v as PaymentSource }))}
+              className="grid grid-cols-2 gap-2"
+            >
+              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "cash" ? "border-primary bg-primary/5" : ""}`}>
+                <RadioGroupItem value="cash" id="pm-cash" />
+                <span>Cash</span>
+              </label>
+              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "online" ? "border-primary bg-primary/5" : ""}`}>
+                <RadioGroupItem value="online" id="pm-online" />
+                <span>Online</span>
+              </label>
+            </RadioGroup>
+          </div>
+
+          <div className="mt-4 space-y-1">
+            <Label>Amount</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value === "" ? "" : Number(e.target.value) }))}
+              className="text-lg font-semibold"
+            />
+          </div>
+
+          <div className="mt-4 space-y-1">
+            <Label>Notes</Label>
+            <Textarea
+              rows={3}
+              placeholder="e.g. Owner deposited cash, Bought vegetables, Bank deposit"
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex gap-2 mt-5">
+            <Button
+              className={`flex-1 ${isIn ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
+              variant={isIn ? "default" : "destructive"}
+              onClick={() => save.mutate(form)}
+              disabled={save.isPending}
+              size="lg"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {form.id ? "Update" : "Save"}
+            </Button>
+            {form.id && (
+              <Button variant="outline" size="lg" onClick={() => setForm(emptyForm())}>
+                <X className="h-4 w-4 mr-1" /> Cancel
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="font-semibold mb-3">Balances ({date})</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="border rounded-md p-3">
+              <div className="text-xs text-muted-foreground">Cash In</div>
+              <div className="font-semibold text-emerald-600 text-lg">{money(totals.cin)}</div>
+            </div>
+            <div className="border rounded-md p-3">
+              <div className="text-xs text-muted-foreground">Cash Out</div>
+              <div className="font-semibold text-destructive text-lg">{money(totals.cout)}</div>
+            </div>
+            <div className="border rounded-md p-3 bg-muted/40">
+              <div className="text-xs text-muted-foreground">Cash Balance</div>
+              <div className="font-bold text-lg">{money(totals.cashBal)}</div>
+            </div>
+            <div className="border rounded-md p-3 bg-muted/40">
+              <div className="text-xs text-muted-foreground">Wallet Balance</div>
+              <div className="font-bold text-lg">{money(totals.walletBal)}</div>
+            </div>
+            <div className="border rounded-md p-3">
+              <div className="text-xs text-muted-foreground">Online In</div>
+              <div className="font-semibold text-emerald-600 text-lg">{money(totals.oin)}</div>
+            </div>
+            <div className="border rounded-md p-3">
+              <div className="text-xs text-muted-foreground">Online Out</div>
+              <div className="font-semibold text-destructive text-lg">{money(totals.oout)}</div>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      <Card className="mb-3 p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
-        <div><div className="text-xs text-muted-foreground">Cash In</div><div className="font-semibold text-emerald-600">{money(totals.cin)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Cash Out</div><div className="font-semibold text-destructive">{money(totals.cout)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Cash Balance</div><div className="font-semibold">{money(totals.cashBal)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Online In</div><div className="font-semibold text-emerald-600">{money(totals.oin)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Online Out</div><div className="font-semibold text-destructive">{money(totals.oout)}</div></div>
-        <div><div className="text-xs text-muted-foreground">Wallet Balance</div><div className="font-semibold">{money(totals.walletBal)}</div></div>
-      </Card>
-
       <div className="flex flex-wrap gap-2 mb-3 items-center">
+        <Label className="text-sm">View date:</Label>
         <Input type="date" className="max-w-[200px]" value={date} onChange={(e) => setDate(e.target.value)} />
-        <div className="flex gap-1">
-          {(["all", "cash_in", "cash_out"] as const).map((t) => (
-            <Button key={t} size="sm" variant={typeFilter === t ? "default" : "outline"} onClick={() => setTypeFilter(t)} className="capitalize">
-              {t === "all" ? "All types" : t === "cash_in" ? "Money In" : "Money Out"}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {(["all", "cash", "online"] as const).map((t) => (
-            <Button key={t} size="sm" variant={sourceFilter === t ? "default" : "outline"} onClick={() => setSourceFilter(t)} className="capitalize">
-              {t === "all" ? "All sources" : t}
-            </Button>
-          ))}
-        </div>
       </div>
 
       <Card>
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Business Time</TableHead><TableHead>Type</TableHead><TableHead>Source</TableHead>
-            <TableHead>Category</TableHead><TableHead>Sub Category</TableHead>
+            <TableHead>Business Time</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Method</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Notes</TableHead>
             <TableHead className="w-24"></TableHead>
@@ -326,15 +277,13 @@ function Page() {
           <TableBody>
             {(data as any[]).map((r) => (
               <TableRow key={r.id}>
-                <TableCell className="text-xs">{new Date(r.occurred_at).toLocaleString()}</TableCell>
+                <TableCell className="text-xs">{formatBusinessTime(r.occurred_at)}</TableCell>
                 <TableCell>
                   {r.type === "cash_in"
                     ? <Badge className="bg-emerald-600 hover:bg-emerald-600"><ArrowDownCircle className="h-3 w-3 mr-1" />Money In</Badge>
                     : <Badge variant="destructive"><ArrowUpCircle className="h-3 w-3 mr-1" />Money Out</Badge>}
                 </TableCell>
                 <TableCell className="capitalize">{r.payment_source ?? "cash"}</TableCell>
-                <TableCell>{r.movement_category ?? "—"}</TableCell>
-                <TableCell>{r.subcategory ?? "—"}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{r.notes ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
@@ -343,7 +292,7 @@ function Page() {
                 </TableCell>
               </TableRow>
             ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
+            {data.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
