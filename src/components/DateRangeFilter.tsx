@@ -21,7 +21,10 @@ export function useDateRangeFilter(defaultPreset: Preset = "month") {
   const [range, setRange] = useState<RangeResult>(init);
   const [configTick, setConfigTick] = useState(0);
 
-  useEffect(() => subscribeBusinessConfig(() => setConfigTick((n) => n + 1)), []);
+  useEffect(() => {
+    const unsub = subscribeBusinessConfig(() => setConfigTick((n) => n + 1));
+    return () => { unsub(); };
+  }, []);
 
   useEffect(() => {
     if (preset !== "custom") {
