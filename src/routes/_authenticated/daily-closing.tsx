@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/CrudHelpers";
-import { money, today } from "@/lib/format";
+import { money } from "@/lib/format";
 import { toast } from "sonner";
+import { businessDayEndUTC, businessDayStartUTC, businessToday } from "@/lib/business-date";
+import { useReportEngine } from "@/lib/report-engine";
 
 export const Route = createFileRoute("/_authenticated/daily-closing")({ component: Page });
 
@@ -39,10 +41,11 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "da
 
 function Page() {
   const qc = useQueryClient();
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(businessToday());
   const [actualCash, setActualCash] = useState<string>("");
   const [actualWallet, setActualWallet] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const { data: report } = useReportEngine({ from: date, to: date, startUTC: businessDayStartUTC(date), endExclusiveUTC: businessDayEndUTC(date) });
 
   const { data: summary } = useQuery<Summary>({
     queryKey: ["daily_closing", date],
@@ -56,6 +59,20 @@ function Page() {
       return s;
     },
   });
+
+  const displaySummary = useMemo<Summary | undefined>(() => {
+    if (!summary) return undefined;
+    if (!report) return summary;
+    return {
+      ...summary,
+      cash_sales: report.totalCashPaid,
+      online_sales: report.totalOnlinePaid,
+      katha: report.kathaAmount,
+      invoices: report.totalInvoices,
+      expected_cash: summary.opening_cash + report.totalCashPaid + summary.cash_in - summary.cash_out - summary.cash_expenses,
+      expected_wallet: summary.opening_wallet + report.totalOnlinePaid + summary.online_in - summary.online_out - summary.online_expenses,
+    };
+  }, [report, summary]);
 
   const { data: history = [] } = useQuery({
     queryKey: ["daily_closing", "history"],
@@ -82,8 +99,8 @@ function Page() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const cashDiff = useMemo(() => (actualCash === "" || !summary ? null : Number(actualCash) - summary.expected_cash), [actualCash, summary]);
-  const walletDiff = useMemo(() => (actualWallet === "" || !summary ? null : Number(actualWallet) - summary.expected_wallet), [actualWallet, summary]);
+  const cashDiff = useMemo(() => (actualCash === "" || !displaySummary ? null : Number(actualCash) - displaySummary.expected_cash), [actualCash, displaySummary]);
+  const walletDiff = useMemo(() => (actualWallet === "" || !displaySummary ? null : Number(actualWallet) - displaySummary.expected_wallet), [actualWallet, displaySummary]);
 
   function statusBadge(diff: number | null) {
     if (diff === null) return <Badge variant="outline">Pending</Badge>;
@@ -92,7 +109,7 @@ function Page() {
     return <Badge className="bg-amber-500 hover:bg-amber-500">Excess {money(diff)}</Badge>;
   }
 
-  if (!summary) return <div>Loading…</div>;
+  if (!displaySummary) return <div>Loading…</div>;
 
   return (
     <div>
@@ -105,26 +122,26 @@ function Page() {
       <Card className="p-4 mb-4">
         <h3 className="text-sm font-semibold mb-3">Opening (from previous day closing)</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <Stat label="Opening Cash" value={money(summary.opening_cash)} />
-          <Stat label="Opening Wallet" value={money(summary.opening_wallet)} />
-          <Stat label="Invoices" value={String(summary.invoices)} />
-          <Stat label="Added To Katha" value={money(summary.katha)} tone="muted" />
+          <Stat label="Opening Cash" value={money(displaySummary.opening_cash)} />
+          <Stat label="Opening Wallet" value={money(displaySummary.opening_wallet)} />
+          <Stat label="Invoices" value={String(displaySummary.invoices)} />
+          <Stat label="Added To Katha" value={money(displaySummary.katha)} tone="muted" />
         </div>
       </Card>
 
       <Card className="p-4 mb-4">
         <h3 className="text-sm font-semibold mb-3">Today's Activity</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <Stat label="Cash Sales" value={money(summary.cash_sales)} tone="success" />
-          <Stat label="Online Sales" value={money(summary.online_sales)} tone="success" />
-          <Stat label="Cash In" value={money(summary.cash_in)} tone="success" />
-          <Stat label="Cash Out" value={money(summary.cash_out)} tone="danger" />
-          <Stat label="Online In" value={money(summary.online_in ?? 0)} tone="success" />
-          <Stat label="Online Out" value={money(summary.online_out ?? 0)} tone="danger" />
-          <Stat label="Cash Expenses" value={money(summary.cash_expenses)} tone="danger" />
-          <Stat label="Online Expenses" value={money(summary.online_expenses)} tone="danger" />
-          <Stat label="Expected Cash" value={money(summary.expected_cash)} />
-          <Stat label="Expected Wallet" value={money(summary.expected_wallet)} />
+          <Stat label="Cash Sales" value={money(displaySummary.cash_sales)} tone="success" />
+          <Stat label="Online Sales" value={money(displaySummary.online_sales)} tone="success" />
+          <Stat label="Cash In" value={money(displaySummary.cash_in)} tone="success" />
+          <Stat label="Cash Out" value={money(displaySummary.cash_out)} tone="danger" />
+          <Stat label="Online In" value={money(displaySummary.online_in ?? 0)} tone="success" />
+          <Stat label="Online Out" value={money(displaySummary.online_out ?? 0)} tone="danger" />
+          <Stat label="Cash Expenses" value={money(displaySummary.cash_expenses)} tone="danger" />
+          <Stat label="Online Expenses" value={money(displaySummary.online_expenses)} tone="danger" />
+          <Stat label="Expected Cash" value={money(displaySummary.expected_cash)} />
+          <Stat label="Expected Wallet" value={money(displaySummary.expected_wallet)} />
         </div>
       </Card>
 
@@ -146,7 +163,7 @@ function Page() {
           <div><div className="text-xs text-muted-foreground">Wallet Status</div><div>{statusBadge(walletDiff)}</div></div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>{summary.closed ? "Update Closing" : "Save Closing"}</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>{displaySummary.closed ? "Update Closing" : "Save Closing"}</Button>
         </div>
       </Card>
 
