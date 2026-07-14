@@ -653,6 +653,115 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_items: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          product_id: string | null
+          purchase_id: string
+          quantity: number
+          stock_item_id: string | null
+          total_cost: number
+          unit: string | null
+          unit_cost: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          purchase_id: string
+          quantity: number
+          stock_item_id?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          purchase_id?: string
+          quantity?: number
+          stock_item_id?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          cash_movement_id: string | null
+          category: string | null
+          created_at: string
+          created_by: string | null
+          date: string
+          deleted_at: string | null
+          grand_total: number
+          id: string
+          notes: string | null
+          payment_method: string | null
+          payment_status: string
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          cash_movement_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          deleted_at?: string | null
+          grand_total?: number
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cash_movement_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          deleted_at?: string | null
+          grand_total?: number
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       recipes: {
         Row: {
           component_product_id: string | null
