@@ -119,9 +119,8 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
   return useQuery({
     queryKey: ["report", "monthly-full", from, to, categories.join(",")],
     queryFn: async () => {
-      const startUTC = `${from}T03:00:00.000Z`;
-      const toNext = new Date(`${to}T00:00:00.000Z`); toNext.setUTCDate(toNext.getUTCDate() + 1);
-      const endExclusiveUTC = `${toNext.toISOString().slice(0, 10)}T03:00:00.000Z`;
+      const startUTC = businessDayStartUTC(from);
+      const endExclusiveUTC = businessDayEndUTC(to);
       const [salesQ, expQ, delExpQ, purchProdQ, purchStockQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
         supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC),
         supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to),
