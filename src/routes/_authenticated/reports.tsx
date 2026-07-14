@@ -241,18 +241,30 @@ function MonthlyReport() {
   const r = useRange("month");
   const { data: categories = [] } = useCategories();
   const { data } = useMonthlyData(r.from, r.to, categories);
+  const totalCogs = (data?.totalOpening ?? 0) + (data?.totalPurch ?? 0) - (data?.totalClosing ?? 0);
+  const grossProfit = (data?.monthSalesExDel ?? 0) - totalCogs;
   return (<>
     {r.el}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      <Stat label="Monthly Sales" value={money(data?.monthSalesExDel)} hint="excl. delivery" />
-      <Stat label="Opening Stock" value={money(data?.totalOpening)} />
-      <Stat label="Purchases" value={money(data?.totalPurch)} />
-      <Stat label="Closing Stock" value={money(data?.totalClosing)} />
-      <Stat label="General Expenses" value={money(data?.monthExp)} />
-      <Stat label="Business Profit" value={money(data?.businessProfit)} positive={(data?.businessProfit ?? 0) >= 0} emphasize />
-      <Stat label="Delivery Profit" value={money(data?.deliveryProfit)} positive={(data?.deliveryProfit ?? 0) >= 0} emphasize />
-      <Stat label="Overall Profit" value={money(data?.overall)} positive={(data?.overall ?? 0) >= 0} emphasize />
-    </div>
+    <Card className="mb-4">
+      <CardHeader className="pb-2"><CardTitle className="text-sm">Monthly P&amp;L — Step by Step</CardTitle></CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableBody>
+            <TableRow><TableCell>Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
+            <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
+            <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
+            <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
+            <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
+            <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
+            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
+            <TableRow className="font-semibold"><TableCell>Business Profit</TableCell><TableCell className={"text-right " + ((data?.businessProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.businessProfit)}</TableCell></TableRow>
+            <TableRow><TableCell>+ Delivery Profit</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
+            <TableRow className="font-bold"><TableCell>Overall Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
 
     <Card className="mb-3">
       <CardHeader className="pb-2"><CardTitle className="text-sm">Profit by Category</CardTitle></CardHeader>
