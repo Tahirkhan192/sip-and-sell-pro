@@ -16,17 +16,15 @@ async function fetchDashboard() {
   const todayRange = buildRange("today");
   const monthRange = buildRange("month");
   const businessDay = businessToday();
+  const weekRange = buildRange("custom", addDaysISO(businessDay, -6), businessDay);
 
   const [
-    todayReport, monthReport, productsQ, last7Reports,
+    todayReport, monthReport, productsQ, weekReport,
   ] = await Promise.all([
     fetchReportEngine(todayRange),
     fetchReportEngine(monthRange),
     supabase.from("products").select("id, name, current_stock, minimum_stock, cost_price, category").is("deleted_at", null),
-    Promise.all(Array.from({ length: 7 }, (_, i) => {
-      const d = addDaysISO(businessDay, i - 6);
-      return fetchReportEngine(buildRange("custom", d, d)).then((report) => ({ day: d.slice(5), total: report.totalSales }));
-    })),
+    fetchReportEngine(weekRange),
   ]);
 
   const todayRev = todayReport.totalSales;
@@ -53,7 +51,10 @@ async function fetchDashboard() {
   }
 
   const low = (productsQ.data ?? []).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
-  const days = last7Reports;
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = addDaysISO(businessDay, i - 6);
+    return { day: d.slice(5), total: weekReport.salesByBusinessDate[d]?.totalSales ?? 0 };
+  });
 
   return {
     todayRev, todayDelCharges, todayDelProfit, todayBizProfit, todayTotalProfit,
