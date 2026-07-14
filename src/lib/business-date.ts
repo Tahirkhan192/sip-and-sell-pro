@@ -83,11 +83,19 @@ export function buildRange(preset: Preset, customFrom?: string, customTo?: strin
       from = addDays(today, -back);
       break;
     }
-    case "month": from = startOfBusinessMonth(today); break;
+    case "month": {
+      from = startOfBusinessMonth(today);
+      to = endOfBusinessMonth(today);
+      break;
+    }
     case "lastMonth": {
-      const t = new Date(`${startOfBusinessMonth(today)}T00:00:00.000Z`);
-      t.setUTCMonth(t.getUTCMonth() - 1);
-      from = t.toISOString().slice(0, 10);
+      // Step back one calendar month from the current business month start
+      const s = startOfBusinessMonth(today);
+      const y = Number(s.slice(0, 4));
+      const m = Number(s.slice(5, 7));
+      let py = y, pm = m - 1;
+      if (pm < 1) { pm = 12; py -= 1; }
+      from = `${py}-${String(pm).padStart(2, "0")}-06`;
       to = endOfBusinessMonth(from);
       break;
     }
@@ -98,3 +106,4 @@ export function buildRange(preset: Preset, customFrom?: string, customTo?: strin
   }
   return { from, to, startUTC: businessDayStartUTC(from), endExclusiveUTC: businessDayEndUTC(to) };
 }
+
