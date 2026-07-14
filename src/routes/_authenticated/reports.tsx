@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { useDateRangeFilter } from "@/components/DateRangeFilter";
-import { businessDateOf } from "@/lib/business-date";
+import { businessDateOf, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: Reports });
 
@@ -60,7 +60,7 @@ function DailyReport() {
   const { data } = useQuery({
     queryKey: ["report", "daily", r.from, r.to],
     queryFn: async () => {
-      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC);
+      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC).limit(50000);
       const rows = sales.data ?? [];
       const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
       for (const s of rows as any[]) {
@@ -119,17 +119,16 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
   return useQuery({
     queryKey: ["report", "monthly-full", from, to, categories.join(",")],
     queryFn: async () => {
-      const startUTC = `${from}T03:00:00.000Z`;
-      const toNext = new Date(`${to}T00:00:00.000Z`); toNext.setUTCDate(toNext.getUTCDate() + 1);
-      const endExclusiveUTC = `${toNext.toISOString().slice(0, 10)}T03:00:00.000Z`;
+      const startUTC = businessDayStartUTC(from);
+      const endExclusiveUTC = businessDayEndUTC(to);
       const [salesQ, expQ, delExpQ, purchProdQ, purchStockQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
-        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC),
-        supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to),
-        supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to),
-        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to),
-        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to),
-        supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null),
-        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC),
+        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC).limit(50000),
+        supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).limit(50000),
+        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC).limit(100000),
         supabase.from("monthly_stock_overrides").select("*").eq("year", Number(from.slice(0, 4))).eq("month", Number(from.slice(5, 7))),
       ]);
 
@@ -253,16 +252,15 @@ function MonthlyReport() {
       <CardContent className="p-0">
         <Table>
           <TableBody>
-            <TableRow><TableCell>Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
+            <TableRow><TableCell>Total Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
             <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
-            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
-            <TableRow className="font-semibold"><TableCell>Business Profit</TableCell><TableCell className={"text-right " + ((data?.businessProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.businessProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
-            <TableRow className="font-bold"><TableCell>Overall Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
+            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
+            <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
           </TableBody>
         </Table>
       </CardContent>
@@ -453,7 +451,7 @@ function SalesReport() {
   const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "sales-items", r.from, r.to],
-    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC)).data ?? [],
+    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC).limit(100000)).data ?? [],
   });
   const rows = useMemo(() => {
     const m: Record<string, { name: string; category: string; qty: number; rev: number }> = {};
