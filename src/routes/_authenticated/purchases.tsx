@@ -62,6 +62,7 @@ function Page() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { data: categories = [] } = useCategories();
+  const { widths, setWidth, resetWidth } = useResizableColumns("purchase_item_cols_v1", PURCHASE_ITEM_COLUMNS);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active-all"],
