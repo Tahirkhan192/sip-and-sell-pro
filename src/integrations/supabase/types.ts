@@ -957,7 +957,10 @@ export type Database = {
       settings: {
         Row: {
           allow_negative_stock: boolean
+          business_day_start_time: string
+          business_month_start_day: number
           id: number
+          timezone: string
           updated_at: string
           whatsapp_auto_send: boolean | null
           whatsapp_business_id: string | null
@@ -967,7 +970,10 @@ export type Database = {
         }
         Insert: {
           allow_negative_stock?: boolean
+          business_day_start_time?: string
+          business_month_start_day?: number
           id?: number
+          timezone?: string
           updated_at?: string
           whatsapp_auto_send?: boolean | null
           whatsapp_business_id?: string | null
@@ -977,7 +983,10 @@ export type Database = {
         }
         Update: {
           allow_negative_stock?: boolean
+          business_day_start_time?: string
+          business_month_start_day?: number
           id?: number
+          timezone?: string
           updated_at?: string
           whatsapp_auto_send?: boolean | null
           whatsapp_business_id?: string | null
@@ -1283,6 +1292,14 @@ export type Database = {
       delete_production_batch: {
         Args: { _batch_id: string }
         Returns: undefined
+      }
+      get_business_config: {
+        Args: never
+        Returns: {
+          month_start_day: number
+          start_time: string
+          tz: string
+        }[]
       }
       has_role: {
         Args: {
