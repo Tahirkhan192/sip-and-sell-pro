@@ -28,7 +28,7 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["customers", search],
     queryFn: async () => {
-      let q = supabase.from("customers").select("*").is("deleted_at", null).order("last_visit", { ascending: false, nullsFirst: false }).order("name").limit(500);
+      let q = supabase.from("customers").select("*").is("deleted_at", null).order("last_visit", { ascending: false, nullsFirst: false }).order("name").range(0, 99999);
       if (search.trim()) q = q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
       return (await q).data ?? [];
     },

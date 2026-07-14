@@ -101,48 +101,68 @@ function addDaysISO(d: string, n: number): string {
   return t.toISOString().slice(0, 10);
 }
 
+async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await build().range(from, to);
+    if (error) throw error;
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
 export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
   const hasRange = Boolean(range.from && range.to && range.startUTC && range.endExclusiveUTC);
 
-  let salesQuery = (supabase as any)
-    .from("sales")
-    .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
-    .is("deleted_at", null)
-    .order("sale_date", { ascending: false })
-    .limit(50000);
-  if (hasRange) salesQuery = salesQuery.gte("sale_date", range.startUTC).lt("sale_date", range.endExclusiveUTC);
+  const buildSales = () => {
+    let q = (supabase as any)
+      .from("sales")
+      .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: false });
+    if (hasRange) q = q.gte("sale_date", range.startUTC).lt("sale_date", range.endExclusiveUTC);
+    return q;
+  };
+  const buildExpenses = () => {
+    let q = supabase.from("expenses" as any).select("amount").is("deleted_at", null).order("date", { ascending: false });
+    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
+    return q;
+  };
+  const buildDeliveryExpenses = () => {
+    let q = supabase.from("delivery_expenses" as any).select("fuel_cost, maintenance_cost").is("deleted_at", null).order("date", { ascending: false });
+    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
+    return q;
+  };
+  const buildPurchases = () => {
+    let q = supabase.from("stock_purchases" as any).select("product_id, stock_item_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).order("date", { ascending: false });
+    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
+    return q;
+  };
+  const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
 
-  let expenseQuery = supabase.from("expenses" as any).select("amount").is("deleted_at", null).limit(50000);
-  let deliveryExpenseQuery = supabase.from("delivery_expenses" as any).select("fuel_cost, maintenance_cost").is("deleted_at", null).limit(50000);
-  let purchaseQuery = supabase.from("stock_purchases" as any).select("product_id, stock_item_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).limit(50000);
-  if (range.from && range.to) {
-    expenseQuery = expenseQuery.gte("date", range.from).lte("date", range.to);
-    deliveryExpenseQuery = deliveryExpenseQuery.gte("date", range.from).lte("date", range.to);
-    purchaseQuery = purchaseQuery.gte("date", range.from).lte("date", range.to);
-  }
-
-  const overridesQuery = range.from
+  const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesQ, expensesQ, deliveryExpensesQ, purchasesQ, productsQ, overridesQ] = await Promise.all([
-    salesQuery,
-    expenseQuery,
-    deliveryExpenseQuery,
-    purchaseQuery,
-    supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).limit(50000),
-    overridesQuery,
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, overridesQ] = await Promise.all([
+    fetchAllPaged<any>(buildSales),
+    fetchAllPaged<any>(buildExpenses),
+    fetchAllPaged<any>(buildDeliveryExpenses),
+    fetchAllPaged<any>(buildPurchases),
+    fetchAllPaged<any>(buildProducts),
+    overridesPromise,
   ]);
+  if ((overridesQ as any).error) throw (overridesQ as any).error;
 
-  for (const q of [salesQ, expensesQ, deliveryExpensesQ, purchasesQ, productsQ, overridesQ] as any[]) {
-    if (q.error) throw q.error;
-  }
+  const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
+  const expenses = expensesRows as any[];
+  const deliveryExpenses = deliveryExpensesRows as any[];
+  const purchases = purchasesRows as any[];
+  const products = productsRows as any[];
 
-  const invoices = ((salesQ.data ?? []) as any[]).filter((s) => inBusinessRange(s, range));
-  const expenses = (expensesQ.data ?? []) as any[];
-  const deliveryExpenses = (deliveryExpensesQ.data ?? []) as any[];
-  const purchases = (purchasesQ.data ?? []) as any[];
-  const products = (productsQ.data ?? []) as any[];
   const overrides = (overridesQ.data ?? []) as any[];
 
   const catMap: Record<string, ReportCategoryRow> = {};
