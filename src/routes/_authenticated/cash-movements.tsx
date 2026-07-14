@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Pencil, Trash2, ArrowDownCircle, ArrowUpCircle, Save, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Pencil, Trash2, ArrowDownCircle, ArrowUpCircle, Save, Plus, Search, X } from "lucide-react";
 import { money } from "@/lib/format";
 import { businessToday, formatBusinessTime, formatBusinessDate } from "@/lib/business-date";
 import { PageHeader } from "@/components/CrudHelpers";
@@ -38,24 +39,31 @@ const emptyForm = (): FormState => ({
 
 function Page() {
   const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [now, setNow] = useState(() => new Date());
   const [date, setDate] = useState(businessToday());
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | Direction>("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | PaymentSource>("all");
 
   useEffect(() => {
+    if (!open) return;
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
-  }, []);
+  }, [open]);
 
-  const businessDate = businessToday(now);
-  const businessTimeStr = formatBusinessTime(now);
   const businessDateStr = formatBusinessDate(now);
+  const businessTimeStr = formatBusinessTime(now);
+  const businessDate = businessToday(now);
 
   const { data = [] } = useQuery({
-    queryKey: ["cash_movements", date],
+    queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
       let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
+      if (typeFilter !== "all") q = q.eq("type", typeFilter);
+      if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
       return (await q).data ?? [];
     },
   });
@@ -65,6 +73,22 @@ function Page() {
     qc.invalidateQueries({ queryKey: ["daily_closing"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     qc.invalidateQueries({ queryKey: ["report"] });
+  };
+
+  const openNew = () => {
+    setForm(emptyForm());
+    setNow(new Date());
+    setOpen(true);
+  };
+  const openEdit = (r: any) => {
+    setForm({
+      id: r.id,
+      direction: r.type as Direction,
+      payment_source: (r.payment_source ?? "cash") as PaymentSource,
+      amount: Number(r.amount),
+      notes: r.notes ?? "",
+    });
+    setOpen(true);
   };
 
   const save = useMutation({
@@ -90,8 +114,9 @@ function Page() {
       if (res.error) throw res.error;
     },
     onSuccess: () => {
-      toast.success(form.id ? "Movement updated" : `${form.direction === "cash_in" ? "Money In" : "Money Out"} saved`);
+      toast.success(form.id ? "Movement updated" : "Movement saved");
       invalidateAll();
+      setOpen(false);
       setForm(emptyForm());
     },
     onError: (e: any) => toast.error(e.message),
@@ -105,168 +130,76 @@ function Page() {
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },
   });
 
-  const editRow = (r: any) => {
-    setForm({
-      id: r.id,
-      direction: r.type as Direction,
-      payment_source: (r.payment_source ?? "cash") as PaymentSource,
-      amount: Number(r.amount),
-      notes: r.notes ?? "",
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return data as any[];
+    return (data as any[]).filter((r) => (r.notes ?? "").toLowerCase().includes(q));
+  }, [data, search]);
 
   const totals = useMemo(() => {
-    const rows = data as any[];
+    const rows = filtered;
     const cin = rows.filter((r) => r.type === "cash_in" && (r.payment_source ?? "cash") === "cash").reduce((s, r) => s + Number(r.amount), 0);
     const cout = rows.filter((r) => r.type === "cash_out" && (r.payment_source ?? "cash") === "cash").reduce((s, r) => s + Number(r.amount), 0);
     const oin = rows.filter((r) => r.type === "cash_in" && r.payment_source === "online").reduce((s, r) => s + Number(r.amount), 0);
     const oout = rows.filter((r) => r.type === "cash_out" && r.payment_source === "online").reduce((s, r) => s + Number(r.amount), 0);
-    return { cin, cout, oin, oout, cashBal: cin - cout, walletBal: oin - oout };
-  }, [data]);
+    return { cin, cout, oin, oout };
+  }, [filtered]);
 
   const isIn = form.direction === "cash_in";
 
   return (
     <div>
-      <PageHeader title="Money Movement" subtitle="Record a single Money In or Money Out transaction. Updates Cash Balance, Online Wallet, Daily Closing and Reports automatically." />
+      <PageHeader
+        title="Money Movement"
+        subtitle="Money In / Money Out — Cash or Online. Updates Cash Balance, Online Wallet, Daily Closing and Reports automatically."
+        action={<Button onClick={openNew}><Plus className="h-4 w-4 mr-1" />Add Money Movement</Button>}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,480px)_1fr] gap-4 mb-4">
-        <Card className={`p-5 border-t-4 ${isIn ? "border-t-emerald-500" : "border-t-destructive"}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Money Movement</h3>
-            {form.id && <Badge variant="outline">Editing</Badge>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Business Date</Label>
-              <Input readOnly value={businessDateStr} className="bg-muted/50" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Business Time</Label>
-              <Input readOnly value={businessTimeStr} className="bg-muted/50" />
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <Label>Movement Type</Label>
-            <RadioGroup
-              value={form.direction}
-              onValueChange={(v) => setForm((f) => ({ ...f, direction: v as Direction }))}
-              className="grid grid-cols-2 gap-2"
-            >
-              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_in" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}>
-                <RadioGroupItem value="cash_in" id="mv-in" />
-                <ArrowDownCircle className="h-4 w-4 text-emerald-600" />
-                <span>Money In</span>
-              </label>
-              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_out" ? "border-destructive bg-destructive/10" : ""}`}>
-                <RadioGroupItem value="cash_out" id="mv-out" />
-                <ArrowUpCircle className="h-4 w-4 text-destructive" />
-                <span>Money Out</span>
-              </label>
-            </RadioGroup>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <Label>Payment Method</Label>
-            <RadioGroup
-              value={form.payment_source}
-              onValueChange={(v) => setForm((f) => ({ ...f, payment_source: v as PaymentSource }))}
-              className="grid grid-cols-2 gap-2"
-            >
-              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "cash" ? "border-primary bg-primary/5" : ""}`}>
-                <RadioGroupItem value="cash" id="pm-cash" />
-                <span>Cash</span>
-              </label>
-              <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "online" ? "border-primary bg-primary/5" : ""}`}>
-                <RadioGroupItem value="online" id="pm-online" />
-                <span>Online</span>
-              </label>
-            </RadioGroup>
-          </div>
-
-          <div className="mt-4 space-y-1">
-            <Label>Amount</Label>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value === "" ? "" : Number(e.target.value) }))}
-              className="text-lg font-semibold"
-            />
-          </div>
-
-          <div className="mt-4 space-y-1">
-            <Label>Notes</Label>
-            <Textarea
-              rows={3}
-              placeholder="e.g. Owner deposited cash, Bought vegetables, Bank deposit"
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            />
-          </div>
-
-          <div className="flex gap-2 mt-5">
-            <Button
-              className={`flex-1 ${isIn ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-              variant={isIn ? "default" : "destructive"}
-              onClick={() => save.mutate(form)}
-              disabled={save.isPending}
-              size="lg"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {form.id ? "Update" : "Save"}
-            </Button>
-            {form.id && (
-              <Button variant="outline" size="lg" onClick={() => setForm(emptyForm())}>
-                <X className="h-4 w-4 mr-1" /> Cancel
-              </Button>
-            )}
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Total Cash In</div>
+          <div className="font-semibold text-emerald-600 text-lg">{money(totals.cin)}</div>
         </Card>
-
-        <Card className="p-4">
-          <h3 className="font-semibold mb-3">Balances ({date})</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="border rounded-md p-3">
-              <div className="text-xs text-muted-foreground">Cash In</div>
-              <div className="font-semibold text-emerald-600 text-lg">{money(totals.cin)}</div>
-            </div>
-            <div className="border rounded-md p-3">
-              <div className="text-xs text-muted-foreground">Cash Out</div>
-              <div className="font-semibold text-destructive text-lg">{money(totals.cout)}</div>
-            </div>
-            <div className="border rounded-md p-3 bg-muted/40">
-              <div className="text-xs text-muted-foreground">Cash Balance</div>
-              <div className="font-bold text-lg">{money(totals.cashBal)}</div>
-            </div>
-            <div className="border rounded-md p-3 bg-muted/40">
-              <div className="text-xs text-muted-foreground">Wallet Balance</div>
-              <div className="font-bold text-lg">{money(totals.walletBal)}</div>
-            </div>
-            <div className="border rounded-md p-3">
-              <div className="text-xs text-muted-foreground">Online In</div>
-              <div className="font-semibold text-emerald-600 text-lg">{money(totals.oin)}</div>
-            </div>
-            <div className="border rounded-md p-3">
-              <div className="text-xs text-muted-foreground">Online Out</div>
-              <div className="font-semibold text-destructive text-lg">{money(totals.oout)}</div>
-            </div>
-          </div>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Total Cash Out</div>
+          <div className="font-semibold text-destructive text-lg">{money(totals.cout)}</div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Total Online In</div>
+          <div className="font-semibold text-emerald-600 text-lg">{money(totals.oin)}</div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Total Online Out</div>
+          <div className="font-semibold text-destructive text-lg">{money(totals.oout)}</div>
         </Card>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3 items-center">
-        <Label className="text-sm">View date:</Label>
-        <Input type="date" className="max-w-[200px]" value={date} onChange={(e) => setDate(e.target.value)} />
+        <div className="relative max-w-sm flex-1 min-w-[200px]">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Search notes" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Input type="date" className="max-w-[180px]" value={date} onChange={(e) => setDate(e.target.value)} />
+        <div className="flex gap-1">
+          {(["all", "cash_in", "cash_out"] as const).map((t) => (
+            <Button key={t} size="sm" variant={typeFilter === t ? "default" : "outline"} onClick={() => setTypeFilter(t)}>
+              {t === "all" ? "All types" : t === "cash_in" ? "Money In" : "Money Out"}
+            </Button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {(["all", "cash", "online"] as const).map((t) => (
+            <Button key={t} size="sm" variant={sourceFilter === t ? "default" : "outline"} onClick={() => setSourceFilter(t)} className="capitalize">
+              {t === "all" ? "All methods" : t}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <Card>
         <Table>
           <TableHeader><TableRow>
+            <TableHead>Business Date</TableHead>
             <TableHead>Business Time</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Method</TableHead>
@@ -275,8 +208,9 @@ function Page() {
             <TableHead className="w-24"></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {(data as any[]).map((r) => (
-              <TableRow key={r.id}>
+            {filtered.map((r: any) => (
+              <TableRow key={r.id} className="cursor-pointer" onClick={() => openEdit(r)}>
+                <TableCell className="text-xs">{formatBusinessDate(r.occurred_at)}</TableCell>
                 <TableCell className="text-xs">{formatBusinessTime(r.occurred_at)}</TableCell>
                 <TableCell>
                   {r.type === "cash_in"
@@ -286,16 +220,111 @@ function Page() {
                 <TableCell className="capitalize">{r.payment_source ?? "cash"}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{r.notes ?? "—"}</TableCell>
-                <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => editRow(r)}><Pencil className="h-4 w-4" /></Button>
+                <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                  <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {data.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{form.id ? "Edit Money Movement" : "Add Money Movement"}</DialogTitle>
+          </DialogHeader>
+
+          <div className={`border-t-4 -mt-2 pt-4 ${isIn ? "border-t-emerald-500" : "border-t-destructive"}`}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Business Date</Label>
+                <Input readOnly value={businessDateStr} className="bg-muted/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Business Time</Label>
+                <Input readOnly value={businessTimeStr} className="bg-muted/50" />
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label>Movement Type</Label>
+              <RadioGroup
+                value={form.direction}
+                onValueChange={(v) => setForm((f) => ({ ...f, direction: v as Direction }))}
+                className="grid grid-cols-2 gap-2"
+              >
+                <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_in" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}>
+                  <RadioGroupItem value="cash_in" id="mv-in" />
+                  <ArrowDownCircle className="h-4 w-4 text-emerald-600" />
+                  <span>Money In</span>
+                </label>
+                <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.direction === "cash_out" ? "border-destructive bg-destructive/10" : ""}`}>
+                  <RadioGroupItem value="cash_out" id="mv-out" />
+                  <ArrowUpCircle className="h-4 w-4 text-destructive" />
+                  <span>Money Out</span>
+                </label>
+              </RadioGroup>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label>Payment Method</Label>
+              <RadioGroup
+                value={form.payment_source}
+                onValueChange={(v) => setForm((f) => ({ ...f, payment_source: v as PaymentSource }))}
+                className="grid grid-cols-2 gap-2"
+              >
+                <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "cash" ? "border-primary bg-primary/5" : ""}`}>
+                  <RadioGroupItem value="cash" id="pm-cash" />
+                  <span>Cash</span>
+                </label>
+                <label className={`flex items-center gap-2 border rounded-md p-3 cursor-pointer ${form.payment_source === "online" ? "border-primary bg-primary/5" : ""}`}>
+                  <RadioGroupItem value="online" id="pm-online" />
+                  <span>Online</span>
+                </label>
+              </RadioGroup>
+            </div>
+
+            <div className="mt-4 space-y-1">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.amount}
+                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value === "" ? "" : Number(e.target.value) }))}
+                className="text-lg font-semibold"
+              />
+            </div>
+
+            <div className="mt-4 space-y-1">
+              <Label>Notes</Label>
+              <Textarea
+                rows={3}
+                placeholder="e.g. Owner deposited cash, Bought vegetables, Bank deposit"
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button
+              className={isIn ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+              variant={isIn ? "default" : "destructive"}
+              onClick={() => save.mutate(form)}
+              disabled={save.isPending}
+            >
+              <Save className="h-4 w-4 mr-1" /> {form.id ? "Update" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
