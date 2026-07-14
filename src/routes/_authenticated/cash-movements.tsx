@@ -39,7 +39,7 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
-      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).limit(500);
+      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
       if (typeFilter !== "all") q = q.eq("type", typeFilter);
       if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);

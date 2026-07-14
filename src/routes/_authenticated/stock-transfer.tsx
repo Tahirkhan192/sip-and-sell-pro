@@ -47,7 +47,7 @@ function Page() {
   });
   const { data: transfers = [] } = useQuery({
     queryKey: ["stock_transfers"],
-    queryFn: async () => (await (supabase as any).from("stock_transfers").select("*").is("deleted_at", null).order("created_at", { ascending: false }).limit(200)).data ?? [],
+    queryFn: async () => (await (supabase as any).from("stock_transfers").select("*").is("deleted_at", null).order("created_at", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const selectedItem = useMemo(() => {

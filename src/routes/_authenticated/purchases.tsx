@@ -66,7 +66,7 @@ function Page() {
       .select("*, purchase_items(*, products(name,unit), stock_items(name,unit))")
       .is("deleted_at", null)
       .order("date", { ascending: false })
-      .limit(500)).data ?? [],
+      .range(0, 99999)).data ?? [],
   });
 
   const invalidateAll = () => {

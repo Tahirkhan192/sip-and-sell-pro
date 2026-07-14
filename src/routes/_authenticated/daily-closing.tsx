@@ -76,7 +76,7 @@ function Page() {
 
   const { data: history = [] } = useQuery({
     queryKey: ["daily_closing", "history"],
-    queryFn: async () => (await supabase.from("daily_closings" as any).select("*").order("closing_date", { ascending: false }).limit(30)).data ?? [],
+    queryFn: async () => (await supabase.from("daily_closings" as any).select("*").order("closing_date", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const save = useMutation({

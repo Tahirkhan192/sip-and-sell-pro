@@ -26,7 +26,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["delivery_expenses"],
-    queryFn: async () => (await supabase.from("delivery_expenses").select("*").is("deleted_at", null).order("date", { ascending: false }).limit(500)).data ?? [],
+    queryFn: async () => (await supabase.from("delivery_expenses").select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const save = useMutation({
