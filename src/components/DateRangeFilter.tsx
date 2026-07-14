@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
-import { buildRange, type Preset, type RangeResult } from "@/lib/business-date";
+import { buildRange, subscribeBusinessConfig, type Preset, type RangeResult } from "@/lib/business-date";
 
 const PRESETS: { id: Preset; label: string }[] = [
   { id: "today", label: "Today" },
@@ -19,6 +19,12 @@ export function useDateRangeFilter(defaultPreset: Preset = "month") {
   const [from, setFrom] = useState(init.from);
   const [to, setTo] = useState(init.to);
   const [range, setRange] = useState<RangeResult>(init);
+  const [configTick, setConfigTick] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeBusinessConfig(() => setConfigTick((n) => n + 1));
+    return () => { unsub(); };
+  }, []);
 
   useEffect(() => {
     if (preset !== "custom") {
@@ -28,7 +34,7 @@ export function useDateRangeFilter(defaultPreset: Preset = "month") {
       setRange(buildRange("custom", from, to));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset]);
+  }, [preset, configTick]);
 
   function applyCustom() {
     setRange(buildRange("custom", from, to));
