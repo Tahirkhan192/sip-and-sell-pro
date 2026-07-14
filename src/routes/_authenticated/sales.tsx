@@ -103,13 +103,15 @@ function Page() {
       a.sales += num(s.grand_total);
       a.paid += num(s.cash_paid) + num(s.online_paid);
       a.remaining += rem;
+      if (s.status === "pending") a.pendingInvoices += 1;
       if (st === "paid") a.paidInvoices += 1;
       else if (st === "katha") { a.kathaInvoices += 1; a.kathaAmt += rem; }
       else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
       return a;
     },
-    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0 },
+    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0 },
   );
+
 
   return (
     <div>
