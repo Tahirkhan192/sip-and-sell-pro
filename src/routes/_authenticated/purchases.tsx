@@ -186,7 +186,11 @@ function Page() {
                 <>
                   <TableRow key={p.id} className="cursor-pointer" onClick={() => setExpanded({ ...expanded, [p.id]: !isOpen })}>
                     <TableCell>{isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                    <TableCell>{p.date}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">{p.date}</div>
+                      {p.created_at && <div className="text-[10px] text-muted-foreground">Time: {formatBusinessTime(p.created_at)} · Biz: {businessDateOf(p.created_at)}</div>}
+                    </TableCell>
+
                     <TableCell>{p.supplier ?? "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{(p.purchase_items ?? []).length} item(s)</TableCell>
                     <TableCell className="text-right font-medium">{money(p.grand_total)}</TableCell>
