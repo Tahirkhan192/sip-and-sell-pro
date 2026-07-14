@@ -14,36 +14,54 @@ import { ArrowRight, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, CrudDialog } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
-import { money, num } from "@/lib/format";
+import { useExpenseCategories } from "@/lib/use-expense-categories";
+import { money, num, today } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/stock-transfer")({ component: Page });
 
 type ItemType = "product" | "stock_item";
+type DestType = "category" | "expense";
 type F = {
   item_type: ItemType;
+  dest_type: DestType;
   product_id: string | null;
   stock_item_id: string | null;
   from_category: string;
   to_category: string;
+  expense_category: string;
   quantity: number | "";
   reason: string;
   notes: string;
+  date: string;
 };
-const empty: F = { item_type: "product", product_id: null, stock_item_id: null, from_category: "", to_category: "", quantity: "", reason: "", notes: "" };
+const empty: F = {
+  item_type: "product",
+  dest_type: "category",
+  product_id: null,
+  stock_item_id: null,
+  from_category: "",
+  to_category: "",
+  expense_category: "",
+  quantity: "",
+  reason: "",
+  notes: "",
+  date: today(),
+};
 
 function Page() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<F>(empty);
   const { data: categoryList = [] } = useCategories();
+  const { data: expenseCategories = [] } = useExpenseCategories({ activeOnly: true });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "all-for-transfer"],
-    queryFn: async () => (await supabase.from("products").select("id, name, category, unit, cost_price").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: stockItems = [] } = useQuery({
     queryKey: ["stock_items", "all-for-transfer"],
-    queryFn: async () => (await supabase.from("stock_items").select("id, name, category, unit, purchase_price").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("stock_items").select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: transfers = [] } = useQuery({
     queryKey: ["stock_transfers"],
@@ -55,13 +73,41 @@ function Page() {
     return (stockItems as any[]).find((s) => s.id === form.stock_item_id);
   }, [form, products, stockItems]);
 
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["stock_transfers"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["report"] });
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["stock_items"] });
+    qc.invalidateQueries({ queryKey: ["stock"] });
+    qc.invalidateQueries({ queryKey: ["stock-monthly"] });
+    qc.invalidateQueries({ queryKey: ["expenses"] });
+    qc.invalidateQueries({ queryKey: ["daily_closing"] });
+  };
+
   const save = useMutation({
     mutationFn: async () => {
       if (form.item_type === "product" && !form.product_id) throw new Error("Choose a product");
       if (form.item_type === "stock_item" && !form.stock_item_id) throw new Error("Choose a stock item");
+      if (num(form.quantity) <= 0) throw new Error("Quantity must be greater than 0");
+
+      if (form.dest_type === "expense") {
+        if (!form.expense_category) throw new Error("Choose an expense category");
+        const { error } = await (supabase as any).rpc("stock_to_expense_transfer", {
+          _product_id: form.item_type === "product" ? form.product_id : null,
+          _stock_item_id: form.item_type === "stock_item" ? form.stock_item_id : null,
+          _quantity: num(form.quantity),
+          _expense_category: form.expense_category,
+          _reason: form.reason || null,
+          _notes: form.notes || null,
+          _date: form.date,
+        });
+        if (error) throw error;
+        return;
+      }
+
       if (!form.from_category || !form.to_category) throw new Error("Both categories are required");
       if (form.from_category === form.to_category) throw new Error("From and To categories must differ");
-      if (num(form.quantity) <= 0) throw new Error("Quantity must be greater than 0");
       const { error } = await (supabase as any).rpc("save_stock_transfer", {
         _item_type: form.item_type,
         _product_id: form.item_type === "product" ? form.product_id : null,
@@ -75,12 +121,8 @@ function Page() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Stock transfer saved");
-      qc.invalidateQueries({ queryKey: ["stock_transfers"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["stock_items"] });
+      toast.success("Transfer saved");
+      invalidateAll();
       setOpen(false);
       setForm(empty);
     },
@@ -92,22 +134,18 @@ function Page() {
       const { error } = await (supabase as any).from("stock_transfers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["stock_transfers"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["stock_items"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
-      toast.success("Transfer removed");
-    },
+    onSuccess: () => { invalidateAll(); toast.success("Transfer removed"); },
   });
+
+  const unitCost = selectedItem ? num((selectedItem as any).cost_price ?? (selectedItem as any).purchase_price) : 0;
+  const totalCost = unitCost * num(form.quantity);
 
   return (
     <div>
       <PageHeader
         title="Stock Transfer"
-        subtitle="Move quantity & cost of a Product or Stock Item between categories. Total inventory stays the same — only category allocation changes."
-        action={<Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Transfer</Button>}
+        subtitle="Move a Product or Stock Item between Categories, or transfer it out as an Expense (Wastage, Staff Food, Damage, etc.)."
+        action={<Button onClick={() => { setForm({ ...empty, date: today() }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Transfer</Button>}
       />
 
       <Card>
@@ -153,7 +191,7 @@ function Page() {
       </Card>
 
       <CrudDialog
-        title="New Stock Transfer"
+        title="New Transfer"
         open={open}
         onOpenChange={setOpen}
         onSubmit={async () => { await save.mutateAsync(); return true; }}
@@ -193,41 +231,72 @@ function Page() {
           )}
           {selectedItem && (
             <p className="text-xs text-muted-foreground">
-              Unit cost: {money(num((selectedItem as any).cost_price ?? (selectedItem as any).purchase_price))} / {(selectedItem as any).unit}
+              In stock: {num((selectedItem as any).current_stock).toFixed(3)} {(selectedItem as any).unit} · Unit cost: {money(unitCost)}
             </p>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2">
-            <Label>From Category</Label>
-            <Select value={form.from_category} onValueChange={(v) => setForm({ ...form, from_category: v })}>
-              <SelectTrigger><SelectValue placeholder="From" /></SelectTrigger>
-              <SelectContent>
-                {(categoryList as string[]).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>To Category</Label>
-            <Select value={form.to_category} onValueChange={(v) => setForm({ ...form, to_category: v })}>
-              <SelectTrigger><SelectValue placeholder="To" /></SelectTrigger>
-              <SelectContent>
-                {(categoryList as string[]).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        <div className="space-y-2">
+          <Label>Transfer To</Label>
+          <div className="grid grid-cols-2 gap-1">
+            <Button type="button" size="sm" variant={form.dest_type === "category" ? "default" : "outline"}
+              onClick={() => setForm({ ...form, dest_type: "category" })}>Another Category</Button>
+            <Button type="button" size="sm" variant={form.dest_type === "expense" ? "default" : "outline"}
+              onClick={() => setForm({ ...form, dest_type: "expense" })}>Expenses</Button>
           </div>
         </div>
+
+        {form.dest_type === "category" ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
+              <Label>From Category</Label>
+              <Select value={form.from_category} onValueChange={(v) => setForm({ ...form, from_category: v })}>
+                <SelectTrigger><SelectValue placeholder="From" /></SelectTrigger>
+                <SelectContent>
+                  {(categoryList as string[]).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>To Category</Label>
+              <Select value={form.to_category} onValueChange={(v) => setForm({ ...form, to_category: v })}>
+                <SelectTrigger><SelectValue placeholder="To" /></SelectTrigger>
+                <SelectContent>
+                  {(categoryList as string[]).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
+              <Label>Expense Category</Label>
+              <Select value={form.expense_category} onValueChange={(v) => setForm({ ...form, expense_category: v })}>
+                <SelectTrigger><SelectValue placeholder="e.g. Wastage, Staff Food" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {expenseCategories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Quantity</Label>
           <Input type="number" step="0.001" min={0} value={form.quantity} placeholder="e.g. 3"
             onChange={(e) => setForm({ ...form, quantity: e.target.value === "" ? "" : Number(e.target.value) })} />
+          {selectedItem && num(form.quantity) > 0 && (
+            <p className="text-xs text-muted-foreground">Total cost: <span className="font-semibold">{money(totalCost)}</span></p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label>Reason (optional)</Label>
-          <Input value={form.reason} placeholder="e.g. Used in Biryani prep" onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+          <Input value={form.reason} placeholder={form.dest_type === "expense" ? "e.g. Wasted, Given to staff" : "e.g. Used in Biryani prep"} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
         </div>
         <div className="space-y-2">
           <Label>Notes (optional)</Label>
