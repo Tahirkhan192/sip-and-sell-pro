@@ -119,12 +119,15 @@ function Page() {
     <div>
       <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" />
 
-      <div className="flex flex-wrap gap-1 mb-3">
-        {(["today", "yesterday", "week", "month", "overall"] as const).map((q) => (
+      <div className="flex flex-wrap gap-1 mb-3 items-center">
+        {(["date", "week", "month", "overall"] as const).map((q) => (
           <Button key={q} size="sm" variant={quick === q ? "default" : "outline"} onClick={() => setQuick(q)} className="capitalize">
-            {q === "week" ? "This Week" : q === "month" ? "This Month" : q}
+            {q === "date" ? "Calendar Date" : q === "week" ? "This Week" : q === "month" ? "This Month" : "Overall"}
           </Button>
         ))}
+        {quick === "date" && (
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-auto ml-2" />
+        )}
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
