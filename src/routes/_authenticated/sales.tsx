@@ -43,7 +43,7 @@ function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string 
 
 function Page() {
   const qc = useQueryClient();
-  const [quick, setQuick] = useState<QuickRange>("today");
+  const [quick, setQuick] = useState<QuickRange>("month");
   const [inv, setInv] = useState("");
   const [customer, setCustomer] = useState("");
   const [status, setStatus] = useState<"all" | "pending" | "completed">("all");
