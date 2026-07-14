@@ -158,6 +158,8 @@ function Page() {
         <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} KDFs)</span></div></div>
         <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
         <div><div className="text-xs text-muted-foreground">Katha KDFs</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Pending KDFs</div><div className="font-semibold">{summary.pendingInvoices}</div></div>
+
       </Card>
 
 
