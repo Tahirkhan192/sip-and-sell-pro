@@ -16,7 +16,19 @@ import { Trash2, Plus, Search, Pencil, ChevronDown, ChevronRight } from "lucide-
 import { money, today, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { PageHeader } from "@/components/CrudHelpers";
+import { ResizeHandle, useResizableColumns, measureTextWidth, type ColumnDef } from "@/components/ResizableColumns";
 import { toast } from "sonner";
+
+const PURCHASE_ITEM_COLUMNS: ColumnDef[] = [
+  { key: "category", label: "Category", default: 140, min: 80 },
+  { key: "type", label: "Type", default: 130, min: 80 },
+  { key: "item", label: "Product / Stock Item", default: 240, min: 120 },
+  { key: "qty", label: "Quantity", default: 100, min: 70, align: "right" },
+  { key: "unit", label: "Unit", default: 90, min: 60 },
+  { key: "rate", label: "Purchase Rate", default: 130, min: 90, align: "right" },
+  { key: "total", label: "Total", default: 120, min: 80, align: "right" },
+  { key: "actions", label: "", default: 56, min: 56 },
+];
 
 export const Route = createFileRoute("/_authenticated/purchases")({ component: Page });
 
