@@ -261,7 +261,7 @@ function Page() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{form.id ? "Edit Purchase" : "New Purchase"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
