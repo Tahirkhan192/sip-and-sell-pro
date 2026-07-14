@@ -292,80 +292,136 @@ function Page() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-base">Items</Label>
-                <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, items: [...form.items, { ...emptyLine }] })}>
-                  <Plus className="h-3 w-3 mr-1" /> Add row
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={() => PURCHASE_ITEM_COLUMNS.forEach((c) => resetWidth(c.key))} title="Reset column widths">
+                    Reset columns
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, items: [...form.items, { ...emptyLine }] })}>
+                    <Plus className="h-3 w-3 mr-1" /> Add row
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-2">
-                {form.items.map((l, idx) => {
-                  const catItems = (items as any[]).filter((i) => !l.category || i.category === l.category);
-                  const catProducts = (products as any[]).filter((p) => !l.category || p.category === l.category);
-                  return (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-md">
-                      <div className="col-span-2 space-y-1"><Label className="text-xs">Category</Label>
-                        <Select value={l.category} onValueChange={(v) => {
-                          const next = [...form.items]; next[idx] = { ...l, category: v, product_id: "", stock_item_id: "" }; setForm({ ...form, items: next });
-                        }}>
-                          <SelectTrigger><SelectValue placeholder="Cat" /></SelectTrigger>
-                          <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2 space-y-1"><Label className="text-xs">Type</Label>
-                        <Select value={l.target} onValueChange={(v: any) => {
-                          const next = [...form.items]; next[idx] = { ...l, target: v, product_id: "", stock_item_id: "" }; setForm({ ...form, items: next });
-                        }}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="stock_item">Stock Item</SelectItem>
-                            <SelectItem value="product">Product</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-3 space-y-1"><Label className="text-xs">Item</Label>
-                        {l.target === "product" ? (
-                          <Select value={l.product_id} onValueChange={(v) => {
-                            const p = catProducts.find((x) => x.id === v);
-                            const next = [...form.items]; next[idx] = { ...l, product_id: v, unit: p?.unit ?? l.unit }; setForm({ ...form, items: next });
-                          }}>
-                            <SelectTrigger><SelectValue placeholder={l.category ? "Choose…" : "Cat first"} /></SelectTrigger>
-                            <SelectContent>{catProducts.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                        ) : (
-                          <Select value={l.stock_item_id} onValueChange={(v) => {
-                            const it = catItems.find((x) => x.id === v);
-                            const next = [...form.items]; next[idx] = { ...l, stock_item_id: v, unit: it?.unit ?? l.unit }; setForm({ ...form, items: next });
-                          }}>
-                            <SelectTrigger><SelectValue placeholder={l.category ? "Choose…" : "Cat first"} /></SelectTrigger>
-                            <SelectContent>{catItems.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                      <div className="col-span-1 space-y-1"><Label className="text-xs">Qty</Label>
-                        <Input type="number" step="0.01" value={l.quantity} onChange={(e) => {
-                          const next = [...form.items]; next[idx] = { ...l, quantity: e.target.value === "" ? "" : Number(e.target.value) }; setForm({ ...form, items: next });
-                        }} />
-                      </div>
-                      <div className="col-span-1 space-y-1"><Label className="text-xs">Unit</Label>
-                        <Input value={l.unit} onChange={(e) => {
-                          const next = [...form.items]; next[idx] = { ...l, unit: e.target.value }; setForm({ ...form, items: next });
-                        }} />
-                      </div>
-                      <div className="col-span-1 space-y-1"><Label className="text-xs">Rate</Label>
-                        <Input type="number" step="0.01" value={l.unit_cost} onChange={(e) => {
-                          const next = [...form.items]; next[idx] = { ...l, unit_cost: e.target.value === "" ? "" : Number(e.target.value) }; setForm({ ...form, items: next });
-                        }} />
-                      </div>
-                      <div className="col-span-1 text-right text-sm font-medium">{money(num(l.quantity) * num(l.unit_cost))}</div>
-                      <div className="col-span-1 flex justify-end">
-                        <Button type="button" size="icon" variant="ghost" onClick={() => {
-                          if (form.items.length === 1) { setForm({ ...form, items: [{ ...emptyLine }] }); return; }
-                          setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
-                        }}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  );
-                })}
+
+              <div className="border rounded-md overflow-x-auto">
+                <table className="text-sm" style={{ tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0, width: PURCHASE_ITEM_COLUMNS.reduce((a, c) => a + widths[c.key], 0) }}>
+                  <colgroup>
+                    {PURCHASE_ITEM_COLUMNS.map((c) => (
+                      <col key={c.key} style={{ width: widths[c.key] }} />
+                    ))}
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-muted/60">
+                      {PURCHASE_ITEM_COLUMNS.map((c) => (
+                        <th
+                          key={c.key}
+                          className="relative px-2 py-2 text-left text-xs font-medium text-muted-foreground border-b select-none"
+                          style={{ textAlign: c.align ?? "left" }}
+                        >
+                          <span className="block truncate pr-2">{c.label}</span>
+                          <ResizeHandle
+                            onResize={(dx) => {
+                              const min = c.min ?? 40;
+                              setWidth(c.key, Math.max(min, widths[c.key] + dx));
+                            }}
+                            onAutoFit={() => {
+                              // measure header + all cell contents for this column
+                              const header = measureTextWidth(c.label) + 24;
+                              let contentMax = header;
+                              for (const l of form.items) {
+                                let s = "";
+                                switch (c.key) {
+                                  case "category": s = l.category || "Cat"; break;
+                                  case "type": s = l.target === "product" ? "Product" : "Stock Item"; break;
+                                  case "item": {
+                                    const p = (products as any[]).find((x) => x.id === l.product_id);
+                                    const it = (items as any[]).find((x) => x.id === l.stock_item_id);
+                                    s = (l.target === "product" ? p?.name : it ? `${it.name} (${it.unit})` : "") || "Choose…";
+                                    break;
+                                  }
+                                  case "qty": s = String(l.quantity ?? ""); break;
+                                  case "unit": s = String(l.unit ?? ""); break;
+                                  case "rate": s = String(l.unit_cost ?? ""); break;
+                                  case "total": s = money(num(l.quantity) * num(l.unit_cost)); break;
+                                  case "actions": s = ""; break;
+                                }
+                                contentMax = Math.max(contentMax, measureTextWidth(s) + 32);
+                              }
+                              const min = c.min ?? 40;
+                              setWidth(c.key, Math.max(min, Math.min(600, Math.ceil(contentMax))));
+                            }}
+                          />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.items.map((l, idx) => {
+                      const catItems = (items as any[]).filter((i) => !l.category || i.category === l.category);
+                      const catProducts = (products as any[]).filter((p) => !l.category || p.category === l.category);
+                      const setLine = (patch: Partial<Line>) => {
+                        const next = [...form.items]; next[idx] = { ...l, ...patch } as Line; setForm({ ...form, items: next });
+                      };
+                      return (
+                        <tr key={idx} className="border-b last:border-b-0 align-middle">
+                          <td className="px-1 py-1">
+                            <Select value={l.category} onValueChange={(v) => setLine({ category: v, product_id: "", stock_item_id: "" })}>
+                              <SelectTrigger className="h-9"><SelectValue placeholder="Cat" /></SelectTrigger>
+                              <SelectContent>{categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-1 py-1">
+                            <Select value={l.target} onValueChange={(v: any) => setLine({ target: v, product_id: "", stock_item_id: "" })}>
+                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="stock_item">Stock Item</SelectItem>
+                                <SelectItem value="product">Product</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-1 py-1">
+                            {l.target === "product" ? (
+                              <Select value={l.product_id} onValueChange={(v) => {
+                                const p = catProducts.find((x) => x.id === v);
+                                setLine({ product_id: v, unit: p?.unit ?? l.unit });
+                              }}>
+                                <SelectTrigger className="h-9"><SelectValue placeholder={l.category ? "Choose…" : "Cat first"} /></SelectTrigger>
+                                <SelectContent>{catProducts.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                              </Select>
+                            ) : (
+                              <Select value={l.stock_item_id} onValueChange={(v) => {
+                                const it = catItems.find((x) => x.id === v);
+                                setLine({ stock_item_id: v, unit: it?.unit ?? l.unit });
+                              }}>
+                                <SelectTrigger className="h-9"><SelectValue placeholder={l.category ? "Choose…" : "Cat first"} /></SelectTrigger>
+                                <SelectContent>{catItems.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.unit})</SelectItem>)}</SelectContent>
+                              </Select>
+                            )}
+                          </td>
+                          <td className="px-1 py-1">
+                            <Input className="h-9 text-right" type="number" step="0.01" value={l.quantity}
+                              onChange={(e) => setLine({ quantity: e.target.value === "" ? "" : Number(e.target.value) })} />
+                          </td>
+                          <td className="px-1 py-1">
+                            <Input className="h-9" value={l.unit} onChange={(e) => setLine({ unit: e.target.value })} />
+                          </td>
+                          <td className="px-1 py-1">
+                            <Input className="h-9 text-right" type="number" step="0.01" value={l.unit_cost}
+                              onChange={(e) => setLine({ unit_cost: e.target.value === "" ? "" : Number(e.target.value) })} />
+                          </td>
+                          <td className="px-2 py-1 text-right font-medium truncate">{money(num(l.quantity) * num(l.unit_cost))}</td>
+                          <td className="px-1 py-1 text-center">
+                            <Button type="button" size="icon" variant="ghost" onClick={() => {
+                              if (form.items.length === 1) { setForm({ ...form, items: [{ ...emptyLine }] }); return; }
+                              setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
+                            }}><Trash2 className="h-4 w-4" /></Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Drag column borders to resize · Double-click a border to auto-fit · Widths are saved automatically.</p>
             </div>
 
             <div className="space-y-1"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
