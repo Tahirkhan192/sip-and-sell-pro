@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { money, num } from "@/lib/format";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Pencil, Trash2, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
+import { useReportEngine } from "@/lib/report-engine";
 
 export const Route = createFileRoute("/_authenticated/sales")({ component: Page });
 
@@ -34,12 +35,12 @@ type QuickRange = "date" | "week" | "month" | "overall";
 
 import { buildRange, formatBusinessDate, formatBusinessTime, businessDateOf, businessToday, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
 
-function rangeFor(q: QuickRange, date: string): { startUTC?: string; endExclusiveUTC?: string } {
+function rangeFor(q: QuickRange, date: string): { from?: string; to?: string; startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
   if (q === "date") return { startUTC: businessDayStartUTC(date), endExclusiveUTC: businessDayEndUTC(date) };
   const map = { week: "week", month: "month" } as const;
   const r = buildRange(map[q]);
-  return { startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
+  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
 
 function Page() {
@@ -54,25 +55,14 @@ function Page() {
 
   const range = rangeFor(quick, date);
 
-  const { data = [] } = useQuery({
-    queryKey: ["sales", quick, date, inv, customer, status, pay, type],
-    queryFn: async () => {
-      let q = supabase
-        .from("sales")
-        .select("*, sale_items(quantity, price, total, products(name))")
-        .is("deleted_at", null)
-        .order("sale_date", { ascending: false })
-        .limit(50000);
-      if (range.startUTC) q = q.gte("sale_date", range.startUTC);
-      if (range.endExclusiveUTC) q = q.lt("sale_date", range.endExclusiveUTC);
-      if (inv) q = q.ilike("invoice_no", `%${inv}%`);
-      if (customer) q = q.ilike("customer_name", `%${customer}%`);
-      if (status !== "all") q = q.eq("status", status);
-      if (type !== "all") q = q.eq("order_type" as any, type);
-      const rows = (await q).data ?? [];
-      if (pay === "all") return rows;
-      return (rows as any[]).filter((s) => paymentStatus(s) === pay);
-    },
+  const { data: report } = useReportEngine(range);
+  const data = ((report?.invoices ?? []) as any[]).filter((s) => {
+    if (inv && !String(s.invoice_no ?? "").toLowerCase().includes(inv.toLowerCase())) return false;
+    if (customer && !String(s.customer_name ?? "").toLowerCase().includes(customer.toLowerCase())) return false;
+    if (status !== "all" && s.status !== status) return false;
+    if (type !== "all" && s.order_type !== type) return false;
+    if (pay !== "all" && paymentStatus(s) !== pay) return false;
+    return true;
   });
 
   const deleteMutation = useMutation({
