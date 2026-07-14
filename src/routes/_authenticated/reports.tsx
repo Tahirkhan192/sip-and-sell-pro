@@ -60,7 +60,7 @@ function DailyReport() {
   const { data } = useQuery({
     queryKey: ["report", "daily", r.from, r.to],
     queryFn: async () => {
-      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC);
+      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC).limit(50000);
       const rows = sales.data ?? [];
       const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
       for (const s of rows as any[]) {
