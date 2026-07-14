@@ -8,6 +8,7 @@ import { AlertTriangle, TrendingUp, ShoppingBag, Wallet, Receipt, Truck, Bike, T
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { buildRange, businessToday } from "@/lib/business-date";
 import { useCategories } from "@/lib/use-categories";
+import { fetchReportEngine } from "@/lib/report-engine";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
@@ -17,78 +18,42 @@ async function fetchDashboard() {
   const businessDay = businessToday();
 
   const [
-    todaySalesQ, monthSalesQ, monthExpensesQ, monthDelExpQ, todayDelExpQ,
-    productsQ, last7Q, monthPurchQ, todaySaleItemsQ, monthSaleItemsQ,
+    todayReport, monthReport, productsQ, last7Reports,
   ] = await Promise.all([
-    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null)
-      .gte("sale_date", todayRange.startUTC).lt("sale_date", todayRange.endExclusiveUTC),
-    supabase.from("sales").select("grand_total, delivery_charges, sale_date").is("deleted_at", null)
-      .gte("sale_date", monthRange.startUTC).lt("sale_date", monthRange.endExclusiveUTC),
-    supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
-    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
-    supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).eq("date", todayRange.from),
+    fetchReportEngine(todayRange),
+    fetchReportEngine(monthRange),
     supabase.from("products").select("id, name, current_stock, minimum_stock, cost_price, category").is("deleted_at", null),
-    supabase.from("sales").select("grand_total, sale_date").is("deleted_at", null)
-      .gte("sale_date", buildRange("custom", addDaysISO(businessDay, -6), businessDay).startUTC),
-    supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).gte("date", monthRange.from).lte("date", monthRange.to),
-    supabase.from("sale_items").select("quantity, total, products!inner(category, cost_price), sales!inner(sale_date, status, deleted_at)")
-      .gte("sales.sale_date", todayRange.startUTC).lt("sales.sale_date", todayRange.endExclusiveUTC),
-    supabase.from("sale_items").select("quantity, total, products!inner(category, cost_price), sales!inner(sale_date, status, deleted_at)")
-      .gte("sales.sale_date", monthRange.startUTC).lt("sales.sale_date", monthRange.endExclusiveUTC),
+    Promise.all(Array.from({ length: 7 }, (_, i) => {
+      const d = addDaysISO(businessDay, i - 6);
+      return fetchReportEngine(buildRange("custom", d, d)).then((report) => ({ day: d.slice(5), total: report.totalSales }));
+    })),
   ]);
 
-  const sumGT = (rows: any[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.grand_total), 0);
-  const sumDel = (rows: any[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.delivery_charges), 0);
-
-  const todayRev = sumGT(todaySalesQ.data);
-  const todayDelCharges = sumDel(todaySalesQ.data);
-  const monthRev = sumGT(monthSalesQ.data);
-  const monthDelCharges = sumDel(monthSalesQ.data);
-  const monthExp = (monthExpensesQ.data ?? []).reduce((s, r: any) => s + num(r.amount), 0);
-  const monthDelExp = (monthDelExpQ.data ?? []).reduce((s, r: any) => s + num(r.fuel_cost) + num(r.maintenance_cost), 0);
-  const todayDelExp = (todayDelExpQ.data ?? []).reduce((s, r: any) => s + num(r.fuel_cost) + num(r.maintenance_cost), 0);
-  const monthPurch = (monthPurchQ.data ?? []).reduce((s, r: any) => s + num(r.total_cost), 0);
-
-  // Today's COGS for business profit (sum of item.qty * product.cost_price)
-  const todayCogs = ((todaySaleItemsQ.data as any[]) ?? []).filter((it) => !it.sales?.deleted_at && it.sales?.status === "completed")
-    .reduce((s, it) => s + num(it.quantity) * num(it.products?.cost_price), 0);
-  const todaySalesExDel = todayRev - todayDelCharges;
-  const todayBizProfit = todaySalesExDel - todayCogs;
-  const todayDelProfit = todayDelCharges - todayDelExp;
-  const todayTotalProfit = todayBizProfit + todayDelProfit;
-
-  const monthSalesExDel = monthRev - monthDelCharges;
-  const monthBizProfit = monthSalesExDel - monthPurch - monthExp;
-  const monthDelProfit = monthDelCharges - monthDelExp;
-  const monthOverall = monthBizProfit + monthDelProfit;
+  const todayRev = todayReport.totalSales;
+  const todayDelCharges = todayReport.deliveryCharges;
+  const todayBizProfit = todayReport.businessProfit;
+  const todayDelProfit = todayReport.deliveryProfit;
+  const todayTotalProfit = todayReport.netProfit;
+  const monthRev = monthReport.totalSales;
+  const monthBizProfit = monthReport.businessProfit;
+  const monthDelProfit = monthReport.deliveryProfit;
+  const monthOverall = monthReport.netProfit;
 
   // Per-category breakdown
   const catMap: Record<string, { todaySales: number; monthSales: number; monthCogs: number; monthPurch: number }> = {};
   const getCat = (c: string) => (catMap[c] ??= { todaySales: 0, monthSales: 0, monthCogs: 0, monthPurch: 0 });
-  for (const it of (todaySaleItemsQ.data as any[]) ?? []) {
-    if (it.sales?.deleted_at || it.sales?.status !== "completed") continue;
-    getCat(it.products?.category ?? "—").todaySales += num(it.total);
+  for (const c of todayReport.catRows) {
+    getCat(c.category).todaySales += c.sales;
   }
-  for (const it of (monthSaleItemsQ.data as any[]) ?? []) {
-    if (it.sales?.deleted_at || it.sales?.status !== "completed") continue;
-    const c = getCat(it.products?.category ?? "—");
-    c.monthSales += num(it.total);
-    c.monthCogs += num(it.quantity) * num(it.products?.cost_price);
-  }
-  for (const r of (monthPurchQ.data as any[]) ?? []) {
-    getCat(r.category ?? "—").monthPurch += num(r.total_cost);
+  for (const r of monthReport.catRows) {
+    const c = getCat(r.category);
+    c.monthSales += r.sales;
+    c.monthCogs += r.cogs;
+    c.monthPurch += r.purchases;
   }
 
   const low = (productsQ.data ?? []).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
-
-  const days: { day: string; total: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = addDaysISO(businessDay, -i);
-    const r = buildRange("custom", d, d);
-    const total = (last7Q.data ?? []).filter((row: any) => row.sale_date >= r.startUTC && row.sale_date < r.endExclusiveUTC)
-      .reduce((s, row: any) => s + num(row.grand_total), 0);
-    days.push({ day: d.slice(5), total });
-  }
+  const days = last7Reports;
 
   return {
     todayRev, todayDelCharges, todayDelProfit, todayBizProfit, todayTotalProfit,

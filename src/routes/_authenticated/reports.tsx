@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { useDateRangeFilter } from "@/components/DateRangeFilter";
-import { businessDateOf, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
+import { useIsAdmin, useReportEngine, type ReportResult } from "@/lib/report-engine";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: Reports });
 
@@ -50,34 +50,22 @@ function useRange(initPreset: "today" | "month" = "month") {
   };
 }
 
-function dayPlus(d: string) {
-  return new Date(new Date(d).getTime() + 86400000).toISOString().slice(0, 10);
+function useReportData(r: ReturnType<typeof useRange>, categories: string[] = []) {
+  return useReportEngine({ from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC }, categories);
 }
 
 // ============================================================ DAILY
 function DailyReport() {
   const r = useRange("today");
-  const { data } = useQuery({
-    queryKey: ["report", "daily", r.from, r.to],
-    queryFn: async () => {
-      const sales = await supabase.from("sales").select("grand_total, delivery_charges, payment_method, sale_date, invoice_no").is("deleted_at", null).gte("sale_date", r.startUTC).lt("sale_date", r.endExclusiveUTC).limit(50000);
-      const rows = sales.data ?? [];
-      const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
-      for (const s of rows as any[]) {
-        // Business date honors the configured tz + rollover time
-        const day = businessDateOf(s.sale_date);
-
-        byDay[day] ??= { date: day, count: 0, sales: 0, cash: 0, card: 0, delivery: 0 };
-        byDay[day].count += 1;
-        byDay[day].sales += num(s.grand_total);
-        byDay[day].delivery += num(s.delivery_charges);
-        if (s.payment_method === "cash") byDay[day].cash += num(s.grand_total);
-        if (s.payment_method === "card") byDay[day].card += num(s.grand_total);
-      }
-      return Object.values(byDay).sort((a, b) => b.date.localeCompare(a.date));
-    },
-  });
-  const total = (data ?? []).reduce((a, r) => ({ count: a.count + r.count, sales: a.sales + r.sales, cash: a.cash + r.cash, card: a.card + r.card, delivery: a.delivery + r.delivery }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0 });
+  const { data } = useReportData(r);
+  const rows = Object.values(data?.salesByBusinessDate ?? {}).sort((a, b) => b.date.localeCompare(a.date));
+  const total = rows.reduce((a, d) => ({
+    count: a.count + d.count,
+    sales: a.sales + d.totalSales,
+    cash: a.cash + d.cash,
+    card: a.card + d.online,
+    delivery: a.delivery + d.delivery,
+  }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0 });
   return (<>
     {r.el}
     <Card>
@@ -91,20 +79,20 @@ function DailyReport() {
           <TableHead className="text-right">Grand Total</TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {(data ?? []).map((d) => (
+          {rows.map((d) => (
             <TableRow key={d.date}>
               <TableCell>{d.date}</TableCell>
               <TableCell className="text-right">{d.count}</TableCell>
               <TableCell className="text-right">{money(d.cash)}</TableCell>
-              <TableCell className="text-right">{money(d.card)}</TableCell>
+              <TableCell className="text-right">{money(d.online)}</TableCell>
               <TableCell className="text-right">{money(d.delivery)}</TableCell>
-              <TableCell className="text-right font-semibold">{money(d.sales)}</TableCell>
+              <TableCell className="text-right font-semibold">{money(d.totalSales)}</TableCell>
             </TableRow>
           ))}
-          {(data ?? []).length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
+          {rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
         </TableBody>
       </Table>
-      {(data ?? []).length > 0 && (
+      {rows.length > 0 && (
         <div className="border-t px-4 py-2 grid grid-cols-6 text-sm font-medium text-right">
           <div className="text-left">Totals</div>
           <div>{total.count}</div><div>{money(total.cash)}</div><div>{money(total.card)}</div><div>{money(total.delivery)}</div><div>{money(total.sales)}</div>
@@ -115,136 +103,12 @@ function DailyReport() {
 }
 
 // ============================================================ MONTHLY
-function useMonthlyData(from: string, to: string, categories: string[]) {
-  return useQuery({
-    queryKey: ["report", "monthly-full", from, to, categories.join(",")],
-    queryFn: async () => {
-      const startUTC = businessDayStartUTC(from);
-      const endExclusiveUTC = businessDayEndUTC(to);
-      const [salesQ, expQ, delExpQ, purchProdQ, purchStockQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
-        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC).limit(50000),
-        supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
-        supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
-        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to).limit(50000),
-        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to).limit(50000),
-        supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).limit(50000),
-        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC).limit(100000),
-        supabase.from("monthly_stock_overrides").select("*").eq("year", Number(from.slice(0, 4))).eq("month", Number(from.slice(5, 7))),
-      ]);
-
-      // Determine if "from" is a full month start (for overrides to apply)
-      const fromYear = Number(from.slice(0, 4));
-      const fromMonth = Number(from.slice(5, 7));
-
-      const sales = (salesQ.data ?? []) as any[];
-      const monthRev = sales.reduce((s, x) => s + num(x.grand_total), 0);
-      const monthDelCharges = sales.reduce((s, x) => s + num(x.delivery_charges), 0);
-      const monthSalesExDel = monthRev - monthDelCharges;
-      const monthExp = (expQ.data ?? []).reduce((s, x: any) => s + num(x.amount), 0);
-      const monthDelExp = (delExpQ.data ?? []).reduce((s, x: any) => s + num(x.fuel_cost) + num(x.maintenance_cost), 0);
-
-      const prods = (prodsQ.data ?? []) as any[];
-      const prodById: Record<string, any> = {};
-      for (const p of prods) prodById[p.id] = p;
-
-      // Per-product purchase totals & quantities in range
-      const purchByProd: Record<string, { qty: number; cost: number }> = {};
-      for (const p of (purchProdQ.data ?? []) as any[]) {
-        purchByProd[p.product_id] ??= { qty: 0, cost: 0 };
-        purchByProd[p.product_id].qty += num(p.quantity);
-        purchByProd[p.product_id].cost += num(p.total_cost);
-      }
-
-      // Per-product sales in range
-      const soldByProd: Record<string, { qty: number; revenue: number }> = {};
-      for (const it of (saleItemsQ.data ?? []) as any[]) {
-        const sa = it.sales;
-        if (!sa || sa.deleted_at) continue;
-        soldByProd[it.product_id] ??= { qty: 0, revenue: 0 };
-        soldByProd[it.product_id].qty += num(it.quantity);
-        soldByProd[it.product_id].revenue += num(it.total);
-      }
-
-      // Overrides
-      const overrides = (overridesQ.data ?? []) as any[];
-      const catOverride: Record<string, { opening?: number; closing?: number }> = {};
-      const prodOverride: Record<string, { opening?: number; closing?: number }> = {};
-      for (const o of overrides) {
-        if (o.scope === "category" && o.category) catOverride[o.category] = { opening: o.opening_value ?? undefined, closing: o.closing_value ?? undefined };
-        if (o.scope === "product" && o.product_id) prodOverride[o.product_id] = { opening: o.opening_value ?? undefined, closing: o.closing_value ?? undefined };
-      }
-
-      // Per-category aggregation — track product purchases vs stock-item purchases separately
-      const catData: Record<string, { sales: number; revenueQty: number; opening: number; productPurchases: number; stockPurchases: number; purchases: number; closing: number; cogs: number }> = {};
-      const ensure = (cat: string) => (catData[cat] ??= { sales: 0, revenueQty: 0, opening: 0, productPurchases: 0, stockPurchases: 0, purchases: 0, closing: 0, cogs: 0 });
-      for (const cat of categories) ensure(cat);
-
-      for (const p of prods) {
-        const cat = p.category ?? "—";
-        const cd = ensure(cat);
-        const cp = num(p.cost_price);
-        const openingVal = prodOverride[p.id]?.opening ?? num(p.opening_stock) * cp;
-        const closingVal = prodOverride[p.id]?.closing ?? num(p.current_stock) * cp;
-        const purch = purchByProd[p.id] ?? { qty: 0, cost: 0 };
-        const sold = soldByProd[p.id] ?? { qty: 0, revenue: 0 };
-        cd.opening += openingVal;
-        cd.closing += closingVal;
-        cd.productPurchases += purch.cost;
-        cd.sales += sold.revenue;
-        cd.revenueQty += sold.qty;
-      }
-      // Add stock-item purchases by their category
-      for (const r of ((purchStockQ.data ?? []) as any[])) {
-        const cat = r.category ?? "—";
-        ensure(cat).stockPurchases += num(r.total_cost);
-      }
-      // Apply category-level overrides (replace, not add)
-      for (const [cat, ov] of Object.entries(catOverride)) {
-        const cd = ensure(cat);
-        if (ov.opening !== undefined) cd.opening = ov.opening;
-        if (ov.closing !== undefined) cd.closing = ov.closing;
-      }
-      // Total purchases per category + COGS
-      for (const c of Object.keys(catData)) {
-        catData[c].purchases = catData[c].productPurchases + catData[c].stockPurchases;
-        catData[c].cogs = catData[c].opening + catData[c].purchases - catData[c].closing;
-      }
-
-      // Category Net Profit = Sales + Closing - (Opening + Purchases).
-      // General expenses are NEVER subtracted from individual category profits.
-      const catRows = Object.entries(catData).map(([category, c]) => {
-        const grossProfit = c.sales - c.cogs;
-        const netProfit = c.sales + c.closing - (c.opening + c.purchases);
-        return { category, ...c, allocatedExp: 0, grossProfit, netProfit };
-      });
-
-      // Totals
-      const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
-      const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
-      const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-      const sumCategoryNet = catRows.reduce((s, c) => s + c.netProfit, 0);
-      // Overall = Σ category net − general expenses + delivery profit
-      const deliveryProfit = monthDelCharges - monthDelExp;
-      const businessProfit = sumCategoryNet - monthExp;
-      const overall = businessProfit + deliveryProfit;
-
-      return {
-        fromYear, fromMonth,
-        monthRev, monthSalesExDel, monthDelCharges, monthExp, monthDelExp,
-        totalOpening, totalPurch, totalClosing,
-        businessProfit, deliveryProfit, overall,
-        catRows,
-      };
-    },
-  });
-}
-
 function MonthlyReport() {
   const r = useRange("month");
   const { data: categories = [] } = useCategories();
-  const { data } = useMonthlyData(r.from, r.to, categories);
-  const totalCogs = (data?.totalOpening ?? 0) + (data?.totalPurch ?? 0) - (data?.totalClosing ?? 0);
-  const grossProfit = (data?.monthSalesExDel ?? 0) - totalCogs;
+  const { data } = useReportData(r, categories);
+  const totalCogs = data?.totalCogs ?? 0;
+  const grossProfit = data?.grossProfit ?? 0;
   return (<>
     {r.el}
     <Card className="mb-4">
@@ -252,22 +116,23 @@ function MonthlyReport() {
       <CardContent className="p-0">
         <Table>
           <TableBody>
-            <TableRow className="font-semibold"><TableCell>Total Sales (matches Sales page)</TableCell><TableCell className="text-right">{money(data?.monthRev)}</TableCell></TableRow>
-            <TableRow><TableCell>− Delivery Charges</TableCell><TableCell className="text-right">{money(data?.monthDelCharges)}</TableCell></TableRow>
-            <TableRow className="font-medium"><TableCell>= Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
+            <TableRow className="font-semibold"><TableCell>Total Sales (matches Sales page)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
+            <TableRow><TableCell>− Delivery Charges</TableCell><TableCell className="text-right">{money(data?.deliveryCharges)}</TableCell></TableRow>
+            <TableRow className="font-medium"><TableCell>= Sales (engine total)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
             <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit (Charges − Delivery Expenses)</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
-            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
-            <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
+            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.generalExpenses)}</TableCell></TableRow>
+            <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.netProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.netProfit)}</TableCell></TableRow>
           </TableBody>
         </Table>
       </CardContent>
     </Card>
 
+    <ReportAudit data={data} />
 
     <Card className="mb-3">
       <CardHeader className="pb-2"><CardTitle className="text-sm">Profit by Category</CardTitle></CardHeader>
@@ -303,7 +168,7 @@ function MonthlyReport() {
 function CategoryReport() {
   const r = useRange("month");
   const { data: categories = [] } = useCategories();
-  const { data } = useMonthlyData(r.from, r.to, categories);
+  const { data } = useReportData(r, categories);
   return (<>
     {r.el}
     <Card>
@@ -318,11 +183,12 @@ function CategoryReport() {
           <TableHead className="text-right">Closing</TableHead>
           <TableHead className="text-right">COGS</TableHead>
           <TableHead className="text-right">Gross Profit</TableHead>
+          <TableHead className="text-right">Delivery Profit</TableHead>
           <TableHead className="text-right">Expenses</TableHead>
           <TableHead className="text-right">Net Profit</TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {(data?.catRows ?? []).map((c: any) => (
+          {(data?.catRows ?? []).map((c) => (
             <TableRow key={c.category}>
               <TableCell className="font-medium">{c.category}</TableCell>
               <TableCell className="text-right">{Number(c.revenueQty).toFixed(2)}</TableCell>
@@ -333,6 +199,7 @@ function CategoryReport() {
               <TableCell className="text-right">{money(c.closing)}</TableCell>
               <TableCell className="text-right">{money(c.cogs)}</TableCell>
               <TableCell className="text-right">{money(c.grossProfit)}</TableCell>
+              <TableCell className="text-right">{money(c.deliveryProfit)}</TableCell>
               <TableCell className="text-right">{money(c.allocatedExp)}</TableCell>
               <TableCell className={"text-right font-semibold " + (c.netProfit >= 0 ? "text-primary" : "text-destructive")}>{money(c.netProfit)}</TableCell>
             </TableRow>
@@ -451,22 +318,9 @@ function ExpenseReport() {
 // ============================================================ SALES
 function SalesReport() {
   const r = useRange("month");
-  const { data = [] } = useQuery({
-    queryKey: ["report", "sales-items", r.from, r.to],
-    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC).limit(100000)).data ?? [],
-  });
-  const rows = useMemo(() => {
-    const m: Record<string, { name: string; category: string; qty: number; rev: number }> = {};
-    for (const it of data as any[]) {
-      if (it.sales?.deleted_at) continue;
-      const name = it.products?.name ?? "?";
-      m[name] ??= { name, category: it.products?.category ?? "—", qty: 0, rev: 0 };
-      m[name].qty += num(it.quantity);
-      m[name].rev += num(it.total);
-    }
-    return Object.values(m).sort((a, b) => b.rev - a.rev);
-  }, [data]);
-  const totals = rows.reduce((a, r) => ({ qty: a.qty + r.qty, rev: a.rev + r.rev }), { qty: 0, rev: 0 });
+  const { data } = useReportData(r);
+  const rows = data?.productRows ?? [];
+  const totals = { qty: data?.totalQtySold ?? 0, rev: data?.totalSales ?? 0 };
   return (<>
     {r.el}
     <Card>
@@ -474,7 +328,7 @@ function SalesReport() {
         <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Revenue</TableHead></TableRow></TableHeader>
         <TableBody>
           {rows.map((r) => (
-            <TableRow key={r.name}>
+            <TableRow key={r.id}>
               <TableCell className="font-medium">{r.name}</TableCell>
               <TableCell>{r.category}</TableCell>
               <TableCell className="text-right">{r.qty.toFixed(2)}</TableCell>
@@ -489,6 +343,26 @@ function SalesReport() {
       </div>
     </Card>
   </>);
+}
+
+function ReportAudit({ data }: { data?: ReportResult }) {
+  const { data: isAdmin } = useIsAdmin();
+  if (!isAdmin || !data) return null;
+  return (
+    <Card className="mb-4">
+      <CardHeader className="pb-2"><CardTitle className="text-sm">Report Audit</CardTitle></CardHeader>
+      <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <Stat label="Total invoices included" value={String(data.audit.totalInvoices)} />
+        <Stat label="First Business Date" value={data.audit.firstBusinessDate ?? "—"} />
+        <Stat label="Last Business Date" value={data.audit.lastBusinessDate ?? "—"} />
+        <Stat label="Total Sales" value={money(data.audit.totalSales)} />
+        <Stat label="Total COGS" value={money(data.audit.totalCogs)} />
+        <Stat label="Total Expenses" value={money(data.audit.totalExpenses)} />
+        <Stat label="Total Delivery Profit" value={money(data.audit.totalDeliveryProfit)} />
+        <Stat label="Net Profit" value={money(data.audit.netProfit)} />
+      </CardContent>
+    </Card>
+  );
 }
 
 function Stat({ label, value, hint, emphasize, positive }: { label: string; value: string; hint?: string; emphasize?: boolean; positive?: boolean }) {
