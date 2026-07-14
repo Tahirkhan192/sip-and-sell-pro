@@ -63,9 +63,9 @@ function DailyReport() {
       const rows = sales.data ?? [];
       const byDay: Record<string, { date: string; count: number; sales: number; cash: number; card: number; delivery: number }> = {};
       for (const s of rows as any[]) {
-        // Business date, not raw UTC — rolls over at 08:00 PKT (03:00 UTC)
-        const t = new Date(s.sale_date).getTime();
-        const day = new Date(t + 5 * 3600_000 - 8 * 3600_000).toISOString().slice(0, 10);
+        // Business date honors the configured tz + rollover time
+        const day = businessDateOf(s.sale_date);
+
         byDay[day] ??= { date: day, count: 0, sales: 0, cash: 0, card: 0, delivery: 0 };
         byDay[day].count += 1;
         byDay[day].sales += num(s.grand_total);
