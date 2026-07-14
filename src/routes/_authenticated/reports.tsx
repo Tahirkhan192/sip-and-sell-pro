@@ -252,16 +252,15 @@ function MonthlyReport() {
       <CardContent className="p-0">
         <Table>
           <TableBody>
-            <TableRow><TableCell>Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
+            <TableRow><TableCell>Total Sales (excl. delivery)</TableCell><TableCell className="text-right">{money(data?.monthSalesExDel)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
             <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
-            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
-            <TableRow className="font-semibold"><TableCell>Business Profit</TableCell><TableCell className={"text-right " + ((data?.businessProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.businessProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
-            <TableRow className="font-bold"><TableCell>Overall Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
+            <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.monthExp)}</TableCell></TableRow>
+            <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.overall ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.overall)}</TableCell></TableRow>
           </TableBody>
         </Table>
       </CardContent>
