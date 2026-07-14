@@ -30,13 +30,14 @@ function StatusBadge({ s }: { s: any }) {
   return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Not Paid Fully</Badge>;
 }
 
-type QuickRange = "today" | "yesterday" | "week" | "month" | "overall";
+type QuickRange = "date" | "week" | "month" | "overall";
 
-import { buildRange, formatBusinessDate, formatBusinessTime, businessDateOf } from "@/lib/business-date";
+import { buildRange, formatBusinessDate, formatBusinessTime, businessDateOf, businessToday, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
 
-function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string } {
+function rangeFor(q: QuickRange, date: string): { startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
-  const map = { today: "today", yesterday: "yesterday", week: "week", month: "month" } as const;
+  if (q === "date") return { startUTC: businessDayStartUTC(date), endExclusiveUTC: businessDayEndUTC(date) };
+  const map = { week: "week", month: "month" } as const;
   const r = buildRange(map[q]);
   return { startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
@@ -44,23 +45,24 @@ function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string 
 function Page() {
   const qc = useQueryClient();
   const [quick, setQuick] = useState<QuickRange>("month");
+  const [date, setDate] = useState<string>(businessToday());
   const [inv, setInv] = useState("");
   const [customer, setCustomer] = useState("");
   const [status, setStatus] = useState<"all" | "pending" | "completed">("all");
   const [pay, setPay] = useState<PayFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
 
-  const range = rangeFor(quick);
+  const range = rangeFor(quick, date);
 
   const { data = [] } = useQuery({
-    queryKey: ["sales", quick, inv, customer, status, pay, type],
+    queryKey: ["sales", quick, date, inv, customer, status, pay, type],
     queryFn: async () => {
       let q = supabase
         .from("sales")
         .select("*, sale_items(quantity, price, total, products(name))")
         .is("deleted_at", null)
         .order("sale_date", { ascending: false })
-        .limit(1000);
+        .limit(50000);
       if (range.startUTC) q = q.gte("sale_date", range.startUTC);
       if (range.endExclusiveUTC) q = q.lt("sale_date", range.endExclusiveUTC);
       if (inv) q = q.ilike("invoice_no", `%${inv}%`);
