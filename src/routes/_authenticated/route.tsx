@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
+import { useBusinessConfigLoader } from "@/lib/use-settings";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthLayout() {
   const [ready, setReady] = useState(true);
   useEffect(() => setReady(true), []);
+  useBusinessConfigLoader();
   if (!ready) return null;
   return (
     <AppShell>
@@ -23,3 +25,4 @@ function AuthLayout() {
     </AppShell>
   );
 }
+
