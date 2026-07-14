@@ -50,7 +50,7 @@ export function useDateRangeFilter(defaultPreset: Preset = "month") {
           <Button size="sm" onClick={applyCustom}>Apply</Button>
         </div>
       )}
-      <div className="text-xs text-muted-foreground ml-auto">Business day rolls over 08:00 PKT</div>
+      <div className="text-xs text-muted-foreground ml-auto">Business day rollover configurable in Settings</div>
     </div>
   );
 

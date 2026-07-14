@@ -111,7 +111,7 @@ function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Live view of café operations • business day rolls over 08:00 PKT</p>
+        <p className="text-sm text-muted-foreground">Live view of café operations</p>
       </div>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

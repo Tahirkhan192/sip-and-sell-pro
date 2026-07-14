@@ -32,7 +32,7 @@ function StatusBadge({ s }: { s: any }) {
 
 type QuickRange = "today" | "yesterday" | "week" | "month" | "overall";
 
-import { buildRange } from "@/lib/business-date";
+import { buildRange, formatBusinessDate, formatBusinessTime, businessDateOf } from "@/lib/business-date";
 
 function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
@@ -176,9 +176,12 @@ function Page() {
                   {num(s.delivery_charges) > 0 && <Badge variant="outline">Delivery {money(s.delivery_charges)}</Badge>}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {new Date(s.sale_date).toLocaleString()}
+                  <span>Date: {formatBusinessDate(s.sale_date)}</span>
+                  <span className="ml-2">Time: {formatBusinessTime(s.sale_date)}</span>
+                  <span className="ml-2">Business Date: {businessDateOf(s.sale_date)}</span>
                   {s.customer_name && <span className="ml-2">• {s.customer_name}{s.customer_phone ? ` · ${s.customer_phone}` : ""}</span>}
                 </div>
+
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-lg font-bold">{money(s.grand_total)}</div>
