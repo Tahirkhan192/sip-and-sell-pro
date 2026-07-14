@@ -122,13 +122,13 @@ function useMonthlyData(from: string, to: string, categories: string[]) {
       const startUTC = businessDayStartUTC(from);
       const endExclusiveUTC = businessDayEndUTC(to);
       const [salesQ, expQ, delExpQ, purchProdQ, purchStockQ, prodsQ, saleItemsQ, overridesQ] = await Promise.all([
-        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC),
-        supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to),
-        supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to),
-        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to),
-        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to),
-        supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null),
-        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC),
+        supabase.from("sales").select("grand_total, delivery_charges, sale_date, status").is("deleted_at", null).gte("sale_date", startUTC).lt("sale_date", endExclusiveUTC).limit(50000),
+        supabase.from("expenses").select("amount").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("delivery_expenses").select("fuel_cost, maintenance_cost").is("deleted_at", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("stock_purchases").select("product_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("stock_purchases").select("total_cost, category").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", from).lte("date", to).limit(50000),
+        supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).limit(50000),
+        supabase.from("sale_items").select("product_id, quantity, total, sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", startUTC).lt("sales.sale_date", endExclusiveUTC).limit(100000),
         supabase.from("monthly_stock_overrides").select("*").eq("year", Number(from.slice(0, 4))).eq("month", Number(from.slice(5, 7))),
       ]);
 
