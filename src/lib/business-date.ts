@@ -46,15 +46,29 @@ function addDays(d: string, n: number): string {
   return t.toISOString().slice(0, 10);
 }
 
+// Business month runs from the 6th (08:00 PKT) through the 5th of the next month (07:59 PKT).
+// Given a business date `d`, returns the first business date of its business month (YYYY-MM-06).
 export function startOfBusinessMonth(d: string): string {
-  return `${d.slice(0, 7)}-01`;
+  const y = Number(d.slice(0, 4));
+  const m = Number(d.slice(5, 7));
+  const day = Number(d.slice(8, 10));
+  let year = y, month = m;
+  if (day < 6) {
+    month -= 1;
+    if (month < 1) { month = 12; year -= 1; }
+  }
+  return `${year}-${String(month).padStart(2, "0")}-06`;
 }
+// Returns the last business date of the business month containing `d` (YYYY-MM-05 of the next month).
 export function endOfBusinessMonth(d: string): string {
-  const start = new Date(`${d.slice(0, 7)}-01T00:00:00.000Z`);
-  start.setUTCMonth(start.getUTCMonth() + 1);
-  start.setUTCDate(0);
-  return start.toISOString().slice(0, 10);
+  const s = startOfBusinessMonth(d);
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  let ny = y, nm = m + 1;
+  if (nm > 12) { nm = 1; ny += 1; }
+  return `${ny}-${String(nm).padStart(2, "0")}-05`;
 }
+
 
 export function buildRange(preset: Preset, customFrom?: string, customTo?: string): RangeResult {
   const today = businessToday();
@@ -69,11 +83,19 @@ export function buildRange(preset: Preset, customFrom?: string, customTo?: strin
       from = addDays(today, -back);
       break;
     }
-    case "month": from = startOfBusinessMonth(today); break;
+    case "month": {
+      from = startOfBusinessMonth(today);
+      to = endOfBusinessMonth(today);
+      break;
+    }
     case "lastMonth": {
-      const t = new Date(`${startOfBusinessMonth(today)}T00:00:00.000Z`);
-      t.setUTCMonth(t.getUTCMonth() - 1);
-      from = t.toISOString().slice(0, 10);
+      // Step back one calendar month from the current business month start
+      const s = startOfBusinessMonth(today);
+      const y = Number(s.slice(0, 4));
+      const m = Number(s.slice(5, 7));
+      let py = y, pm = m - 1;
+      if (pm < 1) { pm = 12; py -= 1; }
+      from = `${py}-${String(pm).padStart(2, "0")}-06`;
       to = endOfBusinessMonth(from);
       break;
     }
@@ -84,3 +106,4 @@ export function buildRange(preset: Preset, customFrom?: string, customTo?: strin
   }
   return { from, to, startUTC: businessDayStartUTC(from), endExclusiveUTC: businessDayEndUTC(to) };
 }
+

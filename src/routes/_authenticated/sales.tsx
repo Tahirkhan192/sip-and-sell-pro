@@ -43,7 +43,7 @@ function rangeFor(q: QuickRange): { startUTC?: string; endExclusiveUTC?: string 
 
 function Page() {
   const qc = useQueryClient();
-  const [quick, setQuick] = useState<QuickRange>("today");
+  const [quick, setQuick] = useState<QuickRange>("month");
   const [inv, setInv] = useState("");
   const [customer, setCustomer] = useState("");
   const [status, setStatus] = useState<"all" | "pending" | "completed">("all");
@@ -103,13 +103,15 @@ function Page() {
       a.sales += num(s.grand_total);
       a.paid += num(s.cash_paid) + num(s.online_paid);
       a.remaining += rem;
+      if (s.status === "pending") a.pendingInvoices += 1;
       if (st === "paid") a.paidInvoices += 1;
       else if (st === "katha") { a.kathaInvoices += 1; a.kathaAmt += rem; }
       else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
       return a;
     },
-    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0 },
+    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0 },
   );
+
 
   return (
     <div>
@@ -156,6 +158,8 @@ function Page() {
         <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} KDFs)</span></div></div>
         <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
         <div><div className="text-xs text-muted-foreground">Katha KDFs</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Pending KDFs</div><div className="font-semibold">{summary.pendingInvoices}</div></div>
+
       </Card>
 
 

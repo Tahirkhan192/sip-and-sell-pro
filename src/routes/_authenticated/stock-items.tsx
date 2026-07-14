@@ -100,8 +100,21 @@ function Page() {
       <PageHeader
         title="Stock Items"
         subtitle="Non-product stock (raw materials). Category links purchases to category reports."
-        action={<Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>}
+        action={<div className="flex gap-2">
+          <Button variant="outline" onClick={async () => {
+            if (!confirm("Copy Current Stock → Opening Stock for ALL stock items? Use this at the start of a new business month after physical stock counting.")) return;
+            for (const r of data as any[]) {
+              const { error } = await supabase.from("stock_items").update({ opening_stock: num(r.current_stock) }).eq("id", r.id);
+              if (error) { toast.error(error.message); return; }
+            }
+            qc.invalidateQueries({ queryKey: ["stock_items"] });
+            qc.invalidateQueries({ queryKey: ["report"] });
+            toast.success("Opening Stock updated for all stock items");
+          }}>Set Current as Opening</Button>
+          <Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
+        </div>}
       />
+
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
