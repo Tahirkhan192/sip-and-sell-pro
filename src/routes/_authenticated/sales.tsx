@@ -37,7 +37,7 @@ import { buildRange, formatBusinessDate, formatBusinessTime, businessDateOf, bus
 
 function rangeFor(q: QuickRange, date: string): { from?: string; to?: string; startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
-  if (q === "date") return { startUTC: businessDayStartUTC(date), endExclusiveUTC: businessDayEndUTC(date) };
+  if (q === "date") return { from: date, to: date, startUTC: businessDayStartUTC(date), endExclusiveUTC: businessDayEndUTC(date) };
   const map = { week: "week", month: "month" } as const;
   const r = buildRange(map[q]);
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
@@ -171,9 +171,8 @@ function Page() {
                   {num(s.delivery_charges) > 0 && <Badge variant="outline">Delivery {money(s.delivery_charges)}</Badge>}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  <span>Date: {formatBusinessDate(s.sale_date)}</span>
-                  <span className="ml-2">Time: {formatBusinessTime(s.sale_date)}</span>
-                  <span className="ml-2">Business Date: {businessDateOf(s.sale_date)}</span>
+                  <span>Business Date: {businessDateOf(s.sale_date)}</span>
+                  <span className="ml-2">Business Time: {formatBusinessTime(s.sale_date)}</span>
                   {s.customer_name && <span className="ml-2">• {s.customer_name}{s.customer_phone ? ` · ${s.customer_phone}` : ""}</span>}
                 </div>
 
