@@ -451,7 +451,7 @@ function SalesReport() {
   const r = useRange("month");
   const { data = [] } = useQuery({
     queryKey: ["report", "sales-items", r.from, r.to],
-    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC)).data ?? [],
+    queryFn: async () => (await supabase.from("sale_items").select("quantity, total, products(name, category), sales!inner(sale_date, status, deleted_at)").gte("sales.sale_date", r.startUTC).lt("sales.sale_date", r.endExclusiveUTC).limit(100000)).data ?? [],
   });
   const rows = useMemo(() => {
     const m: Record<string, { name: string; category: string; qty: number; rev: number }> = {};
