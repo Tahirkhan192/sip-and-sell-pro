@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
+import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -61,7 +62,7 @@ function POS() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [discountValue, setDiscountValue] = useState<number | "">("");
-  const [saleDate, setSaleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [saleDate, setSaleDate] = useState<string>(() => businessToday());
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
@@ -94,7 +95,7 @@ function POS() {
       const totalPaid = num(s.cash_paid) + num(s.online_paid);
       setPaid(totalPaid > 0 ? totalPaid : "");
       setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
-      if (s.sale_date) setSaleDate(new Date(s.sale_date).toISOString().slice(0, 10));
+      if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
@@ -198,7 +199,7 @@ function POS() {
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
     setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
-    setSaleDate(new Date().toISOString().slice(0, 10));
+    setSaleDate(businessToday());
     setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
@@ -279,19 +280,26 @@ function POS() {
         _discount_value: num(discountValue),
         _delivery_address: deliveryAddress,
       };
+      // Compute a timestamp that resolves to the intended business date.
+      // If saleDate === today's business date, use "now" so business time is accurate.
+      // Otherwise anchor to the start of that business day (08:00 local of that date).
+      const today = businessToday();
+      const saleTs = saleDate && saleDate !== today
+        ? businessDayStartUTC(saleDate)
+        : new Date().toISOString();
       if (editId) {
         const { data, error } = await supabase.rpc("update_sale" as any, {
           _sale_id: editId, ...args,
-          _sale_date: saleDate ? new Date(saleDate).toISOString() : null,
+          _sale_date: saleTs,
         });
         if (error) throw error;
         return { sale: data, status };
       }
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
-      // If cashier chose a back-date, sync it
-      if (data && saleDate && saleDate !== new Date().toISOString().slice(0, 10)) {
-        await supabase.from("sales").update({ sale_date: new Date(saleDate).toISOString() } as any).eq("id", (data as any).id);
+      // If cashier chose a back-date, sync sale_date
+      if (data && saleDate && saleDate !== today) {
+        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
       }
       return { sale: data, status };
     },
@@ -638,7 +646,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
       </div>
       <div className="flex justify-between text-xs mb-1">
         <span>{invoice.invoice_no}</span>
-        <span>{new Date(invoice.sale_date ?? Date.now()).toLocaleString()}</span>
+        <span>{formatBusinessDate(invoice.sale_date ?? new Date())} {formatBusinessTime(invoice.sale_date ?? new Date())}</span>
       </div>
       {name && <div className="text-xs mb-2">Customer: <span className="font-semibold">{name}</span></div>}
       <table className="w-full text-xs">
