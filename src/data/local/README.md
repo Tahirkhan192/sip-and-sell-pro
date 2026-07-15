@@ -1,8 +1,8 @@
-# Local SQLite Database — Phase 2
+# Local SQLite Database — Phases 2 & 3
 
 ## Status
 
-**Inert.** These files exist but are not imported by any route, component, hook, or provider. Runtime behaviour is unchanged. Reports, POS, purchases, and every other screen still read and write exclusively to Lovable Cloud.
+**Inert.** These files exist but are not imported by any route, component, hook, or provider. Runtime behaviour is unchanged. Reports, POS, purchases, and every other screen still read and write exclusively to Lovable Cloud. The Phase 3 data copy runs only when the user explicitly invokes it from the browser console.
 
 Phase 2's deliverable is the schema itself and the WASM plumbing to open it — not any behaviour change.
 
