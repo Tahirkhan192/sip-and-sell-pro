@@ -33,24 +33,63 @@ function AuthPage() {
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success("Welcome back");
+    try {
+      if (!email || !password) {
+        toast.error("Please enter email and password");
+        return;
+      }
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+        const msg = "Authentication is not configured (missing Supabase environment variables).";
+        console.error(msg);
+        toast.error(msg);
+        return;
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error("[Auth] signIn error:", error);
+        toast.error(error.message || "Sign in failed");
+        return;
+      }
+      if (!data.session) {
+        toast.error("Sign in failed: no session returned");
+        return;
+      }
+      toast.success("Welcome back");
+      navigate({ to: "/", replace: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unexpected sign in error";
+      console.error("[Auth] signIn exception:", err);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success("Account created — you can sign in now");
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) {
+        console.error("[Auth] signUp error:", error);
+        toast.error(error.message || "Sign up failed");
+        return;
+      }
+      toast.success("Account created — you can sign in now");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unexpected sign up error";
+      console.error("[Auth] signUp exception:", err);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -73,7 +112,16 @@ function AuthPage() {
               <form onSubmit={handleSignIn} className="space-y-3 pt-4">
                 <div className="space-y-2"><Label>Email</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
                 <div className="space-y-2"><Label>Password</Label><Input type="password" required value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
-                <Button className="w-full" type="submit" disabled={loading}>{loading?"…":"Sign in"}</Button>
+                <Button className="w-full" type="submit" disabled={loading}>
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Signing in…
+                    </span>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
               </form>
             </TabsContent>
             <TabsContent value="signup">
