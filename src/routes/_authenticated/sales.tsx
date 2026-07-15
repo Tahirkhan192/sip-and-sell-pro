@@ -67,7 +67,7 @@ function Page() {
 
   const deleteMutation = useMutation({
     mutationFn: async (sale: any) => {
-      if (sale.status === "completed") {
+      if (sale.status === "completed" || sale.status === "pending") {
         const { error: restoreErr } = await supabase.rpc("restore_sale_stock", { _sale_id: sale.id });
         if (restoreErr) throw restoreErr;
       }
