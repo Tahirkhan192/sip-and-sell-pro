@@ -62,7 +62,7 @@ function POS() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [discountValue, setDiscountValue] = useState<number | "">("");
-  const [saleDate, setSaleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [saleDate, setSaleDate] = useState<string>(() => businessToday());
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
