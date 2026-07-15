@@ -261,8 +261,9 @@ function POS() {
     onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
   });
 
+  type SaveArgs = { status: "pending" | "completed"; dateMode?: "current" | "original" };
   const saveMutation = useMutation({
-    mutationFn: async (status: "pending" | "completed") => {
+    mutationFn: async ({ status, dateMode }: SaveArgs) => {
       if (cart.length === 0) throw new Error("Cart is empty");
       const items = cart.map((i) => ({
         product_id: i.product_id,
@@ -286,17 +287,20 @@ function POS() {
         _discount_value: num(discountValue),
         _delivery_address: deliveryAddress,
       };
-      // Compute a timestamp that resolves to the intended business date.
-      // If saleDate === today's business date, use "now" so business time is accurate.
-      // Otherwise anchor to the start of that business day (08:00 local of that date).
       const today = businessToday();
-      const saleTs = saleDate && saleDate !== today
-        ? businessDayStartUTC(saleDate)
-        : new Date().toISOString();
+      // Determine sale timestamp.
+      // - dateMode "original": keep DB's existing sale_date (only meaningful when editing).
+      // - dateMode "current": use "now" so both business date & time reflect right now.
+      // - default: same as before — anchor to start of the chosen business day, or now if today.
+      let saleTs: string | null;
+      if (dateMode === "original") saleTs = null;
+      else if (dateMode === "current") saleTs = new Date().toISOString();
+      else saleTs = saleDate && saleDate !== today ? businessDayStartUTC(saleDate) : new Date().toISOString();
+
       if (editId) {
         const { data, error } = await supabase.rpc("update_sale" as any, {
           _sale_id: editId, ...args,
-          _sale_date: saleTs,
+          _sale_date: saleTs, // NULL keeps existing (see update_sale COALESCE)
         });
         if (error) throw error;
         return { sale: data, status };
@@ -304,7 +308,7 @@ function POS() {
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
       // If cashier chose a back-date, sync sale_date
-      if (data && saleDate && saleDate !== today) {
+      if (data && saleTs && saleDate && saleDate !== today) {
         await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
       }
       return { sale: data, status };
