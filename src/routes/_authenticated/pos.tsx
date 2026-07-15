@@ -646,7 +646,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
       </div>
       <div className="flex justify-between text-xs mb-1">
         <span>{invoice.invoice_no}</span>
-        <span>{new Date(invoice.sale_date ?? Date.now()).toLocaleString()}</span>
+        <span>{businessDateOf(invoice.sale_date ?? new Date())} {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(invoice.sale_date ?? Date.now()))}</span>
       </div>
       {name && <div className="text-xs mb-2">Customer: <span className="font-semibold">{name}</span></div>}
       <table className="w-full text-xs">
