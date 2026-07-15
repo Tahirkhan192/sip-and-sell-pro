@@ -95,7 +95,7 @@ function POS() {
       const totalPaid = num(s.cash_paid) + num(s.online_paid);
       setPaid(totalPaid > 0 ? totalPaid : "");
       setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
-      if (s.sale_date) setSaleDate(new Date(s.sale_date).toISOString().slice(0, 10));
+      if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
       setCart((s.sale_items ?? []).map((it: any) => ({
