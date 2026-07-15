@@ -68,6 +68,8 @@ function POS() {
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [priorityBump, setPriorityBump] = useState<Record<string, number>>({});
+  const [backdateDialog, setBackdateDialog] = useState(false);
+  const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
