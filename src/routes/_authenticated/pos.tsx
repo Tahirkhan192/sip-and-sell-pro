@@ -652,6 +652,42 @@ function POS() {
           <InvoicePrint invoice={lastInvoice} customer={customer} />
         </div>
       )}
+
+      <Dialog open={backdateDialog} onOpenChange={setBackdateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete Pending Invoice</DialogTitle>
+            <DialogDescription>
+              This Pending Invoice was created on a previous Business Date. How would you like to record this sale?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-accent/40">
+              <input type="radio" name="backdate" className="mt-1" checked={backdateChoice === "current"} onChange={() => setBackdateChoice("current")} />
+              <div>
+                <div className="text-sm font-medium">Save using CURRENT Business Date and Time</div>
+                <div className="text-xs text-muted-foreground">Today ({formatBusinessDate(new Date())})</div>
+              </div>
+            </label>
+            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-accent/40">
+              <input type="radio" name="backdate" className="mt-1" checked={backdateChoice === "original"} onChange={() => setBackdateChoice("original")} />
+              <div>
+                <div className="text-sm font-medium">Save using ORIGINAL Business Date and Time</div>
+                <div className="text-xs text-muted-foreground">
+                  {editingSale?.sale_date ? `${formatBusinessDate((editingSale as any).sale_date)} ${formatBusinessTime((editingSale as any).sale_date)}` : ""}
+                </div>
+              </div>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBackdateDialog(false)}>Cancel</Button>
+            <Button onClick={() => {
+              setBackdateDialog(false);
+              saveMutation.mutate({ status: "completed", dateMode: backdateChoice });
+            }}>Complete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
