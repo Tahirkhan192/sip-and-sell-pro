@@ -280,19 +280,26 @@ function POS() {
         _discount_value: num(discountValue),
         _delivery_address: deliveryAddress,
       };
+      // Compute a timestamp that resolves to the intended business date.
+      // If saleDate === today's business date, use "now" so business time is accurate.
+      // Otherwise anchor to the start of that business day (08:00 local of that date).
+      const today = businessToday();
+      const saleTs = saleDate && saleDate !== today
+        ? businessDayStartUTC(saleDate)
+        : new Date().toISOString();
       if (editId) {
         const { data, error } = await supabase.rpc("update_sale" as any, {
           _sale_id: editId, ...args,
-          _sale_date: saleDate ? new Date(saleDate).toISOString() : null,
+          _sale_date: saleTs,
         });
         if (error) throw error;
         return { sale: data, status };
       }
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
-      // If cashier chose a back-date, sync it
-      if (data && saleDate && saleDate !== new Date().toISOString().slice(0, 10)) {
-        await supabase.from("sales").update({ sale_date: new Date(saleDate).toISOString() } as any).eq("id", (data as any).id);
+      // If cashier chose a back-date, sync sale_date
+      if (data && saleDate && saleDate !== today) {
+        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
       }
       return { sale: data, status };
     },
