@@ -142,17 +142,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     return q;
   };
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
+  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price").is("deleted_at", null).order("name");
+  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, overridesQ] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
     fetchAllPaged<any>(buildPurchases),
     fetchAllPaged<any>(buildProducts),
+    fetchAllPaged<any>(buildStockItems),
+    fetchAllPaged<any>(buildRecipes),
     overridesPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
@@ -162,6 +166,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const deliveryExpenses = deliveryExpensesRows as any[];
   const purchases = purchasesRows as any[];
   const products = productsRows as any[];
+  const stockItems = (stockItemsRows ?? []) as any[];
+  const recipes = (recipesRows ?? []) as any[];
 
   const overrides = (overridesQ.data ?? []) as any[];
 
@@ -190,6 +196,29 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     prodById[p.id] = p;
     ensureCat(p.category ?? "—");
   }
+  const stockById: Record<string, any> = {};
+  for (const s of stockItems) {
+    stockById[s.id] = s;
+    ensureCat(s.category ?? "—");
+  }
+
+  // Recipe components indexed by parent product, using current weighted-average cost.
+  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number };
+  const recipesByParent: Record<string, RecipeComp[]> = {};
+  for (const r of recipes) {
+    const parent = r.parent_product_id;
+    if (!parent) continue;
+    let comp: RecipeComp | null = null;
+    if (r.component_product_id) {
+      const cp = prodById[r.component_product_id];
+      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity) };
+    } else if (r.component_stock_item_id) {
+      const cs = stockById[r.component_stock_item_id];
+      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity) };
+    }
+    if (comp) (recipesByParent[parent] ??= []).push(comp);
+  }
+
 
   let totalSales = 0;
   let totalQtySold = 0;
@@ -241,12 +270,33 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const qty = num(it.quantity);
       const itemTotal = num(it.total);
       const allocatedSales = itemSubtotal > 0 ? (grand * itemTotal) / itemSubtotal : grand / items.length;
-      const cost = qty * num(product.cost_price);
       const cat = ensureCat(category);
       cat.sales += allocatedSales;
       cat.revenueQty += qty;
       totalQtySold += qty;
       day.totalQtySold += qty;
+
+      // If parent product has a recipe, cost = sum of consumed ingredient WACs and cost
+      // is transferred from each ingredient category to the finished-product category.
+      const recipe = recipesByParent[it.product_id];
+      let cost: number;
+      if (recipe && recipe.length > 0) {
+        cost = 0;
+        for (const comp of recipe) {
+          const ingredientCost = qty * comp.qtyPerParent * comp.unitCost;
+          if (ingredientCost === 0) continue;
+          cost += ingredientCost;
+          const src = ensureCat(comp.category);
+          // Source category loses purchase value (bucketed by component kind so it
+          // offsets the same bucket the original purchase landed in).
+          if (comp.kind === "product") src.productPurchases -= ingredientCost;
+          else src.stockPurchases -= ingredientCost;
+          // Destination (finished product's category) gains purchase value.
+          cat.productPurchases += ingredientCost;
+        }
+      } else {
+        cost = qty * num(product.cost_price);
+      }
 
       const pid = it.product_id ?? `unknown-${category}`;
       productMap[pid] ??= { id: pid, name: product.name ?? "Unknown product", category, qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
