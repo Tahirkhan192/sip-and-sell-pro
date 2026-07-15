@@ -142,17 +142,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     return q;
   };
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
+  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price").is("deleted_at", null).order("name");
+  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, overridesQ] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
     fetchAllPaged<any>(buildPurchases),
     fetchAllPaged<any>(buildProducts),
+    fetchAllPaged<any>(buildStockItems),
+    fetchAllPaged<any>(buildRecipes),
     overridesPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
