@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,8 @@ function POS() {
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [priorityBump, setPriorityBump] = useState<Record<string, number>>({});
+  const [backdateDialog, setBackdateDialog] = useState(false);
+  const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
@@ -243,6 +246,9 @@ function POS() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Pending invoices already reduced stock — restore before soft-delete.
+      const { error: restoreErr } = await supabase.rpc("restore_sale_stock" as any, { _sale_id: id });
+      if (restoreErr) throw restoreErr;
       const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
@@ -251,12 +257,16 @@ function POS() {
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
   });
 
+  type SaveArgs = { status: "pending" | "completed"; dateMode?: "current" | "original" };
   const saveMutation = useMutation({
-    mutationFn: async (status: "pending" | "completed") => {
+    mutationFn: async ({ status, dateMode }: SaveArgs) => {
       if (cart.length === 0) throw new Error("Cart is empty");
       const items = cart.map((i) => ({
         product_id: i.product_id,
@@ -280,17 +290,20 @@ function POS() {
         _discount_value: num(discountValue),
         _delivery_address: deliveryAddress,
       };
-      // Compute a timestamp that resolves to the intended business date.
-      // If saleDate === today's business date, use "now" so business time is accurate.
-      // Otherwise anchor to the start of that business day (08:00 local of that date).
       const today = businessToday();
-      const saleTs = saleDate && saleDate !== today
-        ? businessDayStartUTC(saleDate)
-        : new Date().toISOString();
+      // Determine sale timestamp.
+      // - dateMode "original": keep DB's existing sale_date (only meaningful when editing).
+      // - dateMode "current": use "now" so both business date & time reflect right now.
+      // - default: same as before — anchor to start of the chosen business day, or now if today.
+      let saleTs: string | null;
+      if (dateMode === "original") saleTs = null;
+      else if (dateMode === "current") saleTs = new Date().toISOString();
+      else saleTs = saleDate && saleDate !== today ? businessDayStartUTC(saleDate) : new Date().toISOString();
+
       if (editId) {
         const { data, error } = await supabase.rpc("update_sale" as any, {
           _sale_id: editId, ...args,
-          _sale_date: saleTs,
+          _sale_date: saleTs, // NULL keeps existing (see update_sale COALESCE)
         });
         if (error) throw error;
         return { sale: data, status };
@@ -298,7 +311,7 @@ function POS() {
       const { data, error } = await supabase.rpc("save_sale" as any, args);
       if (error) throw error;
       // If cashier chose a back-date, sync sale_date
-      if (data && saleDate && saleDate !== today) {
+      if (data && saleTs && saleDate && saleDate !== today) {
         await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
       }
       return { sale: data, status };
@@ -611,10 +624,19 @@ function POS() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => saveMutation.mutate("pending")} disabled={cart.length === 0 || saveMutation.isPending}>
+            <Button variant="outline" onClick={() => saveMutation.mutate({ status: "pending" })} disabled={cart.length === 0 || saveMutation.isPending}>
               <Clock className="h-4 w-4 mr-1" /> Save Pending
             </Button>
-            <Button onClick={() => saveMutation.mutate("completed")} disabled={cart.length === 0 || saveMutation.isPending}>
+            <Button onClick={() => {
+              // If completing a pending invoice from a previous business date, ask the user
+              // whether to use the current or original business date/time.
+              const orig = (editingSale as any);
+              if (editId && orig?.status === "pending" && orig?.sale_date && businessDateOf(orig.sale_date) !== businessToday()) {
+                setBackdateDialog(true);
+                return;
+              }
+              saveMutation.mutate({ status: "completed" });
+            }} disabled={cart.length === 0 || saveMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
@@ -630,6 +652,42 @@ function POS() {
           <InvoicePrint invoice={lastInvoice} customer={customer} />
         </div>
       )}
+
+      <Dialog open={backdateDialog} onOpenChange={setBackdateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete Pending Invoice</DialogTitle>
+            <DialogDescription>
+              This Pending Invoice was created on a previous Business Date. How would you like to record this sale?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-accent/40">
+              <input type="radio" name="backdate" className="mt-1" checked={backdateChoice === "current"} onChange={() => setBackdateChoice("current")} />
+              <div>
+                <div className="text-sm font-medium">Save using CURRENT Business Date and Time</div>
+                <div className="text-xs text-muted-foreground">Today ({formatBusinessDate(new Date())})</div>
+              </div>
+            </label>
+            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-accent/40">
+              <input type="radio" name="backdate" className="mt-1" checked={backdateChoice === "original"} onChange={() => setBackdateChoice("original")} />
+              <div>
+                <div className="text-sm font-medium">Save using ORIGINAL Business Date and Time</div>
+                <div className="text-xs text-muted-foreground">
+                  {editingSale?.sale_date ? `${formatBusinessDate((editingSale as any).sale_date)} ${formatBusinessTime((editingSale as any).sale_date)}` : ""}
+                </div>
+              </div>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBackdateDialog(false)}>Cancel</Button>
+            <Button onClick={() => {
+              setBackdateDialog(false);
+              saveMutation.mutate({ status: "completed", dateMode: backdateChoice });
+            }}>Complete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

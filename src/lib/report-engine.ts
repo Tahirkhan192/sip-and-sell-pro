@@ -228,6 +228,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   let kathaAmount = 0;
 
   for (const sale of invoices) {
+    // Pending invoices reduce inventory only; they never contribute to
+    // financial totals, category rollups, product sales, or daily closing.
+    if (sale.status === "pending") continue;
     const businessDate = businessDateOf(sale.sale_date);
     const grand = num(sale.grand_total);
     const delivery = num(sale.delivery_charges);

@@ -67,7 +67,7 @@ function Page() {
 
   const deleteMutation = useMutation({
     mutationFn: async (sale: any) => {
-      if (sale.status === "completed") {
+      if (sale.status === "completed" || sale.status === "pending") {
         const { error: restoreErr } = await supabase.rpc("restore_sale_stock", { _sale_id: sale.id });
         if (restoreErr) throw restoreErr;
       }
@@ -89,13 +89,13 @@ function Page() {
 
   const summary = (data as any[]).reduce(
     (a, s) => {
+      a.count += 1;
+      if (s.status === "pending") { a.pendingInvoices += 1; return a; }
       const rem = Math.max(0, num(s.grand_total) - num(s.cash_paid) - num(s.online_paid));
       const st = paymentStatus(s);
-      a.count += 1;
       a.sales += num(s.grand_total);
       a.paid += num(s.cash_paid) + num(s.online_paid);
       a.remaining += rem;
-      if (s.status === "pending") a.pendingInvoices += 1;
       if (st === "paid") a.paidInvoices += 1;
       else if (st === "katha") { a.kathaInvoices += 1; a.kathaAmt += rem; }
       else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
