@@ -166,6 +166,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const deliveryExpenses = deliveryExpensesRows as any[];
   const purchases = purchasesRows as any[];
   const products = productsRows as any[];
+  const stockItems = (stockItemsRows ?? []) as any[];
+  const recipes = (recipesRows ?? []) as any[];
 
   const overrides = (overridesQ.data ?? []) as any[];
 
@@ -194,6 +196,29 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     prodById[p.id] = p;
     ensureCat(p.category ?? "—");
   }
+  const stockById: Record<string, any> = {};
+  for (const s of stockItems) {
+    stockById[s.id] = s;
+    ensureCat(s.category ?? "—");
+  }
+
+  // Recipe components indexed by parent product, using current weighted-average cost.
+  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number };
+  const recipesByParent: Record<string, RecipeComp[]> = {};
+  for (const r of recipes) {
+    const parent = r.parent_product_id;
+    if (!parent) continue;
+    let comp: RecipeComp | null = null;
+    if (r.component_product_id) {
+      const cp = prodById[r.component_product_id];
+      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity) };
+    } else if (r.component_stock_item_id) {
+      const cs = stockById[r.component_stock_item_id];
+      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity) };
+    }
+    if (comp) (recipesByParent[parent] ??= []).push(comp);
+  }
+
 
   let totalSales = 0;
   let totalQtySold = 0;
