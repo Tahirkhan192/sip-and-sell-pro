@@ -621,10 +621,19 @@ function POS() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => saveMutation.mutate("pending")} disabled={cart.length === 0 || saveMutation.isPending}>
+            <Button variant="outline" onClick={() => saveMutation.mutate({ status: "pending" })} disabled={cart.length === 0 || saveMutation.isPending}>
               <Clock className="h-4 w-4 mr-1" /> Save Pending
             </Button>
-            <Button onClick={() => saveMutation.mutate("completed")} disabled={cart.length === 0 || saveMutation.isPending}>
+            <Button onClick={() => {
+              // If completing a pending invoice from a previous business date, ask the user
+              // whether to use the current or original business date/time.
+              const orig = (editingSale as any);
+              if (editId && orig?.status === "pending" && orig?.sale_date && businessDateOf(orig.sale_date) !== businessToday()) {
+                setBackdateDialog(true);
+                return;
+              }
+              saveMutation.mutate({ status: "completed" });
+            }} disabled={cart.length === 0 || saveMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
