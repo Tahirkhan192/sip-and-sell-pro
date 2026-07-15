@@ -1060,6 +1060,7 @@ export type Database = {
           payment_source: string
           payment_status: string
           product_id: string | null
+          purchase_item_id: string | null
           quantity: number
           stock_item_id: string | null
           supplier: string | null
@@ -1078,6 +1079,7 @@ export type Database = {
           payment_source?: string
           payment_status?: string
           product_id?: string | null
+          purchase_item_id?: string | null
           quantity: number
           stock_item_id?: string | null
           supplier?: string | null
@@ -1096,6 +1098,7 @@ export type Database = {
           payment_source?: string
           payment_status?: string
           product_id?: string | null
+          purchase_item_id?: string | null
           quantity?: number
           stock_item_id?: string | null
           supplier?: string | null
@@ -1108,6 +1111,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_purchases_purchase_item_id_fkey"
+            columns: ["purchase_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_items"
             referencedColumns: ["id"]
           },
           {
