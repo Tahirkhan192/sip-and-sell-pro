@@ -243,6 +243,9 @@ function POS() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Pending invoices already reduced stock — restore before soft-delete.
+      const { error: restoreErr } = await supabase.rpc("restore_sale_stock" as any, { _sale_id: id });
+      if (restoreErr) throw restoreErr;
       const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
@@ -251,6 +254,9 @@ function POS() {
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
   });
