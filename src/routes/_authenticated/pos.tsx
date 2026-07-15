@@ -199,7 +199,7 @@ function POS() {
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
     setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
-    setSaleDate(new Date().toISOString().slice(0, 10));
+    setSaleDate(businessToday());
     setCustomerSearch(""); setShowCustomerResults(false);
     if (editId) navigate({ to: "/pos", search: {} });
   }
