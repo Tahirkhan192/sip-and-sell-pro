@@ -70,7 +70,7 @@ function AuthPage() {
         return;
       }
       toast.success("Welcome back");
-      navigate({ to: "/", replace: true });
+      window.location.href = safeNext(next);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unexpected sign in error";
       console.error("[Auth] signIn exception:", err);
@@ -88,7 +88,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: window.location.origin + safeNext(next) },
       });
       if (error) {
         console.error("[Auth] signUp error:", error);
