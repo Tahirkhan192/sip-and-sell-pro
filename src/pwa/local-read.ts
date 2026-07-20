@@ -405,12 +405,18 @@ async function resolveEmbeds(rows: Row[], parentTable: string, embeds: Embed[]):
  * query shape is unsupported and the caller should fall through to network.
  */
 export async function serveLocalRead(url: string, method: string, headers: Headers): Promise<Response | null> {
+  // HYBRID OFFLINE ARCHITECTURE:
+  // When the browser is online, ALWAYS read from Lovable Cloud (the master
+  // database) so no historical invoice / purchase / expense is ever missing.
+  // IndexedDB is only used as a fallback when the network is unavailable.
+  if (typeof navigator !== "undefined" && navigator.onLine) return null;
   const q = parseQuery(url, headers, method);
   if (!q) return null;
   try {
     const dexie = localDb();
     const tbl = dexie.tables.find((t) => t.name === q.table);
     if (!tbl) return null;
+
     let rows = (await tbl.toArray()) as Row[];
     // Default: hide soft-deleted unless caller filters explicitly on deleted_at.
     const wantsDeleted = q.filters.some((f) => f.col === "deleted_at");
