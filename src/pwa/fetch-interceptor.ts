@@ -255,6 +255,47 @@ export function installOfflineFetchInterceptor() {
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
 
+    // HYBRID OFFLINE ARCHITECTURE:
+    // When online, forward every write straight to Lovable Cloud (master
+    // database). Cloud triggers and constraints run there as usual; on
+    // success we mirror the returned rows into IndexedDB so the offline
+    // cache stays fresh. We only fall back to the local-first path if
+    // the network attempt fails.
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      try {
+        const res = await original(input as never, init);
+        // Best-effort cache mirror: only for successful writes with a JSON body.
+        if (res.ok && res.status !== 204) {
+          try {
+            const cloned = res.clone();
+            const ct = cloned.headers.get("content-type") ?? "";
+            if (ct.includes("application/json")) {
+              const parsed = await cloned.json().catch(() => null);
+              const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+              const dexie = localDb();
+              if (rows.length && dexie.tables.some((t) => t.name === target.table)) {
+                const tbl = dexie.table(target.table);
+                if (target.op === "delete") {
+                  await tbl.bulkDelete(rows.map((r: any) => String(r.id))).catch(() => {});
+                } else {
+                  await tbl.bulkPut(
+                    rows.map((r: Record<string, unknown>) => ({ ...r, _dirty: 0, _op: null })) as never,
+                  ).catch(() => {});
+                }
+              }
+            }
+          } catch { /* mirroring is best-effort */ }
+        }
+        return res;
+      } catch (err) {
+        // Network failed even though navigator claims online — fall through
+        // to the offline path so the user never loses a write.
+        console.warn("[hybrid] online write failed, falling back to offline queue", err);
+      }
+    }
+
+    // ---------- OFFLINE PATH (or online-network-failure fallback) ----------
+
     // 1) Apply to IndexedDB first.
     let mirrored: ApplyResult | null = null;
     try {
@@ -269,9 +310,8 @@ export function installOfflineFetchInterceptor() {
       return original(input as never, init);
     }
 
-    // 2) Run local business triggers (replaces cloud triggers now that
-    //    Lovable Cloud is a passive backup). May request a mutation of the
-    //    primary row (e.g. purchases.cash_movement_id).
+    // 2) Run local business triggers (mirrors cloud triggers while offline
+    //    so stock, WAC, cash movements and reports stay accurate until sync).
     const primaryPatches: Array<Record<string, unknown> | undefined> = [];
     for (let i = 0; i < mirrored.after.length; i++) {
       try {
@@ -316,8 +356,9 @@ export function installOfflineFetchInterceptor() {
       console.warn("[local-first] failed to enqueue", err);
     }
 
-    // 5) Return a synthetic response now.
+    // 5) Return a synthetic response now so the UI never blocks.
     const status = target.op === "insert" ? 201 : 200;
     return syntheticResponse(effectiveAfter, status);
   };
 }
+
