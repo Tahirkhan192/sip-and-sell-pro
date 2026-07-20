@@ -84,10 +84,23 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
 /** Trigger hydration in the background — safe to call from React effects. */
 export function scheduleBackgroundSync() {
   if (typeof window === "undefined") return;
-  const run = () => void syncFromCloud();
-  if ("requestIdleCallback" in window) {
-    (window as any).requestIdleCallback(run, { timeout: 4000 });
-  } else {
-    setTimeout(run, 500);
+  // Kick immediately — startup speed matters more than idle politeness now
+  // that reports/dashboards read against the local mirror.
+  void syncFromCloud();
+}
+
+let periodicTimer: number | null = null;
+/** Periodic revalidation while the tab is open. */
+export function startPeriodicSync(intervalMs = 60_000) {
+  if (typeof window === "undefined") return;
+  if (periodicTimer) window.clearInterval(periodicTimer);
+  periodicTimer = window.setInterval(() => {
+    if (navigator.onLine) void syncFromCloud();
+  }, intervalMs) as unknown as number;
+}
+export function stopPeriodicSync() {
+  if (periodicTimer) {
+    window.clearInterval(periodicTimer);
+    periodicTimer = null;
   }
 }
