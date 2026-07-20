@@ -39,9 +39,10 @@ async function fetchRangeKeyset(
   let cursor = fromInclusive;
   // Safety cap: stop after 1000 pages (1M rows) to prevent runaway loops.
   for (let page = 0; page < 1000; page++) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from(table)
       .select(select)
+
       .is("deleted_at", null)
       .gte(field, cursor)
       .lt(field, toExclusive)
@@ -73,9 +74,10 @@ async function fetchAllKeyset(table: string, select: string): Promise<Row[]> {
   const out: Row[] = [];
   let cursor = "";
   for (let page = 0; page < 1000; page++) {
-    let q = supabase
+    let q = (supabase as any)
       .from(table)
       .select(select)
+
       .is("deleted_at", null)
       .order("id", { ascending: true })
       .limit(PAGE);
