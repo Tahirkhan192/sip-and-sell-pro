@@ -10,26 +10,39 @@ import { toast } from "sonner";
 import { Coffee } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
-  beforeLoad: async () => {
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : "",
+  }),
+  beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/" });
+    if (data.session) {
+      const dest = search.next && search.next.startsWith("/") && !search.next.startsWith("//") ? search.next : "/";
+      throw redirect({ href: dest });
+    }
   },
   component: AuthPage,
 });
 
+function safeNext(next: string | undefined): string {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (session) navigate({ to: "/", replace: true });
+      if (session) {
+        window.location.href = safeNext(next);
+      }
     });
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, next]);
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +70,7 @@ function AuthPage() {
         return;
       }
       toast.success("Welcome back");
-      navigate({ to: "/", replace: true });
+      window.location.href = safeNext(next);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unexpected sign in error";
       console.error("[Auth] signIn exception:", err);
@@ -75,7 +88,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: window.location.origin + safeNext(next) },
       });
       if (error) {
         console.error("[Auth] signUp error:", error);

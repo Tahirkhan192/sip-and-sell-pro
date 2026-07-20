@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "sdk_version": "0.24.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://xaehyjrxkiqznyhdzcxq.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "cafe-manager-mcp",
+      "version": "0.1.0",
+      "title": "Café Manager MCP"
+    },
+    "tools": [
+      {
+        "name": "list_recent_sales",
+        "title": "List recent sales",
+        "description": "List recent sales invoices (by business date, newest first). Returns invoice number, business date, business time, customer, payment method, and grand total.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "default": 20,
+              "description": "How many invoices to return (max 200).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "from_business_date": {
+              "description": "Inclusive lower bound business date, YYYY-MM-DD.",
+              "type": "string"
+            },
+            "to_business_date": {
+              "description": "Inclusive upper bound business date, YYYY-MM-DD.",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_sales_summary",
+        "title": "Sales summary",
+        "description": "Return total sales, invoice count, and average ticket for a business-date range.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "from_business_date": {
+              "type": "string",
+              "description": "Inclusive start business date, YYYY-MM-DD."
+            },
+            "to_business_date": {
+              "type": "string",
+              "description": "Inclusive end business date, YYYY-MM-DD."
+            }
+          },
+          "required": [
+            "from_business_date",
+            "to_business_date"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_products",
+        "title": "List products",
+        "description": "List products in the catalog with current stock, sale price, and cost price. Optional search filters by name.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "search": {
+              "description": "Case-insensitive substring match on product name.",
+              "type": "string"
+            },
+            "limit": {
+              "default": 100,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_expenses",
+        "title": "List expenses",
+        "description": "List expenses within a business-date range.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "from_business_date": {
+              "type": "string",
+              "description": "Inclusive start business date, YYYY-MM-DD."
+            },
+            "to_business_date": {
+              "type": "string",
+              "description": "Inclusive end business date, YYYY-MM-DD."
+            },
+            "limit": {
+              "default": 100,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          "required": [
+            "from_business_date",
+            "to_business_date"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
