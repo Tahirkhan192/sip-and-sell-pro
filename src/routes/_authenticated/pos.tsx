@@ -16,6 +16,7 @@ import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
+import { listProductsLocal, getSaleWithItemsLocal, searchCustomersLocal, searchPendingSalesLocal } from "@/lib/local-repo";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -73,16 +74,14 @@ function POS() {
   const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products", "active"],
-    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
-      .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
-      .order("name")).data ?? [],
+    queryKey: ["products", "active", "local"],
+    queryFn: () => listProductsLocal({ active: true }),
   });
 
   const { data: editingSale } = useQuery({
-    queryKey: ["sales", "edit", editId],
+    queryKey: ["sales", "edit", editId, "local"],
     enabled: !!editId,
-    queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
+    queryFn: () => getSaleWithItemsLocal(editId!),
   });
 
   useEffect(() => {
@@ -118,19 +117,17 @@ function POS() {
   }, [editingSale]);
 
   const { data: customerSuggestions = [] } = useQuery({
-    queryKey: ["customers", "search", customerSearch.trim().toLowerCase()],
+    queryKey: ["customers", "search", customerSearch.trim().toLowerCase(), "local"],
     enabled: customerSearch.trim().length >= 2,
-    queryFn: async () => (await supabase.from("customers").select("id, name, phone, outstanding_balance")
-      .is("deleted_at", null)
-      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
-      .limit(6)).data ?? [],
+    queryFn: () => searchCustomersLocal(customerSearch),
   });
 
   const { data: pendingInvoices = [] } = useQuery({
-    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
+    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase(), "local"],
     enabled: invoiceSearch.trim().length >= 2,
-    queryFn: async () => (await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? [],
+    queryFn: () => searchPendingSalesLocal(invoiceSearch),
   });
+
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
