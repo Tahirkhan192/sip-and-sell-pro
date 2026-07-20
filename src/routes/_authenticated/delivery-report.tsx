@@ -38,9 +38,9 @@ function Page() {
     ).data ?? [],
   });
 
-  const totalCharges = deliveries.reduce((s, d: any) => s + num(d.delivery_charges), 0);
-  const totalFuel = expenses.reduce((s, e: any) => s + num(e.fuel_cost), 0);
-  const totalMaint = expenses.reduce((s, e: any) => s + num(e.maintenance_cost), 0);
+  const totalCharges = deliveries.reduce((s: number, d: any) => s + num(d.delivery_charges), 0);
+  const totalFuel = expenses.reduce((s: number, e: any) => s + num(e.fuel_cost), 0);
+  const totalMaint = expenses.reduce((s: number, e: any) => s + num(e.maintenance_cost), 0);
   const profit = totalCharges - totalFuel - totalMaint;
 
   return (
