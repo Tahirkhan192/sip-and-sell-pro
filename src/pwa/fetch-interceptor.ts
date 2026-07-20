@@ -20,6 +20,15 @@ import { localDb } from "./db";
 import { enqueueRequest, scheduleOutboxFlush } from "./outbox";
 import { runLocalTriggers } from "./local-triggers";
 import { serveLocalRead } from "./local-read";
+import { isKnownLocalRpc, serveLocalRpc } from "./local-rpcs";
+
+function rpcNameFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url, typeof window !== "undefined" ? window.location.href : "http://x");
+    const m = u.pathname.match(/\/rest\/v1\/rpc\/([^/?]+)$/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
 
 let installed = false;
 
@@ -252,8 +261,37 @@ export function installOfflineFetchInterceptor() {
     }
 
 
+
+    // RPC calls (/rest/v1/rpc/<name>). Some (save_sale, update_sale,
+    // restore_sale_stock) run the sale save flow. When offline or the
+    // network fails, emulate them locally so the UI never blocks on cloud.
+    const rpcName = M === "POST" ? rpcNameFromUrl(url) : null;
+    if (rpcName) {
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      const canEmulate = isKnownLocalRpc(rpcName);
+      if (!offline) {
+        try {
+          const res = await original(input as never, init);
+          // If cloud rejected purely because of connectivity, fall back below.
+          return res;
+        } catch (err) {
+          if (!canEmulate) throw err;
+          console.warn("[local-first] RPC network failed, emulating locally", rpcName, err);
+        }
+      }
+      if (canEmulate) {
+        const local = await serveLocalRpc(rpcName, body, url, headers);
+        if (local) {
+          scheduleOutboxFlush(navigator.onLine ? 50 : 0);
+          return local;
+        }
+      }
+      return original(input as never, init);
+    }
+
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
+
 
     // HYBRID OFFLINE ARCHITECTURE:
     // When online, forward every write straight to Lovable Cloud (master
