@@ -43,6 +43,8 @@ export type ReportResult = {
   totalOnlinePaid: number;
   kathaAmount: number;
   generalExpenses: number;
+  paidExpenses: number;
+  unpaidExpenses: number;
   deliveryExpenses: number;
   deliveryProfit: number;
   totalOpening: number;
@@ -389,6 +391,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     totalOnlinePaid,
     kathaAmount,
     generalExpenses,
+    paidExpenses,
+    unpaidExpenses,
     deliveryExpenses: deliveryExpenseTotal,
     deliveryProfit,
     totalOpening,
