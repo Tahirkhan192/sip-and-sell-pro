@@ -37,13 +37,14 @@ export async function pendingCount(): Promise<number> {
   }
 }
 
-function opFromMethod(m: string): "insert" | "update" | "delete" | "upsert" {
+function opFromMethod(m: string): "insert" | "update" | "delete" {
   const method = m.toUpperCase();
   if (method === "PATCH") return "update";
   if (method === "DELETE") return "delete";
   if (method === "POST") return "insert";
   return "update";
 }
+
 
 function tableFromUrl(url: string): string {
   try {
