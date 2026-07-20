@@ -29,6 +29,7 @@ function Page() {
   const [form, setForm] = useState<E>(empty);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [manageOpen, setManageOpen] = useState(false);
   const [newCat, setNewCat] = useState("");
   const { data: categories = [] } = useExpenseCategories({ activeOnly: true });
@@ -42,7 +43,17 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: E) => {
-      const payload = { date: p.date, category: p.category, amount: Number(p.amount || 0), description: p.description || null, payment_method: p.payment_method };
+      const amt = Number(p.amount || 0);
+      const payload = {
+        date: p.date,
+        category: p.category,
+        amount: amt,
+        description: p.description || null,
+        payment_method: p.payment_method,
+        payment_status: p.payment_status,
+        paid_amount: p.payment_status === "paid" ? amt : 0,
+        paid_at: p.payment_status === "paid" ? new Date().toISOString() : null,
+      };
       const res = p.id
         ? await supabase.from("expenses").update(payload).eq("id", p.id)
         : await supabase.from("expenses").insert(payload);
@@ -63,11 +74,15 @@ function Page() {
     const q = search.toLowerCase();
     return (data as any[]).filter((e) => {
       if (catFilter !== "all" && e.category !== catFilter) return false;
+      const status = e.payment_status ?? "paid";
+      if (statusFilter !== "all" && status !== statusFilter) return false;
       return e.category.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
     });
-  }, [data, search, catFilter]);
+  }, [data, search, catFilter, statusFilter]);
 
   const total = filtered.reduce((s, x: any) => s + Number(x.amount), 0);
+  const totalPaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "paid") ? Number(x.amount) : 0), 0);
+  const totalUnpaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "unpaid") ? Number(x.amount) : 0), 0);
 
   return (
     <div>
