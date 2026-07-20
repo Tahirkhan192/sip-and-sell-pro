@@ -86,21 +86,39 @@ async function mergeIntoLocal(table: SyncedTable, incoming: Array<Record<string,
 }
 
 async function pullTable(table: SyncedTable) {
-  const cursor = await getCursor(table);
-  let from = 0;
-  let latest = cursor;
+  // Keyset pagination on (updated_at, id).
+  //
+  // Why keyset and NOT offset+range:
+  //   Supabase PostgREST caps responses at `db.max_rows` (default 1000). A
+  //   request like `.range(1000, 1999)` returns 0 rows on some deployments,
+  //   which previously broke the loop after the first page and stranded
+  //   millions of historical records outside IndexedDB. Filtering by
+  //   `updated_at > cursor` (with an `id > cursor_id` tiebreaker for rows
+  //   that share the same timestamp) walks the entire table safely.
+  const startCursor = await getCursor(table);
+  let cursorAt: string | null = startCursor;
+  let cursorId: string | null = null;
+  let latestAt: string | null = startCursor;
+  let latestId: string | null = null;
+  const client = supabase as unknown as { from: (name: string) => any };
+
   while (true) {
-    const client = supabase as unknown as { from: (name: string) => any };
     let q = client
       .from(table as string)
       .select("*")
       .order("updated_at", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (cursor) q = q.gt("updated_at", cursor);
+      .order("id", { ascending: true })
+      .limit(PAGE_SIZE);
+    if (cursorAt && cursorId) {
+      // (updated_at, id) > (cursorAt, cursorId) — expressed as an OR filter.
+      q = q.or(`updated_at.gt.${cursorAt},and(updated_at.eq.${cursorAt},id.gt.${cursorId})`);
+    } else if (cursorAt) {
+      q = q.gt("updated_at", cursorAt);
+    }
     const { data, error } = await q;
     if (error) {
-      // Tables like `user_roles` don't expose updated_at. Full-pull once, then set cursor to now.
-      if (!cursor && /updated_at/i.test(error.message)) {
+      // Tables like `user_roles` don't expose updated_at. Full-pull once.
+      if (!startCursor && /updated_at/i.test(error.message)) {
         const { data: full, error: err2 } = await client.from(table as string).select("*");
         if (err2) throw err2;
         if (full && full.length) await mergeIntoLocal(table, full as never);
@@ -111,12 +129,16 @@ async function pullTable(table: SyncedTable) {
     }
     if (!data || data.length === 0) break;
     await mergeIntoLocal(table, data as never);
-    const last = (data[data.length - 1] as { updated_at?: string })?.updated_at;
-    if (last) latest = last;
+    const last = data[data.length - 1] as { updated_at?: string; id?: string };
+    if (last?.updated_at) {
+      latestAt = last.updated_at;
+      latestId = String(last.id ?? "");
+      cursorAt = latestAt;
+      cursorId = latestId;
+    }
     if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
   }
-  if (latest) await setCursor(table, latest);
+  if (latestAt) await setCursor(table, latestAt);
 }
 
 /* ---------- top-level sync ---------- */
