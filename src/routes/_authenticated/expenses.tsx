@@ -20,8 +20,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
-type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" };
-const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash" };
+type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online"; payment_status: "paid" | "unpaid" };
+const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash", payment_status: "paid" };
 
 function Page() {
   const qc = useQueryClient();
@@ -29,6 +29,7 @@ function Page() {
   const [form, setForm] = useState<E>(empty);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [manageOpen, setManageOpen] = useState(false);
   const [newCat, setNewCat] = useState("");
   const { data: categories = [] } = useExpenseCategories({ activeOnly: true });
@@ -42,7 +43,17 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: E) => {
-      const payload = { date: p.date, category: p.category, amount: Number(p.amount || 0), description: p.description || null, payment_method: p.payment_method };
+      const amt = Number(p.amount || 0);
+      const payload = {
+        date: p.date,
+        category: p.category,
+        amount: amt,
+        description: p.description || null,
+        payment_method: p.payment_method,
+        payment_status: p.payment_status,
+        paid_amount: p.payment_status === "paid" ? amt : 0,
+        paid_at: p.payment_status === "paid" ? new Date().toISOString() : null,
+      };
       const res = p.id
         ? await supabase.from("expenses").update(payload).eq("id", p.id)
         : await supabase.from("expenses").insert(payload);
@@ -63,11 +74,15 @@ function Page() {
     const q = search.toLowerCase();
     return (data as any[]).filter((e) => {
       if (catFilter !== "all" && e.category !== catFilter) return false;
+      const status = e.payment_status ?? "paid";
+      if (statusFilter !== "all" && status !== statusFilter) return false;
       return e.category.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
     });
-  }, [data, search, catFilter]);
+  }, [data, search, catFilter, statusFilter]);
 
   const total = filtered.reduce((s, x: any) => s + Number(x.amount), 0);
+  const totalPaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "paid") ? Number(x.amount) : 0), 0);
+  const totalUnpaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "unpaid") ? Number(x.amount) : 0), 0);
 
   return (
     <div>
@@ -85,31 +100,47 @@ function Page() {
             {categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Manage</Button>
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Payment</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
-            {filtered.map((p: any) => (
+            {filtered.map((p: any) => {
+              const status = (p.payment_status ?? "paid") as "paid" | "unpaid";
+              return (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
                 <TableCell className="capitalize">{p.payment_method ?? "cash"}</TableCell>
+                <TableCell><span className={"inline-block rounded px-2 py-0.5 text-xs " + (status === "paid" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>{status}</span></TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
-            ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
+              );
+            })}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
-          <div className="flex justify-end border-t px-4 py-2 text-sm font-medium">Total: {money(total)}</div>
+          <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-medium">
+            <span>Paid: {money(totalPaid)}</span>
+            <span>Unpaid: {money(totalUnpaid)}</span>
+            <span>Total: {money(total)}</span>
+          </div>
         )}
       </Card>
 
@@ -137,6 +168,15 @@ function Page() {
             </Select>
           </div>
           <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" placeholder="" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+        </div>
+        <div className="space-y-2"><Label>Payment Status</Label>
+          <Select value={form.payment_status} onValueChange={(v) => setForm({ ...form, payment_status: v as "paid" | "unpaid" })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Unpaid</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       </CrudDialog>
