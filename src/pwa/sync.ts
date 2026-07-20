@@ -6,10 +6,50 @@
  * offline writes are never clobbered by a stale server copy.
  */
 
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDb, SYNCED_TABLES, type SyncedTable } from "./db";
+import { markLocalReady, setReadinessProgress } from "./readiness";
 
 const PAGE_SIZE = 1000;
+
+/**
+ * Dedicated Supabase client for hydration. Marks every request with
+ * `x-lf-bypass: 1` so the local-read interceptor lets it through to the real
+ * network — otherwise sync would query the very IndexedDB store it's trying
+ * to fill and think the cloud is empty.
+ */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+let _syncClient: ReturnType<typeof createClient> | null = null;
+async function getSyncClient() {
+  if (_syncClient) return _syncClient;
+  const bypassFetch: typeof fetch = (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("apikey", SUPABASE_KEY);
+    headers.set("x-lf-bypass", "1");
+    // Attach the user's access token so RLS applies as usual.
+    const auth = init?.headers ? new Headers(init.headers).get("Authorization") : null;
+    if (auth) headers.set("Authorization", auth);
+    return fetch(input as never, { ...init, headers });
+  };
+  _syncClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: bypassFetch },
+  });
+  // Mirror the current session so RLS sees the same user.
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      await _syncClient.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+    }
+  } catch { /* noop */ }
+  return _syncClient;
+}
+
 
 /* ---------- observable sync state ---------- */
 
@@ -100,7 +140,7 @@ async function pullTable(table: SyncedTable) {
   let cursorId: string | null = null;
   let latestAt: string | null = startCursor;
   let latestId: string | null = null;
-  const client = supabase as unknown as { from: (name: string) => any };
+  const client = (await getSyncClient()) as unknown as { from: (name: string) => any };
 
   while (true) {
     let q = client
@@ -154,10 +194,12 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
   state.progress = { done: 0, total: SYNCED_TABLES.length, table: null };
   emit();
   try {
-    // One-time repair: earlier versions used offset pagination which stranded
-    // rows past PostgREST's `max_rows` cap (default 1000). Reset every table
-    // cursor once so keyset-based re-hydration back-fills the full history.
-    const repairKey = "repair_keyset_v1";
+    // One-time repair (v2): previous versions routed hydration reads through
+    // the local-read interceptor, which served empty results from the very
+    // IndexedDB store we were trying to fill. Reset every table cursor once
+    // more so keyset-based re-hydration can back-fill the full history from
+    // Lovable Cloud.
+    const repairKey = "repair_bypass_v2";
     const repaired = await localDb().meta.get(repairKey);
     if (!repaired) {
       for (const t of SYNCED_TABLES) {
@@ -169,6 +211,7 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
     let done = 0;
     for (const t of SYNCED_TABLES) {
       state.progress = { done, total: SYNCED_TABLES.length, table: t };
+      setReadinessProgress(`Loading ${t.replace(/_/g, " ")}… (${done + 1}/${SYNCED_TABLES.length})`);
       emit();
       try {
         await pullTable(t);
@@ -182,6 +225,11 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
     const now = new Date().toISOString();
     await localDb().meta.put({ key: "last_sync_at", value: now });
     state.lastSyncAt = now;
+    // Mark initial hydration complete on the first successful full pass.
+    const initKey = "initial_hydration_v2";
+    const already = await localDb().meta.get(initKey);
+    if (!already) await localDb().meta.put({ key: initKey, value: now });
+    markLocalReady();
     return { ok: true };
   } catch (err) {
     state.lastError = (err as Error)?.message ?? String(err);
@@ -193,6 +241,38 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
     emit();
   }
 }
+
+/**
+ * Ensure the local database has been fully hydrated at least once from the
+ * cloud before the UI reads any business data. Idempotent — subsequent calls
+ * resolve immediately once `initial_hydration_v2` is set.
+ */
+export async function ensureInitialHydration(): Promise<void> {
+  if (typeof window === "undefined") { markLocalReady(); return; }
+  try {
+    const done = await localDb().meta.get("initial_hydration_v2");
+    if (done) {
+      // Already hydrated once — UI can render from IndexedDB immediately;
+      // background sync will catch up any new rows.
+      markLocalReady();
+      void syncFromCloud();
+      return;
+    }
+  } catch { /* fall through and try to sync */ }
+
+  if (!navigator.onLine) {
+    // Nothing to hydrate from; unblock UI so an offline first-run still boots.
+    // syncFromCloud() will be scheduled when the browser comes online.
+    markLocalReady();
+    return;
+  }
+
+  setReadinessProgress("Preparing local database…");
+  await syncFromCloud();
+  // Whether it succeeded or not, unblock the UI so the user isn't stuck.
+  markLocalReady();
+}
+
 
 /** Trigger hydration in the background — safe to call from React effects. */
 export function scheduleBackgroundSync() {

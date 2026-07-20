@@ -233,17 +233,24 @@ export function installOfflineFetchInterceptor() {
     headers = await headersToObject(init?.headers, baseHeaders);
 
     // Local-first READS: serve GET/HEAD against /rest/v1/<table> from IndexedDB.
+    // Exception: sync/hydration marks its own requests with `x-lf-bypass: 1`
+    // so cloud → IndexedDB back-fill never gets served empty results from the
+    // very store it's trying to populate.
     const M = method.toUpperCase();
     if (M === "GET" || M === "HEAD") {
-      try {
-        const hdrs = new Headers(headers);
-        const local = await serveLocalRead(url, M, hdrs);
-        if (local) return local;
-      } catch (err) {
-        console.warn("[local-first] read interceptor failed", err);
+      const bypass = headers["x-lf-bypass"] === "1";
+      if (!bypass) {
+        try {
+          const hdrs = new Headers(headers);
+          const local = await serveLocalRead(url, M, hdrs);
+          if (local) return local;
+        } catch (err) {
+          console.warn("[local-first] read interceptor failed", err);
+        }
       }
       return original(input as never, init);
     }
+
 
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
