@@ -20,6 +20,15 @@ import { localDb } from "./db";
 import { enqueueRequest, scheduleOutboxFlush } from "./outbox";
 import { runLocalTriggers } from "./local-triggers";
 import { serveLocalRead } from "./local-read";
+import { isKnownLocalRpc, serveLocalRpc } from "./local-rpcs";
+
+function rpcNameFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url, typeof window !== "undefined" ? window.location.href : "http://x");
+    const m = u.pathname.match(/\/rest\/v1\/rpc\/([^/?]+)$/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
 
 let installed = false;
 
