@@ -1,14 +1,9 @@
 /**
- * Cloud → Local hydration.
+ * Cloud → Local hydration with last-write-wins conflict resolution.
  *
- * On login (and when the browser comes back online) pull every synced table
- * from Supabase into IndexedDB. Uses `updated_at` cursors stored in the
- * `meta` store so subsequent runs only fetch what changed.
- *
- * This is intentionally read-only for now: routes still write through
- * Supabase directly, and the service worker's runtime cache handles the
- * network-first HTTP layer. Dexie is the persistent structured mirror that
- * future feature-by-feature offline write support will build on.
+ * Only pulls rows changed since the stored `updated_at` cursor for each table.
+ * Local rows flagged `_dirty === 1` with a newer `updated_at` are preserved so
+ * offline writes are never clobbered by a stale server copy.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -16,13 +11,78 @@ import { localDb, SYNCED_TABLES, type SyncedTable } from "./db";
 
 const PAGE_SIZE = 1000;
 
+/* ---------- observable sync state ---------- */
+
+export type SyncState = {
+  syncing: boolean;
+  lastSyncAt: string | null;
+  progress: { done: number; total: number; table: string | null } | null;
+  lastError: string | null;
+};
+
+const state: SyncState = {
+  syncing: false,
+  lastSyncAt: null,
+  progress: null,
+  lastError: null,
+};
+const listeners = new Set<(s: SyncState) => void>();
+function emit() {
+  const snapshot = { ...state, progress: state.progress ? { ...state.progress } : null };
+  for (const cb of listeners) {
+    try { cb(snapshot); } catch { /* noop */ }
+  }
+}
+export function subscribeSync(cb: (s: SyncState) => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+export function getSyncState(): SyncState {
+  return { ...state, progress: state.progress ? { ...state.progress } : null };
+}
+
+/* ---------- cursors ---------- */
+
 async function getCursor(table: string): Promise<string | null> {
   const row = await localDb().meta.get(`cursor:${table}`);
   return row?.value ?? null;
 }
-
 async function setCursor(table: string, value: string) {
   await localDb().meta.put({ key: `cursor:${table}`, value });
+}
+
+async function loadLastSyncFromMeta() {
+  try {
+    const row = await localDb().meta.get("last_sync_at");
+    state.lastSyncAt = row?.value ?? null;
+  } catch { /* noop */ }
+}
+
+/* ---------- last-write-wins merge ---------- */
+
+async function mergeIntoLocal(table: SyncedTable, incoming: Array<Record<string, unknown>>) {
+  if (incoming.length === 0) return;
+  const ids = incoming.map((r) => String((r as { id?: unknown }).id ?? "")).filter(Boolean);
+  const existing = ids.length ? await localDb().table(table).bulkGet(ids) : [];
+  const localById = new Map<string, Record<string, unknown>>();
+  for (const row of existing) if (row) localById.set(String((row as { id: string }).id), row as Record<string, unknown>);
+
+  const toPut: Array<Record<string, unknown>> = [];
+  for (const row of incoming) {
+    const id = String((row as { id?: unknown }).id ?? "");
+    if (!id) continue;
+    const local = localById.get(id);
+    if (local && local._dirty === 1) {
+      // Local has a pending write. Only overwrite if the server timestamp is
+      // strictly newer than the local one (someone else's later change).
+      const localAt = String(local.updated_at ?? "");
+      const remoteAt = String((row as { updated_at?: unknown }).updated_at ?? "");
+      if (remoteAt && localAt && remoteAt <= localAt) continue;
+    }
+    // Drop the dirty flag on merge — server confirmed this state.
+    toPut.push({ ...row, _dirty: 0 });
+  }
+  if (toPut.length) await localDb().table(table).bulkPut(toPut as never);
 }
 
 async function pullTable(table: SyncedTable) {
@@ -30,28 +90,28 @@ async function pullTable(table: SyncedTable) {
   let from = 0;
   let latest = cursor;
   while (true) {
-    const client = supabase as unknown as {
-      from: (name: string) => any;
-    };
-    let q = client.from(table as string).select("*").order("updated_at", { ascending: true }).range(from, from + PAGE_SIZE - 1);
+    const client = supabase as unknown as { from: (name: string) => any };
+    let q = client
+      .from(table as string)
+      .select("*")
+      .order("updated_at", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
     if (cursor) q = q.gt("updated_at", cursor);
     const { data, error } = await q;
     if (error) {
-      // Table may not expose updated_at (e.g. user_roles). Fall back to a full pull once.
+      // Tables like `user_roles` don't expose updated_at. Full-pull once, then set cursor to now.
       if (!cursor && /updated_at/i.test(error.message)) {
         const { data: full, error: err2 } = await client.from(table as string).select("*");
         if (err2) throw err2;
-        if (full && full.length) {
-          await localDb().table(table).bulkPut(full as any);
-        }
+        if (full && full.length) await mergeIntoLocal(table, full as never);
         await setCursor(table, new Date().toISOString());
         return;
       }
       throw error;
     }
     if (!data || data.length === 0) break;
-    await localDb().table(table).bulkPut(data as any);
-    const last = (data[data.length - 1] as any)?.updated_at as string | undefined;
+    await mergeIntoLocal(table, data as never);
+    const last = (data[data.length - 1] as { updated_at?: string })?.updated_at;
     if (last) latest = last;
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
@@ -59,40 +119,57 @@ async function pullTable(table: SyncedTable) {
   if (latest) await setCursor(table, latest);
 }
 
+/* ---------- top-level sync ---------- */
+
 let running = false;
 export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> {
   if (typeof window === "undefined") return { ok: false, error: "no window" };
   if (running) return { ok: true };
   if (!navigator.onLine) return { ok: false, error: "offline" };
   running = true;
+  state.syncing = true;
+  state.lastError = null;
+  state.progress = { done: 0, total: SYNCED_TABLES.length, table: null };
+  emit();
   try {
+    let done = 0;
     for (const t of SYNCED_TABLES) {
+      state.progress = { done, total: SYNCED_TABLES.length, table: t };
+      emit();
       try {
         await pullTable(t);
       } catch (err) {
-        // One failing table shouldn't stop the rest — surface to console.
         console.warn(`[sync] pull ${t} failed`, err);
       }
+      done++;
+      state.progress = { done, total: SYNCED_TABLES.length, table: t };
+      emit();
     }
-    await localDb().meta.put({ key: "last_sync_at", value: new Date().toISOString() });
+    const now = new Date().toISOString();
+    await localDb().meta.put({ key: "last_sync_at", value: now });
+    state.lastSyncAt = now;
     return { ok: true };
+  } catch (err) {
+    state.lastError = (err as Error)?.message ?? String(err);
+    return { ok: false, error: state.lastError };
   } finally {
     running = false;
+    state.syncing = false;
+    state.progress = null;
+    emit();
   }
 }
 
 /** Trigger hydration in the background — safe to call from React effects. */
 export function scheduleBackgroundSync() {
   if (typeof window === "undefined") return;
-  // Kick immediately — startup speed matters more than idle politeness now
-  // that reports/dashboards read against the local mirror.
   void syncFromCloud();
 }
 
 let periodicTimer: number | null = null;
-/** Periodic revalidation while the tab is open. */
 export function startPeriodicSync(intervalMs = 60_000) {
   if (typeof window === "undefined") return;
+  void loadLastSyncFromMeta().then(() => emit());
   if (periodicTimer) window.clearInterval(periodicTimer);
   periodicTimer = window.setInterval(() => {
     if (navigator.onLine) void syncFromCloud();
