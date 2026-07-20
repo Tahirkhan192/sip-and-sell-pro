@@ -171,11 +171,11 @@ function parseSelect(sel: string, parentTable: string): ParsedSelect {
     }
     const resolved = resolveEmbed(parentTable, spec, constraint);
     if (!resolved) continue; // silently drop unknown embed
-    const nested = parseSelect(body, resolved.targetTable);
+    const nested = parseSelect(body, resolved.target);
     embeds.push({
       raw: part,
       alias: alias || spec,
-      targetTable: resolved.targetTable,
+      targetTable: resolved.target,
       fkColumn: resolved.fk,
       inner,
       columns: nested.columns,
