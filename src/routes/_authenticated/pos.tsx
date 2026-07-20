@@ -265,8 +265,11 @@ function POS() {
   });
 
   type SaveArgs = { status: "pending" | "completed"; dateMode?: "current" | "original" };
+  const submittingRef = useRef(false);
   const saveMutation = useMutation({
     mutationFn: async ({ status, dateMode }: SaveArgs) => {
+      if (submittingRef.current) throw new Error("Save already in progress");
+      submittingRef.current = true;
       if (cart.length === 0) throw new Error("Cart is empty");
       const items = cart.map((i) => ({
         product_id: i.product_id,
@@ -346,6 +349,7 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
+    onSettled: () => { submittingRef.current = false; },
   });
 
   return (
