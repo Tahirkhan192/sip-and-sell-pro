@@ -14,7 +14,7 @@
  *   • order:          `order=col.asc,col2.desc.nullsfirst`
  *   • limit / offset  and `Range: from-to` header
  *   • .single() / .maybeSingle() via `Accept: application/vnd.pgrst.object+json`
- *   • count queries:  `Prefer: count=exact` (+ HEAD returns `Content-Range: 0-*/N`)
+ *   - count queries:  Prefer count=exact (+ HEAD returns Content-Range with total)
  *   • soft-delete columns pass through unchanged
  */
 
