@@ -235,7 +235,7 @@ export function installOfflineFetchInterceptor() {
     if (!target) return original(input as never, init);
 
     // 1) Apply to IndexedDB first.
-    let mirrored: Array<Record<string, unknown>> | null = null;
+    let mirrored: ApplyResult | null = null;
     try {
       mirrored = await applyLocal(target, body, url);
     } catch (err) {
@@ -248,10 +248,46 @@ export function installOfflineFetchInterceptor() {
       return original(input as never, init);
     }
 
-    // 2) Rewrite body so any client-generated UUIDs are sent to the cloud.
-    const cloudBody = bodyWithMirroredIds(body, mirrored, target.op);
+    // 2) Run local business triggers (replaces cloud triggers now that
+    //    Lovable Cloud is a passive backup). May request a mutation of the
+    //    primary row (e.g. purchases.cash_movement_id).
+    const primaryPatches: Array<Record<string, unknown> | undefined> = [];
+    for (let i = 0; i < mirrored.after.length; i++) {
+      try {
+        const { mutatePrimary } = await runLocalTriggers({
+          table: target.table,
+          op: target.op,
+          before: mirrored.before[i] ?? null,
+          after: target.op === "delete" ? null : mirrored.after[i] ?? null,
+          refUrl: url,
+          refHeaders: headers,
+        });
+        primaryPatches.push(mutatePrimary);
+      } catch (err) {
+        console.warn("[local-first] trigger failed", err);
+        primaryPatches.push(undefined);
+      }
+    }
 
-    // 3) Queue for background cloud sync — do NOT await the network.
+    // Apply any trigger-requested patches back to the primary row in Dexie
+    // and to the outgoing cloud body so the same UUID linkage lands remotely.
+    let effectiveAfter = mirrored.after;
+    if (primaryPatches.some((p) => p && Object.keys(p).length > 0)) {
+      const dexie = localDb();
+      const tbl = dexie.tables.some((t) => t.name === target.table) ? dexie.table(target.table) : null;
+      effectiveAfter = await Promise.all(mirrored.after.map(async (row, i) => {
+        const patch = primaryPatches[i];
+        if (!patch || !row?.id) return row;
+        const next = { ...row, ...patch, _dirty: 1 } as Record<string, unknown>;
+        if (tbl) await tbl.put(next as never).catch(() => {});
+        return next;
+      }));
+    }
+
+    // 3) Rewrite body so client-generated UUIDs and trigger patches reach cloud.
+    const cloudBody = bodyWithMirroredIds(body, effectiveAfter, target.op);
+
+    // 4) Queue for background cloud sync — do NOT await the network.
     try {
       await enqueueRequest({ url, method, headers, body: cloudBody });
       scheduleOutboxFlush(navigator.onLine ? 50 : 0);
@@ -259,10 +295,8 @@ export function installOfflineFetchInterceptor() {
       console.warn("[local-first] failed to enqueue", err);
     }
 
-    // 4) Return a synthetic response now. Status 201 for inserts (PostgREST
-    //    convention), 200 for update/delete/upsert. Body carries the row(s)
-    //    so `.select().single()` and callers reading returned data still work.
+    // 5) Return a synthetic response now.
     const status = target.op === "insert" ? 201 : 200;
-    return syntheticResponse(mirrored, status);
+    return syntheticResponse(effectiveAfter, status);
   };
 }
