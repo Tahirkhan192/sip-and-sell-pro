@@ -2,6 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
+import {
+  listSalesInRangeLocal,
+  listAllSalesLocal,
+  listExpensesInRangeLocal,
+  listDeliveryExpensesInRangeLocal,
+  listStockPurchasesInRangeLocal,
+  listProductsLocal,
+  listStockItemsLocal,
+  listRecipesLocal,
+  listMonthlyOverridesLocal,
+} from "@/lib/local-repo";
 
 export type ReportRangeInput = Partial<RangeResult> & { label?: string };
 
@@ -97,71 +108,21 @@ function adjustToTotal<T extends Record<string, any>>(rows: T[], key: keyof T, t
   (row as any)[key] = num(row[key]) + diff;
 }
 
-function addDaysISO(d: string, n: number): string {
-  const t = new Date(`${d}T00:00:00.000Z`);
-  t.setUTCDate(t.getUTCDate() + n);
-  return t.toISOString().slice(0, 10);
-}
-
-async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += pageSize) {
-    const to = from + pageSize - 1;
-    const { data, error } = await build().range(from, to);
-    if (error) throw error;
-    const rows = (data ?? []) as T[];
-    out.push(...rows);
-    if (rows.length < pageSize) break;
-  }
-  return out;
-}
-
 export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
   const hasRange = Boolean(range.from && range.to && range.startUTC && range.endExclusiveUTC);
 
-  const buildSales = () => {
-    let q = (supabase as any)
-      .from("sales")
-      .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
-      .is("deleted_at", null)
-      .order("sale_date", { ascending: false });
-    if (hasRange) q = q.gte("sale_date", range.startUTC).lt("sale_date", range.endExclusiveUTC);
-    return q;
-  };
-  const buildExpenses = () => {
-    let q = supabase.from("expenses" as any).select("amount, payment_status, payment_method").is("deleted_at", null).order("date", { ascending: false });
-    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
-    return q;
-  };
-  const buildDeliveryExpenses = () => {
-    let q = supabase.from("delivery_expenses" as any).select("fuel_cost, maintenance_cost").is("deleted_at", null).order("date", { ascending: false });
-    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
-    return q;
-  };
-  const buildPurchases = () => {
-    let q = supabase.from("stock_purchases" as any).select("product_id, stock_item_id, total_cost, quantity, unit_cost, category").is("deleted_at", null).order("date", { ascending: false });
-    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
-    return q;
-  };
-  const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
-  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
-  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
-
-  const overridesPromise = range.from
-    ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
-    : Promise.resolve({ data: [], error: null });
-
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesQ] = await Promise.all([
-    fetchAllPaged<any>(buildSales),
-    fetchAllPaged<any>(buildExpenses),
-    fetchAllPaged<any>(buildDeliveryExpenses),
-    fetchAllPaged<any>(buildPurchases),
-    fetchAllPaged<any>(buildProducts),
-    fetchAllPaged<any>(buildStockItems),
-    fetchAllPaged<any>(buildRecipes),
-    overridesPromise,
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesRows] = await Promise.all([
+    hasRange ? listSalesInRangeLocal(range.startUTC!, range.endExclusiveUTC!) : listAllSalesLocal(),
+    listExpensesInRangeLocal(range.from, range.to),
+    listDeliveryExpensesInRangeLocal(range.from, range.to),
+    listStockPurchasesInRangeLocal(range.from, range.to),
+    listProductsLocal(),
+    listStockItemsLocal(),
+    listRecipesLocal(),
+    range.from
+      ? listMonthlyOverridesLocal(Number(range.from.slice(0, 4)), Number(range.from.slice(5, 7)))
+      : Promise.resolve([] as any[]),
   ]);
-  if ((overridesQ as any).error) throw (overridesQ as any).error;
 
   const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
   const expenses = expensesRows as any[];
@@ -170,8 +131,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const products = productsRows as any[];
   const stockItems = (stockItemsRows ?? []) as any[];
   const recipes = (recipesRows ?? []) as any[];
+  const overrides = (overridesRows ?? []) as any[];
 
-  const overrides = (overridesQ.data ?? []) as any[];
 
   const catMap: Record<string, ReportCategoryRow> = {};
   const productMap: Record<string, ReportProductRow> = {};
