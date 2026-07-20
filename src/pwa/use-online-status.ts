@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { pendingCount, subscribeOutbox } from "./outbox";
+import { getSyncState, subscribeSync, type SyncState } from "./sync";
 
 export type SyncStatus = "online" | "offline" | "syncing";
 
@@ -8,7 +9,7 @@ export function useOnlineStatus() {
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const [pending, setPending] = useState<number>(0);
-  const [syncing, setSyncing] = useState(false);
+  const [sync, setSync] = useState<SyncState>(() => getSyncState());
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -38,10 +39,19 @@ export function useOnlineStatus() {
   }, []);
 
   useEffect(() => {
-    // Heuristic: if we're online and have pending items we're syncing.
-    setSyncing(online && pending > 0);
-  }, [online, pending]);
+    const unsub = subscribeSync((s) => setSync(s));
+    return () => { unsub(); };
+  }, []);
 
-  const status: SyncStatus = !online ? "offline" : pending > 0 ? "syncing" : "online";
-  return { online, pending, syncing, status };
+  const isBusy = sync.syncing || (online && pending > 0);
+  const status: SyncStatus = !online ? "offline" : isBusy ? "syncing" : "online";
+
+  return {
+    online,
+    pending,
+    syncing: isBusy,
+    status,
+    lastSyncAt: sync.lastSyncAt,
+    progress: sync.progress,
+  };
 }

@@ -59,11 +59,34 @@ function tableFromUrl(url: string): string {
 export async function enqueueRequest(req: QueuedRequest): Promise<number> {
   const table = tableFromUrl(req.url);
   const op = opFromMethod(req.method);
+  // Duplicate protection: for INSERTs, tell PostgREST to upsert on conflict
+  // so replaying a write whose row already synced from another device
+  // updates the existing row instead of creating a second copy.
+  const headers = { ...req.headers };
+  if (op === "insert") {
+    const existing = headers["Prefer"] ?? headers["prefer"] ?? "";
+    const parts = new Set(existing.split(",").map((s) => s.trim()).filter(Boolean));
+    parts.add("resolution=merge-duplicates");
+    parts.add("return=representation");
+    headers["Prefer"] = Array.from(parts).join(",");
+    delete headers["prefer"];
+  }
+  // Best-effort row id extraction from body so status listeners can dedupe.
+  let rowId = "";
+  try {
+    if (req.body) {
+      const parsed = JSON.parse(req.body);
+      const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (first && typeof first === "object" && (first as { id?: string }).id) {
+        rowId = String((first as { id: string }).id);
+      }
+    }
+  } catch { /* body may not be JSON */ }
   const id = await localDb().outbox.add({
     table,
-    row_id: "", // filled by replayer if response returns id
+    row_id: rowId,
     op,
-    payload: req,
+    payload: { ...req, headers },
     attempts: 0,
     created_at: new Date().toISOString(),
     next_retry_at: new Date().toISOString(),
