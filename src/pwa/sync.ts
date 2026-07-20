@@ -140,7 +140,7 @@ async function pullTable(table: SyncedTable) {
   let cursorId: string | null = null;
   let latestAt: string | null = startCursor;
   let latestId: string | null = null;
-  const client = supabase as unknown as { from: (name: string) => any };
+  const client = (await getSyncClient()) as unknown as { from: (name: string) => any };
 
   while (true) {
     let q = client
