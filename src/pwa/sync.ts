@@ -249,29 +249,13 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
  */
 export async function ensureInitialHydration(): Promise<void> {
   if (typeof window === "undefined") { markLocalReady(); return; }
-  try {
-    const done = await localDb().meta.get("initial_hydration_v2");
-    if (done) {
-      // Already hydrated once — UI can render from IndexedDB immediately;
-      // background sync will catch up any new rows.
-      markLocalReady();
-      void syncFromCloud();
-      return;
-    }
-  } catch { /* fall through and try to sync */ }
-
-  if (!navigator.onLine) {
-    // Nothing to hydrate from; unblock UI so an offline first-run still boots.
-    // syncFromCloud() will be scheduled when the browser comes online.
-    markLocalReady();
-    return;
-  }
-
-  setReadinessProgress("Preparing local database…");
-  await syncFromCloud();
-  // Whether it succeeded or not, unblock the UI so the user isn't stuck.
+  // Hybrid architecture: online reads go straight to Lovable Cloud, so the
+  // UI never has to wait on IndexedDB hydration. Unblock immediately and let
+  // the offline cache refresh in the background.
   markLocalReady();
+  if (navigator.onLine) void syncFromCloud();
 }
+
 
 
 /** Trigger hydration in the background — safe to call from React effects. */
