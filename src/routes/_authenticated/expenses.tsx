@@ -17,6 +17,7 @@ import { Settings2 } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { expensesRepository } from "@/repositories";
+import { deleteExpenseTransaction, saveExpenseTransaction } from "@/pwa/transaction-engine";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
@@ -44,28 +45,22 @@ function Page() {
   const save = useMutation({
     mutationFn: async (p: E) => {
       const amt = Number(p.amount || 0);
-      const payload = {
+      await saveExpenseTransaction({
+        id: p.id,
         date: p.date,
         category: p.category,
         amount: amt,
         description: p.description || null,
         payment_method: p.payment_method,
         payment_status: p.payment_status,
-        paid_amount: p.payment_status === "paid" ? amt : 0,
-        paid_at: p.payment_status === "paid" ? new Date().toISOString() : null,
-      };
-      const res = p.id
-        ? await expensesRepository.query().update(payload).eq("id", p.id)
-        : await expensesRepository.query().insert(payload);
-      if (res.error) throw res.error;
+      });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await expensesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteExpenseTransaction(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Deleted"); },
   });

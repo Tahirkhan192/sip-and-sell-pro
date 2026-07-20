@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { installOfflineFetchInterceptor } from "./fetch-interceptor";
 import { flushOutbox, scheduleOutboxFlush } from "./outbox";
 import { subscribeReadiness, isLocalReady } from "./readiness";
+import { subscribeLocalDataChanges } from "./local-events";
 
 /**
  * Bootstraps offline capability:
@@ -54,6 +55,9 @@ export function PwaBootstrap() {
         qc.invalidateQueries();
       }
     });
+    const unsubLocal = subscribeLocalDataChanges(() => {
+      qc.invalidateQueries();
+    });
 
     // Periodic safety-net flush (handles missed online events, backoff retries).
     const iv = window.setInterval(() => {
@@ -67,6 +71,7 @@ export function PwaBootstrap() {
       window.removeEventListener("online", onOnline);
       window.clearInterval(iv);
       unsubReady();
+      unsubLocal();
       stopPeriodicSync();
     };
   }, [qc]);

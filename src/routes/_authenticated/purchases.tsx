@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { ResizeHandle, useResizableColumns, measureTextWidth, type ColumnDef } from "@/components/ResizableColumns";
 import { toast } from "sonner";
 import { productsRepository, purchaseItemsRepository, purchasesRepository, stockItemsRepository } from "@/repositories";
+import { deletePurchaseTransaction, savePurchaseTransaction } from "@/pwa/transaction-engine";
 
 const PURCHASE_ITEM_COLUMNS: ColumnDef[] = [
   { key: "category", label: "Category", default: 140, min: 80 },
@@ -102,41 +103,22 @@ function Page() {
       }
       if (f.payment_status === "paid" && !f.payment_method) throw new Error("Choose Cash or Online for paid purchase");
 
-      const grand = f.items.reduce((a, l) => a + num(l.quantity) * num(l.unit_cost), 0);
-      const parentPayload: any = {
+      await savePurchaseTransaction({
+        id: f.id,
         date: f.date,
         supplier: f.supplier || null,
-        category: f.items[0]?.category ?? null,
         payment_status: f.payment_status,
-        payment_method: f.payment_status === "paid" ? f.payment_method : null,
-        grand_total: Number(grand.toFixed(2)),
+        payment_method: f.payment_method,
         notes: f.notes || null,
-      };
-
-      let purchaseId = f.id;
-      if (f.id) {
-        // Delete old items (trigger reverses stock via stock_purchases mirror)
-        await purchaseItemsRepository.query().delete().eq("purchase_id", f.id);
-        const { error } = await purchasesRepository.query().update(parentPayload).eq("id", f.id);
-        if (error) throw error;
-      } else {
-        const { data: ins, error } = await purchasesRepository.query().insert(parentPayload).select("id").single();
-        if (error) throw error;
-        purchaseId = ins.id;
-      }
-
-      const rows = f.items.map((l) => ({
-        purchase_id: purchaseId,
-        product_id: l.target === "product" ? l.product_id : null,
-        stock_item_id: l.target === "stock_item" ? l.stock_item_id : null,
-        category: l.category,
-        quantity: num(l.quantity),
-        unit: l.unit || null,
-        unit_cost: num(l.unit_cost),
-        total_cost: Number((num(l.quantity) * num(l.unit_cost)).toFixed(2)),
-      }));
-      const { error: ie } = await purchaseItemsRepository.query().insert(rows);
-      if (ie) throw ie;
+        items: f.items.map((l) => ({
+          product_id: l.target === "product" ? l.product_id : null,
+          stock_item_id: l.target === "stock_item" ? l.stock_item_id : null,
+          category: l.category,
+          quantity: num(l.quantity),
+          unit: l.unit || null,
+          unit_cost: num(l.unit_cost),
+        })),
+      });
     },
     onSuccess: () => { invalidateAll(); setOpen(false); setForm(empty); toast.success("Purchase saved"); },
     onError: (e: any) => toast.error(e.message),
@@ -144,10 +126,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      // hard delete children first (trigger reverses stock), then parent
-      await purchaseItemsRepository.query().delete().eq("purchase_id", id);
-      const { error } = await purchasesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deletePurchaseTransaction(id);
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },
     onError: (e: any) => toast.error(e.message),

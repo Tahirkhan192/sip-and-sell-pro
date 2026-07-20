@@ -408,8 +408,13 @@ export async function serveLocalRead(url: string, method: string, headers: Heade
   // HYBRID OFFLINE ARCHITECTURE:
   // When the browser is online, ALWAYS read from Lovable Cloud (the master
   // database) so no historical invoice / purchase / expense is ever missing.
-  // IndexedDB is only used as a fallback when the network is unavailable.
-  if (typeof navigator !== "undefined" && navigator.onLine) return null;
+  // IndexedDB is only used as a fallback when the network is unavailable, or
+  // while local transactions are still pending upload so freshly saved offline
+  // records remain visible immediately after reconnect.
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    const pending = await localDb().outbox.count().catch(() => 0);
+    if (pending === 0) return null;
+  }
   const q = parseQuery(url, headers, method);
   if (!q) return null;
   try {

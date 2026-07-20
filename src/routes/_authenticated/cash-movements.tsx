@@ -16,6 +16,7 @@ import { businessToday, formatBusinessTime, formatBusinessDate } from "@/lib/bus
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { cashMovementsRepository } from "@/repositories";
+import { deleteMoneyMovementTransaction, saveMoneyMovementTransaction } from "@/pwa/transaction-engine";
 
 export const Route = createFileRoute("/_authenticated/cash-movements")({ component: Page });
 
@@ -94,24 +95,13 @@ function Page() {
   const save = useMutation({
     mutationFn: async (f: FormState) => {
       if (!f.amount || Number(f.amount) <= 0) throw new Error("Enter a valid amount");
-      const editing = !!f.id;
-      const payload: any = {
+      await saveMoneyMovementTransaction({
+        id: f.id,
         type: f.direction,
         payment_source: f.payment_source,
         amount: Number(f.amount),
         notes: f.notes || null,
-        movement_category: null,
-        subcategory: null,
-        reason: f.notes || null,
-      };
-      if (!editing) {
-        payload.business_date = businessDate;
-        payload.occurred_at = new Date().toISOString();
-      }
-      const res = editing
-        ? await cashMovementsRepository.query().update(payload).eq("id", f.id!)
-        : await cashMovementsRepository.query().insert(payload);
-      if (res.error) throw res.error;
+      });
     },
     onSuccess: () => {
       toast.success(form.id ? "Movement updated" : "Movement saved");
@@ -124,8 +114,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await cashMovementsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteMoneyMovementTransaction(id);
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },
   });

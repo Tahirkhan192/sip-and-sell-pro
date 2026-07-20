@@ -35,6 +35,7 @@ type QuickRange = "date" | "week" | "month" | "overall";
 
 import { buildRange, formatBusinessTime, businessDateOf, businessToday, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
 import { salesRepository } from "@/repositories";
+import { deleteSaleTransaction } from "@/pwa/transaction-engine";
 
 function rangeFor(q: QuickRange, date: string): { from?: string; to?: string; startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
@@ -68,12 +69,7 @@ function Page() {
 
   const deleteMutation = useMutation({
     mutationFn: async (sale: any) => {
-      if (sale.status === "completed" || sale.status === "pending") {
-        const { error: restoreErr } = await supabase.rpc("restore_sale_stock", { _sale_id: sale.id });
-        if (restoreErr) throw restoreErr;
-      }
-      const { error } = await salesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", sale.id);
-      if (error) throw error;
+      await deleteSaleTransaction(sale.id);
     },
     onSuccess: () => {
       toast.success("KDF deleted");
