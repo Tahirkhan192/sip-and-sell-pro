@@ -1,19 +1,17 @@
 /**
- * Global fetch interceptor that makes Supabase REST writes offline-safe.
+ * Local-first fetch interceptor for Supabase REST writes.
  *
- * Behaviour:
- *   - Only touches requests targeting the current project's `/rest/v1/<table>`
- *     endpoints with a write method (POST / PATCH / DELETE / PUT).
- *   - RPC calls (/rest/v1/rpc/*), auth, storage, and reads pass through
- *     untouched — they still require connectivity.
- *   - When `navigator.onLine === false`, the request is enqueued in the local
- *     outbox and a synthetic 202 response is returned so the caller does not
- *     see an error.
- *   - When online and the fetch fails with a network error (TypeError),
- *     the request is enqueued and the caller sees success. HTTP errors
- *     (4xx / 5xx) pass through so RLS / validation still surface to the UI.
- *   - Successful writes and enqueued writes both mirror into IndexedDB so the
- *     local database stays consistent for offline reads.
+ * Behaviour (applies to POST / PATCH / DELETE / PUT against `/rest/v1/<table>`):
+ *   1. The request NEVER awaits the network.
+ *   2. The write is applied to IndexedDB immediately so Dashboard, Reports,
+ *      Stock, COGS, customer balances, pending payments all see it.
+ *   3. The request is queued in the outbox and flushed to Lovable Cloud in
+ *      the background. Same UUID is preserved on both sides.
+ *   4. A synthetic 200/201 response is returned to the caller, populated
+ *      with the mirrored row(s) so `.select().single()` still resolves.
+ *
+ * RPC calls (/rest/v1/rpc/*), auth, storage, and reads pass through
+ * unchanged. Reads always come from IndexedDB via the repo layer.
  *
  * Installed once at boot from `PwaBootstrap`.
  */
@@ -23,17 +21,33 @@ import { enqueueRequest, scheduleOutboxFlush } from "./outbox";
 
 let installed = false;
 
-function isRestWrite(url: string, method: string): { table: string } | null {
+type WriteTarget = { table: string; op: "insert" | "update" | "delete" | "upsert" };
+
+function newUuid(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function isRestWrite(url: string, method: string): WriteTarget | null {
   try {
     const u = new URL(url, typeof window !== "undefined" ? window.location.href : "http://x");
-    // Must be a Supabase REST endpoint.
     const m = u.pathname.match(/\/rest\/v1\/([^/?]+)$/);
     if (!m) return null;
     const table = m[1];
     if (table === "rpc") return null;
-    const write = ["POST", "PATCH", "DELETE", "PUT"].includes(method.toUpperCase());
-    if (!write) return null;
-    return { table };
+    const M = method.toUpperCase();
+    if (M === "POST") {
+      // POST with on_conflict acts as UPSERT in PostgREST.
+      return { table, op: u.searchParams.get("on_conflict") ? "upsert" : "insert" };
+    }
+    if (M === "PATCH" || M === "PUT") return { table, op: "update" };
+    if (M === "DELETE") return { table, op: "delete" };
+    return null;
   } catch {
     return null;
   }
@@ -41,53 +55,140 @@ function isRestWrite(url: string, method: string): { table: string } | null {
 
 async function headersToObject(input: HeadersInit | undefined, base?: Headers): Promise<Record<string, string>> {
   const h = new Headers(base);
-  if (input) {
-    new Headers(input).forEach((v, k) => h.set(k, v));
-  }
+  if (input) new Headers(input).forEach((v, k) => h.set(k, v));
   const out: Record<string, string> = {};
   h.forEach((v, k) => { out[k] = v; });
   return out;
 }
 
-async function mirrorToLocal(table: string, method: string, body: string | null, url: string) {
-  if (!body) return;
+/** Parse ?col=eq.value&other=eq.foo into a plain filter object. Only eq filters supported. */
+function parseEqFilters(url: string): Record<string, string> {
+  const out: Record<string, string> = {};
   try {
-    const parsed = JSON.parse(body);
-    const rows = Array.isArray(parsed) ? parsed : [parsed];
-    const dexie = localDb();
-    if (!dexie.tables.some((t) => t.name === table)) return;
-    if (method.toUpperCase() === "DELETE") {
-      // Body may be empty on delete; URL carries the filter — skip local mirror.
-      return;
+    const u = new URL(url);
+    u.searchParams.forEach((v, k) => {
+      if (k === "select" || k === "on_conflict" || k === "order" || k === "limit" || k === "offset") return;
+      if (v.startsWith("eq.")) out[k] = v.slice(3);
+    });
+  } catch { /* noop */ }
+  return out;
+}
+
+function matchesFilters(row: Record<string, unknown>, filters: Record<string, string>): boolean {
+  for (const [k, v] of Object.entries(filters)) {
+    if (String(row?.[k] ?? "") !== v) return false;
+  }
+  return true;
+}
+
+/**
+ * Apply the write to IndexedDB. Returns the resulting rows (for synthetic
+ * response). If the table isn't mirrored locally, returns null so callers
+ * can decide whether to fall back to the network.
+ */
+async function applyLocal(
+  target: WriteTarget,
+  bodyText: string | null,
+  url: string,
+): Promise<Array<Record<string, unknown>> | null> {
+  const dexie = localDb();
+  if (!dexie.tables.some((t) => t.name === target.table)) return null;
+  const tbl = dexie.table(target.table);
+  const nowIso = new Date().toISOString();
+
+  if (target.op === "delete") {
+    const filters = parseEqFilters(url);
+    if (!Object.keys(filters).length) return [];
+    // If filtering by id only, delete directly; otherwise scan.
+    if (filters.id && Object.keys(filters).length === 1) {
+      await tbl.delete(filters.id).catch(() => {});
+      return [{ id: filters.id }];
     }
-    // PATCH filters live in the URL; without ids in body we can't safely mirror.
-    // Try to grab id from url query (eq.id=...).
-    if (method.toUpperCase() === "PATCH") {
-      const idMatch = new URL(url).searchParams.get("id");
-      if (idMatch && idMatch.startsWith("eq.")) {
-        const id = idMatch.slice(3);
-        await dexie.table(table).update(id, { ...parsed, _dirty: 1 }).catch(() => {});
-      }
-      return;
+    const all = (await tbl.toArray()) as Array<Record<string, unknown>>;
+    const toDelete = all.filter((r) => matchesFilters(r, filters));
+    if (toDelete.length) {
+      await tbl.bulkDelete(toDelete.map((r) => String(r.id))).catch(() => {});
     }
-    // INSERT — bulk put, tag dirty.
-    const now = new Date().toISOString();
-    const withMeta = rows
-      .filter((r) => r && typeof r === "object")
-      .map((r) => ({ updated_at: now, ...r, _dirty: 1 }));
-    if (withMeta.length && withMeta.every((r) => r.id)) {
-      await dexie.table(table).bulkPut(withMeta as never).catch(() => {});
+    return toDelete.map((r) => ({ id: r.id }));
+  }
+
+  if (!bodyText) return [];
+  let parsed: unknown;
+  try { parsed = JSON.parse(bodyText); } catch { return []; }
+  const rows = (Array.isArray(parsed) ? parsed : [parsed]).filter(
+    (r): r is Record<string, unknown> => !!r && typeof r === "object",
+  );
+
+  if (target.op === "insert" || target.op === "upsert") {
+    const result: Array<Record<string, unknown>> = [];
+    for (const r of rows) {
+      const id = String((r.id as string | undefined) ?? "") || newUuid();
+      const merged: Record<string, unknown> = {
+        created_at: nowIso,
+        updated_at: nowIso,
+        ...r,
+        id,
+        _dirty: 1,
+        _op: target.op === "upsert" ? "update" : "insert",
+      };
+      await tbl.put(merged as never).catch(() => {});
+      result.push(merged);
     }
+    return result;
+  }
+
+  // update: PATCH with URL filters carrying id(s).
+  const filters = parseEqFilters(url);
+  const patch = rows[0] ?? {};
+  const patchWithMeta = { ...patch, updated_at: nowIso, _dirty: 1, _op: "update" as const };
+
+  if (filters.id && Object.keys(filters).length === 1) {
+    const existing = (await tbl.get(filters.id)) as Record<string, unknown> | undefined;
+    const merged = { ...(existing ?? { id: filters.id }), ...patchWithMeta, id: filters.id };
+    await tbl.put(merged as never).catch(() => {});
+    return [merged];
+  }
+  const all = (await tbl.toArray()) as Array<Record<string, unknown>>;
+  const matched = all.filter((r) => matchesFilters(r, filters));
+  const merged: Array<Record<string, unknown>> = [];
+  for (const row of matched) {
+    const next = { ...row, ...patchWithMeta, id: row.id };
+    merged.push(next);
+  }
+  if (merged.length) await tbl.bulkPut(merged as never).catch(() => {});
+  return merged;
+}
+
+/** Rewrite the outgoing body so any client-generated ids are also sent to the cloud. */
+function bodyWithMirroredIds(
+  originalBody: string | null,
+  mirrored: Array<Record<string, unknown>> | null,
+  op: WriteTarget["op"],
+): string | null {
+  if (!originalBody || !mirrored || mirrored.length === 0) return originalBody;
+  if (op !== "insert" && op !== "upsert") return originalBody;
+  try {
+    const parsed = JSON.parse(originalBody);
+    const wasArray = Array.isArray(parsed);
+    const rows = wasArray ? parsed : [parsed];
+    const withIds = rows.map((r: Record<string, unknown>, idx: number) => ({
+      ...r,
+      id: r?.id ?? mirrored[idx]?.id,
+    }));
+    return JSON.stringify(wasArray ? withIds : withIds[0]);
   } catch {
-    // Body wasn't JSON or table not present — skip mirror.
+    return originalBody;
   }
 }
 
-function syntheticAccepted(): Response {
-  return new Response(JSON.stringify([]), {
-    status: 202,
-    statusText: "Accepted (queued offline)",
-    headers: { "Content-Type": "application/json", "x-offline-queued": "1" },
+function syntheticResponse(rows: Array<Record<string, unknown>>, status = 200): Response {
+  return new Response(JSON.stringify(rows), {
+    status,
+    statusText: "OK (local-first)",
+    headers: {
+      "Content-Type": "application/json",
+      "x-local-first": "1",
+    },
   });
 }
 
@@ -118,59 +219,35 @@ export function installOfflineFetchInterceptor() {
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
 
-    const runOriginal = () => original(input as never, init);
-
-    // Fully offline — enqueue immediately.
-    if (!navigator.onLine) {
-      try {
-        await enqueueRequest({ url, method, headers, body });
-        await mirrorToLocal(target.table, method, body, url);
-      } catch (err) {
-        console.warn("[offline] failed to enqueue write", err);
-      }
-      return syntheticAccepted();
-    }
-
-    // Online — try the network first.
+    // 1) Apply to IndexedDB first.
+    let mirrored: Array<Record<string, unknown>> | null = null;
     try {
-      const res = await runOriginal();
-      // Success — mirror the write locally so reads stay fresh.
-      if (res.ok) {
-        try {
-          const cloned = res.clone();
-          // If server returned representation, prefer that; otherwise mirror request body.
-          const returned = await cloned.text();
-          if (returned && returned.length > 2) {
-            try {
-              const parsed = JSON.parse(returned);
-              const rows = Array.isArray(parsed) ? parsed : [parsed];
-              if (rows.length && rows.every((r: unknown) => r && typeof r === "object" && (r as { id?: string }).id)) {
-                await localDb().table(target.table).bulkPut(rows as never).catch(() => {});
-              } else {
-                await mirrorToLocal(target.table, method, body, url);
-              }
-            } catch {
-              await mirrorToLocal(target.table, method, body, url);
-            }
-          } else {
-            await mirrorToLocal(target.table, method, body, url);
-          }
-        } catch {
-          /* ignore mirror failure */
-        }
-      }
-      return res;
+      mirrored = await applyLocal(target, body, url);
     } catch (err) {
-      // Network-level failure — queue it.
-      try {
-        await enqueueRequest({ url, method, headers, body });
-        await mirrorToLocal(target.table, method, body, url);
-        scheduleOutboxFlush(2000);
-      } catch (qErr) {
-        console.warn("[offline] failed to enqueue write after fetch error", qErr);
-        throw err;
-      }
-      return syntheticAccepted();
+      console.warn("[local-first] mirror failed", err);
     }
+
+    // If table isn't mirrored locally, fall through to the network so the
+    // caller doesn't silently lose data (rare — most CUD tables are mirrored).
+    if (mirrored === null) {
+      return original(input as never, init);
+    }
+
+    // 2) Rewrite body so any client-generated UUIDs are sent to the cloud.
+    const cloudBody = bodyWithMirroredIds(body, mirrored, target.op);
+
+    // 3) Queue for background cloud sync — do NOT await the network.
+    try {
+      await enqueueRequest({ url, method, headers, body: cloudBody });
+      scheduleOutboxFlush(navigator.onLine ? 50 : 0);
+    } catch (err) {
+      console.warn("[local-first] failed to enqueue", err);
+    }
+
+    // 4) Return a synthetic response now. Status 201 for inserts (PostgREST
+    //    convention), 200 for update/delete/upsert. Body carries the row(s)
+    //    so `.select().single()` and callers reading returned data still work.
+    const status = target.op === "insert" ? 201 : 200;
+    return syntheticResponse(mirrored, status);
   };
 }
