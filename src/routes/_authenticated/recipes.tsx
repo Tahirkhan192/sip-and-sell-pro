@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import { Pencil, Trash2, Plus, Search, Copy } from "lucide-react";
 import { num } from "@/lib/format";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { productsRepository, recipesRepository, stockItemsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/recipes")({ component: RecipesPage });
 
@@ -36,17 +36,16 @@ function RecipesPage() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (awaitproductsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: stockItems = [] } = useQuery({
     queryKey: ["stock_items"],
-    queryFn: async () => (await supabase.from("stock_items").select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (awaitstockItemsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const { data = [] } = useQuery({
     queryKey: ["recipes"],
-    queryFn: async () => (await supabase
-      .from("recipes" as any)
+    queryFn: async () => (awaitrecipesRepository.query()
       .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })).data ?? [],
@@ -67,8 +66,8 @@ function RecipesPage() {
         unit: r.unit,
       };
       const res = r.id
-        ? await supabase.from("recipes" as any).update(payload).eq("id", r.id)
-        : await supabase.from("recipes" as any).insert(payload);
+        ? awaitrecipesRepository.query().update(payload).eq("id", r.id)
+        : awaitrecipesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Saved"); setOpen(false); },
@@ -77,7 +76,7 @@ function RecipesPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("recipes" as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = awaitrecipesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Deleted"); },

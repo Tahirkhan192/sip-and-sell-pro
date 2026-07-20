@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { categoriesRepository, productsRepository, stockItemsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/categories")({ component: Page });
 
@@ -35,7 +35,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["categories", "admin"],
-    queryFn: async () => (await supabase.from("categories" as any).select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
+    queryFn: async () => (awaitcategoriesRepository.query().select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
   });
 
   const invalidateAll = () => {
@@ -56,8 +56,8 @@ function Page() {
         active: p.active,
       };
       const res = p.id
-        ? await supabase.from("categories" as any).update(payload).eq("id", p.id)
-        : await supabase.from("categories" as any).insert(payload);
+        ? awaitcategoriesRepository.query().update(payload).eq("id", p.id)
+        : awaitcategoriesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Saved"); },
@@ -66,7 +66,7 @@ function Page() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("categories" as any).update({ active }).eq("id", id);
+      const { error } = awaitcategoriesRepository.query().update({ active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => invalidateAll(),
@@ -75,17 +75,15 @@ function Page() {
   const del = useMutation({
     mutationFn: async (c: any) => {
       // Check if any product / stock_item references this category
-      const [{ count: prodCount }, { count: stockCount }] = await Promise.all([
-        supabase.from("products").select("id", { count: "exact", head: true }).eq("category", c.name).is("deleted_at", null),
-        supabase.from("stock_items").select("id", { count: "exact", head: true }).eq("category", c.name as any).is("deleted_at", null),
+      const [{ count: prodCount }, { count: stockCount }] = await Promise.all([productsRepository.query().select("id", { count: "exact", head: true }).eq("category", c.name).is("deleted_at", null),stockItemsRepository.query().select("id", { count: "exact", head: true }).eq("category", c.name as any).is("deleted_at", null),
       ]);
       if ((prodCount ?? 0) > 0 || (stockCount ?? 0) > 0) {
         // mark inactive instead
-        const { error } = await supabase.from("categories" as any).update({ active: false }).eq("id", c.id);
+        const { error } = awaitcategoriesRepository.query().update({ active: false }).eq("id", c.id);
         if (error) throw error;
         return { softened: true };
       }
-      const { error } = await supabase.from("categories" as any).update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
+      const { error } = awaitcategoriesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
       if (error) throw error;
       return { softened: false };
     },

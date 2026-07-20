@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/CrudHelpers";
 import { money, num, today, startOfMonth } from "@/lib/format";
+import { deliveryExpensesRepository, salesRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/delivery-report")({ component: Page });
 
@@ -18,8 +18,7 @@ function Page() {
 
   const { data: deliveries = [] } = useQuery({
     queryKey: ["delivery_report", from, to],
-    queryFn: async () => (await supabase
-      .from("sales")
+    queryFn: async () => (awaitsalesRepository.query()
       .select("id, invoice_no, sale_date, customer_name, delivery_charges, status, grand_total")
       .is("deleted_at", null)
       .gt("delivery_charges", 0)
@@ -31,8 +30,7 @@ function Page() {
 
   const { data: expenses = [] } = useQuery({
     queryKey: ["delivery_expenses_report", from, to],
-    queryFn: async () => (await supabase
-      .from("delivery_expenses")
+    queryFn: async () => (awaitdeliveryExpensesRepository.query()
       .select("*")
       .is("deleted_at", null)
       .gte("date", from)

@@ -13,6 +13,7 @@ import { money } from "@/lib/format";
 import { toast } from "sonner";
 import { businessDayEndUTC, businessDayStartUTC, businessToday } from "@/lib/business-date";
 import { useReportEngine } from "@/lib/report-engine";
+import { dailyClosingsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/daily-closing")({ component: Page });
 
@@ -76,7 +77,7 @@ function Page() {
 
   const { data: history = [] } = useQuery({
     queryKey: ["daily_closing", "history"],
-    queryFn: async () => (await supabase.from("daily_closings" as any).select("*").order("closing_date", { ascending: false }).range(0, 99999)).data ?? [],
+    queryFn: async () => (awaitdailyClosingsRepository.query().select("*").order("closing_date", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const save = useMutation({
@@ -88,7 +89,7 @@ function Page() {
         notes: notes || null,
         closed_at: new Date().toISOString(),
       };
-      const { error } = await supabase.from("daily_closings" as any).upsert(payload, { onConflict: "closing_date" });
+      const { error } = awaitdailyClosingsRepository.query().upsert(payload, { onConflict: "closing_date" });
       if (error) throw error;
     },
     onSuccess: () => {

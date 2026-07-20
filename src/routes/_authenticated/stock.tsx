@@ -16,6 +16,7 @@ import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
 import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
+import { productsRepository, saleItemsRepository, stockItemsRepository, stockPurchasesRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/stock")({ component: Page });
 
@@ -75,11 +76,11 @@ function CurrentStock() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["stock", "products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (awaitproductsRepository.query().select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: items = [] } = useQuery({
     queryKey: ["stock", "items"],
-    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (awaitstockItemsRepository.query().select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const filtered = useMemo(() => {
@@ -191,15 +192,15 @@ function MonthlyStock() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["stock-monthly", "products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,opening_stock,current_stock,cost_price").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (awaitproductsRepository.query().select("id,name,opening_stock,current_stock,cost_price").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: purchases = [] } = useQuery({
     queryKey: ["stock-monthly", "purchases", from, to],
-    queryFn: async () => (await supabase.from("stock_purchases").select("product_id,quantity,total_cost").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to)).data ?? [],
+    queryFn: async () => (awaitstockPurchasesRepository.query().select("product_id,quantity,total_cost").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to)).data ?? [],
   });
   const { data: sales = [] } = useQuery({
     queryKey: ["stock-monthly", "sales", from, toNext],
-    queryFn: async () => (await supabase.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at)").gte("sales.sale_date", from).lt("sales.sale_date", toNext)).data ?? [],
+    queryFn: async () => (awaitsaleItemsRepository.query().select("product_id,quantity,sales!inner(sale_date,status,deleted_at)").gte("sales.sale_date", from).lt("sales.sale_date", toNext)).data ?? [],
   });
 
   const rows = useMemo(() => {

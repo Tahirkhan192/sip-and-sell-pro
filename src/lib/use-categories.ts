@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIES } from "@/lib/categories";
+import { categoriesRepository } from "@/repositories";
 
 export type CategoryRow = {
   id: string;
@@ -16,8 +16,7 @@ export function useCategories(opts: { activeOnly?: boolean } = { activeOnly: tru
   return useQuery({
     queryKey: ["categories", opts.activeOnly ?? true],
     queryFn: async () => {
-      let q = supabase
-        .from("categories" as any)
+      let q =categoriesRepository.query()
         .select("name, sort_order, active")
         .is("deleted_at", null)
         .order("sort_order")
@@ -35,8 +34,7 @@ export function useCategoryRows() {
   return useQuery({
     queryKey: ["categories", "rows"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("categories" as any)
+      const { data } = awaitcategoriesRepository.query()
         .select("*")
         .is("deleted_at", null)
         .order("sort_order")

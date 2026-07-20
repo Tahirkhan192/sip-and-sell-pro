@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { expenseCategoriesRepository } from "@/repositories";
 
 export type ExpenseCategoryRow = {
   id: string;
@@ -33,7 +34,7 @@ export function useExpenseCategoryMutations() {
 
   const add = useMutation({
     mutationFn: async (name: string) => {
-      const { error } = await (supabase as any).from("expense_categories").insert({ name: name.trim() });
+      const { error } = await expenseCategoriesRepository.query().insert({ name: name.trim() });
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Category added"); },
@@ -41,7 +42,7 @@ export function useExpenseCategoryMutations() {
   });
   const rename = useMutation({
     mutationFn: async (p: { id: string; name: string }) => {
-      const { error } = await (supabase as any).from("expense_categories").update({ name: p.name.trim() }).eq("id", p.id);
+      const { error } = await expenseCategoriesRepository.query().update({ name: p.name.trim() }).eq("id", p.id);
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Renamed"); },
@@ -49,14 +50,14 @@ export function useExpenseCategoryMutations() {
   });
   const toggle = useMutation({
     mutationFn: async (p: { id: string; active: boolean }) => {
-      const { error } = await (supabase as any).from("expense_categories").update({ active: p.active }).eq("id", p.id);
+      const { error } = await expenseCategoriesRepository.query().update({ active: p.active }).eq("id", p.id);
       if (error) throw error;
     },
     onSuccess: () => invalidate(),
   });
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("expense_categories").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await expenseCategoriesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Deleted"); },

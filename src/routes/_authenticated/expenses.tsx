@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Settings2 } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { expensesRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
@@ -38,7 +38,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["expenses"],
-    queryFn: async () => (await supabase.from("expenses").select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
+    queryFn: async () => (awaitexpensesRepository.query().select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const save = useMutation({
@@ -55,8 +55,8 @@ function Page() {
         paid_at: p.payment_status === "paid" ? new Date().toISOString() : null,
       };
       const res = p.id
-        ? await supabase.from("expenses").update(payload).eq("id", p.id)
-        : await supabase.from("expenses").insert(payload);
+        ? awaitexpensesRepository.query().update(payload).eq("id", p.id)
+        : awaitexpensesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Saved"); },
@@ -64,7 +64,7 @@ function Page() {
   });
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = awaitexpensesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Deleted"); },
