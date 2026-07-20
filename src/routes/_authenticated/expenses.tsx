@@ -100,31 +100,47 @@ function Page() {
             {categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Manage</Button>
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Payment</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
-            {filtered.map((p: any) => (
+            {filtered.map((p: any) => {
+              const status = (p.payment_status ?? "paid") as "paid" | "unpaid";
+              return (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
                 <TableCell className="capitalize">{p.payment_method ?? "cash"}</TableCell>
+                <TableCell><span className={"inline-block rounded px-2 py-0.5 text-xs " + (status === "paid" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>{status}</span></TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online" }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
-            ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
+              );
+            })}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">No expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
-          <div className="flex justify-end border-t px-4 py-2 text-sm font-medium">Total: {money(total)}</div>
+          <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-medium">
+            <span>Paid: {money(totalPaid)}</span>
+            <span>Unpaid: {money(totalUnpaid)}</span>
+            <span>Total: {money(total)}</span>
+          </div>
         )}
       </Card>
 
