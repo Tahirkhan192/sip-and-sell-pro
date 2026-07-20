@@ -1,8 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { productsRepository } from "@/repositories";
-
 function supabaseFor(ctx: ToolContext) {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
@@ -24,7 +22,7 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseFor(ctx);
-    let q =productsRepository.query()
+    let q =supabase.from("products")
       .select("id, name, category, current_stock, sale_price, cost_price, unit")
       .order("name")
       .limit(limit);
