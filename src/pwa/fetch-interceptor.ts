@@ -18,6 +18,7 @@
 
 import { localDb } from "./db";
 import { enqueueRequest, scheduleOutboxFlush } from "./outbox";
+import { runLocalTriggers } from "./local-triggers";
 
 let installed = false;
 
