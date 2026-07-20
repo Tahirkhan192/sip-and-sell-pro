@@ -23,7 +23,7 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseFor(ctx);
-    let q =supabase.from("sales")
+    let q = supabase.from("sales")
       .select("invoice_no, business_date, sale_date, customer_name, payment_method, grand_total, status")
       .is("deleted_at", null)
       .order("business_date", { ascending: false })

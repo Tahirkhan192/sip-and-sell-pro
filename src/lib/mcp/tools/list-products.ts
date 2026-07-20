@@ -22,7 +22,7 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseFor(ctx);
-    let q =supabase.from("products")
+    let q = supabase.from("products")
       .select("id, name, category, current_stock, sale_price, cost_price, unit")
       .order("name")
       .limit(limit);
