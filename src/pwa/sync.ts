@@ -154,6 +154,18 @@ export async function syncFromCloud(): Promise<{ ok: boolean; error?: string }> 
   state.progress = { done: 0, total: SYNCED_TABLES.length, table: null };
   emit();
   try {
+    // One-time repair: earlier versions used offset pagination which stranded
+    // rows past PostgREST's `max_rows` cap (default 1000). Reset every table
+    // cursor once so keyset-based re-hydration back-fills the full history.
+    const repairKey = "repair_keyset_v1";
+    const repaired = await localDb().meta.get(repairKey);
+    if (!repaired) {
+      for (const t of SYNCED_TABLES) {
+        await localDb().meta.delete(`cursor:${t}`);
+      }
+      await localDb().meta.put({ key: repairKey, value: new Date().toISOString() });
+    }
+
     let done = 0;
     for (const t of SYNCED_TABLES) {
       state.progress = { done, total: SYNCED_TABLES.length, table: t };
