@@ -149,6 +149,16 @@ export async function flushOutbox(): Promise<{ processed: number; failed: number
           continue;
         }
         await localDb().outbox.delete(row.id!);
+        // Clear the local _dirty flag now that the cloud confirmed the write.
+        try {
+          if (row.row_id && localDb().tables.some((t) => t.name === row.table)) {
+            const tbl = localDb().table(row.table);
+            const existing = (await tbl.get(row.row_id)) as Record<string, unknown> | undefined;
+            if (existing && existing._dirty === 1) {
+              await tbl.put({ ...existing, _dirty: 0, _op: null } as never);
+            }
+          }
+        } catch { /* noop */ }
         processed++;
       } catch (err) {
         // Network error — retry with backoff and stop the loop.
