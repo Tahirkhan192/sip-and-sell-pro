@@ -127,7 +127,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     return q;
   };
   const buildExpenses = () => {
-    let q = supabase.from("expenses" as any).select("amount").is("deleted_at", null).order("date", { ascending: false });
+    let q = supabase.from("expenses" as any).select("amount, payment_status, payment_method").is("deleted_at", null).order("date", { ascending: false });
     if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
     return q;
   };
@@ -142,7 +142,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     return q;
   };
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
-  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price").is("deleted_at", null).order("name");
+  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
 
   const overridesPromise = range.from
@@ -335,6 +335,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
+  // Include stock items in opening/closing valuation so Monthly Report reflects them.
+  for (const si of stockItems) {
+    const cat = ensureCat(si.category ?? "—");
+    const price = num(si.purchase_price);
+    cat.opening += num(si.opening_stock) * price;
+    cat.closing += num(si.current_stock) * price;
+  }
   for (const [category, override] of Object.entries(catOverride)) {
     const cat = ensureCat(category);
     if (override.opening !== undefined) cat.opening = override.opening;
@@ -342,6 +349,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   }
 
   const generalExpenses = expenses.reduce((s, e) => s + num(e.amount), 0);
+  const paidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "paid") ? num(e.amount) : 0), 0);
+  const unpaidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "unpaid") ? num(e.amount) : 0), 0);
   const deliveryExpenseTotal = deliveryExpenses.reduce((s, e) => s + num(e.fuel_cost) + num(e.maintenance_cost), 0);
   const deliveryProfit = deliveryCharges - deliveryExpenseTotal;
 
