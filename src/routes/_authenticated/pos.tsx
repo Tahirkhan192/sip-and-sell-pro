@@ -17,6 +17,7 @@ import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 import { listProductsLocal, getSaleWithItemsLocal, searchCustomersLocal, searchPendingSalesLocal } from "@/lib/local-repo";
+import { salesRepository } from "@/repositories";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -246,7 +247,7 @@ function POS() {
       // Pending invoices already reduced stock — restore before soft-delete.
       const { error: restoreErr } = await supabase.rpc("restore_sale_stock" as any, { _sale_id: id });
       if (restoreErr) throw restoreErr;
-      const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await salesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -312,7 +313,7 @@ function POS() {
       if (error) throw error;
       // If cashier chose a back-date, sync sale_date
       if (data && saleTs && saleDate && saleDate !== today) {
-        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
+        await salesRepository.query().update({ sale_date: saleTs } as any).eq("id", (data as any).id);
       }
       return { sale: data, status };
     },

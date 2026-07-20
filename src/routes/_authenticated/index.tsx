@@ -96,7 +96,7 @@ function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-            {categories.map((c) => {
+            {categories.map((c: any) => {
               const cd = d?.catMap?.[c] ?? { todaySales: 0, monthSales: 0, monthCogs: 0, monthPurch: 0 };
               const monthProfit = cd.monthSales - cd.monthCogs;
               return (

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -18,6 +17,7 @@ import {
   setBusinessConfig,
   subscribeBusinessConfig,
 } from "@/lib/business-date";
+import { settingsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/settings")({ component: SettingsPage });
 
@@ -75,7 +75,7 @@ function BusinessSettings() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["settings"],
-    queryFn: async () => (await supabase.from("settings" as any).select("*").eq("id", 1).maybeSingle()).data as any,
+    queryFn: async () => (await settingsRepository.query().select("*").eq("id", 1).maybeSingle()).data as any,
   });
 
   const [tz, setTz] = useState<string>("Asia/Karachi");
@@ -91,7 +91,7 @@ function BusinessSettings() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("settings" as any).upsert({
+      const { error } = await settingsRepository.query().upsert({
         id: 1,
         timezone: tz,
         business_day_start_time: startTime.length === 5 ? `${startTime}:00` : startTime,
@@ -155,13 +155,13 @@ function SettingsPage() {
   const [allowNeg, setAllowNeg] = useState(false);
   const { data } = useQuery({
     queryKey: ["settings"],
-    queryFn: async () => (await supabase.from("settings" as any).select("*").eq("id", 1).maybeSingle()).data,
+    queryFn: async () => (await settingsRepository.query().select("*").eq("id", 1).maybeSingle()).data,
   });
   useEffect(() => { if (data) setAllowNeg(!!(data as any).allow_negative_stock); }, [data]);
 
   const save = useMutation({
     mutationFn: async (v: boolean) => {
-      const { error } = await supabase.from("settings" as any).upsert({ id: 1, allow_negative_stock: v, updated_at: new Date().toISOString() });
+      const { error } = await settingsRepository.query().upsert({ id: 1, allow_negative_stock: v, updated_at: new Date().toISOString() });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["settings"] }); },

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +15,7 @@ import { money } from "@/lib/format";
 import { businessToday, formatBusinessTime, formatBusinessDate } from "@/lib/business-date";
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { cashMovementsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/cash-movements")({ component: Page });
 
@@ -60,7 +60,7 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
-      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
+      let q =cashMovementsRepository.query().select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
       if (typeFilter !== "all") q = q.eq("type", typeFilter);
       if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
@@ -109,8 +109,8 @@ function Page() {
         payload.occurred_at = new Date().toISOString();
       }
       const res = editing
-        ? await supabase.from("cash_movements" as any).update(payload).eq("id", f.id!)
-        : await supabase.from("cash_movements" as any).insert(payload);
+        ? await cashMovementsRepository.query().update(payload).eq("id", f.id!)
+        : await cashMovementsRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => {
@@ -124,7 +124,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("cash_movements" as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await cashMovementsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },

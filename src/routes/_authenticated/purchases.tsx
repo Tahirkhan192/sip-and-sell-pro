@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { formatBusinessTime, businessDateOf } from "@/lib/business-date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,7 @@ import { useCategories } from "@/lib/use-categories";
 import { PageHeader } from "@/components/CrudHelpers";
 import { ResizeHandle, useResizableColumns, measureTextWidth, type ColumnDef } from "@/components/ResizableColumns";
 import { toast } from "sonner";
+import { productsRepository, purchaseItemsRepository, purchasesRepository, stockItemsRepository } from "@/repositories";
 
 const PURCHASE_ITEM_COLUMNS: ColumnDef[] = [
   { key: "category", label: "Category", default: 140, min: 80 },
@@ -66,16 +66,15 @@ function Page() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active-all"],
-    queryFn: async () => (await supabase.from("products").select("id,name,category,unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("id,name,category,unit").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", "all"],
-    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,category").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("id,name,unit,category").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data = [] } = useQuery({
     queryKey: ["purchases_v2"],
-    queryFn: async () => (await (supabase as any)
-      .from("purchases")
+    queryFn: async () => (await purchasesRepository.query()
       .select("*, purchase_items(*, products(name,unit), stock_items(name,unit))")
       .is("deleted_at", null)
       .order("date", { ascending: false })
@@ -117,11 +116,11 @@ function Page() {
       let purchaseId = f.id;
       if (f.id) {
         // Delete old items (trigger reverses stock via stock_purchases mirror)
-        await (supabase as any).from("purchase_items").delete().eq("purchase_id", f.id);
-        const { error } = await (supabase as any).from("purchases").update(parentPayload).eq("id", f.id);
+        await purchaseItemsRepository.query().delete().eq("purchase_id", f.id);
+        const { error } = await purchasesRepository.query().update(parentPayload).eq("id", f.id);
         if (error) throw error;
       } else {
-        const { data: ins, error } = await (supabase as any).from("purchases").insert(parentPayload).select("id").single();
+        const { data: ins, error } = await purchasesRepository.query().insert(parentPayload).select("id").single();
         if (error) throw error;
         purchaseId = ins.id;
       }
@@ -136,7 +135,7 @@ function Page() {
         unit_cost: num(l.unit_cost),
         total_cost: Number((num(l.quantity) * num(l.unit_cost)).toFixed(2)),
       }));
-      const { error: ie } = await (supabase as any).from("purchase_items").insert(rows);
+      const { error: ie } = await purchaseItemsRepository.query().insert(rows);
       if (ie) throw ie;
     },
     onSuccess: () => { invalidateAll(); setOpen(false); setForm(empty); toast.success("Purchase saved"); },
@@ -146,8 +145,8 @@ function Page() {
   const del = useMutation({
     mutationFn: async (id: string) => {
       // hard delete children first (trigger reverses stock), then parent
-      await (supabase as any).from("purchase_items").delete().eq("purchase_id", id);
-      const { error } = await (supabase as any).from("purchases").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      await purchaseItemsRepository.query().delete().eq("purchase_id", id);
+      const { error } = await purchasesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },

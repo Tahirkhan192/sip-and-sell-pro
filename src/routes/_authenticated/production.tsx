@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { money, num } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2, ChefHat, Plus } from "lucide-react";
+import { productionBatchesRepository, productsRepository, recipesRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/production")({ component: ProductionPage });
 
@@ -26,9 +27,7 @@ function ProductionPage() {
   const { data: recipeProducts = [] } = useQuery({
     queryKey: ["production", "recipe-products"],
     queryFn: async () => {
-      const [recQ, prodQ] = await Promise.all([
-        supabase.from("recipes").select("parent_product_id").is("deleted_at", null),
-        supabase.from("products").select("id,name,category,cost_price,current_stock,unit").is("deleted_at", null).eq("active", true).order("name"),
+      const [recQ, prodQ] = await Promise.all([recipesRepository.query().select("parent_product_id").is("deleted_at", null),productsRepository.query().select("id,name,category,cost_price,current_stock,unit").is("deleted_at", null).eq("active", true).order("name"),
       ]);
       const ids = new Set((recQ.data ?? []).map((r: any) => r.parent_product_id));
       return (prodQ.data ?? []).filter((p: any) => ids.has(p.id));
@@ -44,8 +43,7 @@ function ProductionPage() {
   const { data: recipe = [] } = useQuery({
     queryKey: ["production", "recipe", productId],
     enabled: !!productId,
-    queryFn: async () => (await supabase
-      .from("recipes")
+    queryFn: async () => (await recipesRepository.query()
       .select("quantity, component_product_id, component_stock_item_id, products:component_product_id(name, category, cost_price), stock_items:component_stock_item_id(name, category, purchase_price)")
       .eq("parent_product_id", productId)
       .is("deleted_at", null)).data ?? [],
@@ -62,8 +60,7 @@ function ProductionPage() {
 
   const { data: batches = [] } = useQuery({
     queryKey: ["production", "batches"],
-    queryFn: async () => (await supabase
-      .from("production_batches")
+    queryFn: async () => (await productionBatchesRepository.query()
       .select("*, products(name, category), production_batch_items(*, products:component_product_id(name, category), stock_items:component_stock_item_id(name, category))")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })

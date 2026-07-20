@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +14,7 @@ import { money, num, today } from "@/lib/format";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { toast } from "sonner";
+import { stockItemsRepository, suppliersRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/stock-items")({ component: Page });
 
@@ -47,12 +47,12 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["stock_items"],
-    queryFn: async () => (await supabase.from("stock_items").select("*").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
-    queryFn: async () => (await supabase.from("suppliers").select("id, name").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await suppliersRepository.query().select("id, name").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const save = useMutation({
@@ -69,7 +69,7 @@ function Page() {
         purchase_date: p.purchase_date || null,
         notes: p.notes || null,
       };
-      const res = p.id ? await supabase.from("stock_items").update(payload).eq("id", p.id) : await supabase.from("stock_items").insert(payload);
+      const res = p.id ? await stockItemsRepository.query().update(payload).eq("id", p.id) : await stockItemsRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => {
@@ -83,7 +83,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_items").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await stockItemsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock_items"] }); toast.success("Deleted"); },
@@ -104,7 +104,7 @@ function Page() {
           <Button variant="outline" onClick={async () => {
             if (!confirm("Copy Current Stock → Opening Stock for ALL stock items? Use this at the start of a new business month after physical stock counting.")) return;
             for (const r of data as any[]) {
-              const { error } = await supabase.from("stock_items").update({ opening_stock: num(r.current_stock) }).eq("id", r.id);
+              const { error } = await stockItemsRepository.query().update({ opening_stock: num(r.current_stock) }).eq("id", r.id);
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["stock_items"] });
@@ -124,7 +124,7 @@ function Page() {
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {categories.map((c: any) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -181,7 +181,7 @@ function Page() {
           <div className="space-y-2"><Label>Category *</Label>
             <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <SelectContent>{categories.map((c: any) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>

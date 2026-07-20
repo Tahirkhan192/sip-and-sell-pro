@@ -16,6 +16,7 @@ import { PageHeader, CrudDialog } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { useExpenseCategories } from "@/lib/use-expense-categories";
 import { money, num, today } from "@/lib/format";
+import { productsRepository, stockItemsRepository, stockTransfersRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/stock-transfer")({ component: Page });
 
@@ -57,15 +58,15 @@ function Page() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "all-for-transfer"],
-    queryFn: async () => (await supabase.from("products").select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: stockItems = [] } = useQuery({
     queryKey: ["stock_items", "all-for-transfer"],
-    queryFn: async () => (await supabase.from("stock_items").select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: transfers = [] } = useQuery({
     queryKey: ["stock_transfers"],
-    queryFn: async () => (await (supabase as any).from("stock_transfers").select("*").is("deleted_at", null).order("created_at", { ascending: false }).range(0, 99999)).data ?? [],
+    queryFn: async () => (await stockTransfersRepository.query().select("*").is("deleted_at", null).order("created_at", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const selectedItem = useMemo(() => {
@@ -131,7 +132,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("stock_transfers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await stockTransfersRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Transfer removed"); },

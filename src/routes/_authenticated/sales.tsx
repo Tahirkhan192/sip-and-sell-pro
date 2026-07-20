@@ -34,6 +34,7 @@ function StatusBadge({ s }: { s: any }) {
 type QuickRange = "date" | "week" | "month" | "overall";
 
 import { buildRange, formatBusinessTime, businessDateOf, businessToday, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
+import { salesRepository } from "@/repositories";
 
 function rangeFor(q: QuickRange, date: string): { from?: string; to?: string; startUTC?: string; endExclusiveUTC?: string } {
   if (q === "overall") return {};
@@ -71,7 +72,7 @@ function Page() {
         const { error: restoreErr } = await supabase.rpc("restore_sale_stock", { _sale_id: sale.id });
         if (restoreErr) throw restoreErr;
       }
-      const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", sale.id);
+      const { error } = await salesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", sale.id);
       if (error) throw error;
     },
     onSuccess: () => {

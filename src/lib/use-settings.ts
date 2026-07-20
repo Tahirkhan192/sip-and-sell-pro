@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { getBusinessConfig, parseTimeString, setBusinessConfig } from "@/lib/business-date";
+import { settingsRepository } from "@/repositories";
 
 export type SettingsRow = {
   id: number;
@@ -20,7 +20,7 @@ export function useSettings() {
   return useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
-      const { data } = await supabase.from("settings" as any).select("*").eq("id", 1).maybeSingle();
+      const { data } = await settingsRepository.query().select("*").eq("id", 1).maybeSingle();
       return (data ?? null) as SettingsRow | null;
     },
     staleTime: 60_000,
