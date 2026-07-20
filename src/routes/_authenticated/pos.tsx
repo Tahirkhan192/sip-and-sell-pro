@@ -117,19 +117,17 @@ function POS() {
   }, [editingSale]);
 
   const { data: customerSuggestions = [] } = useQuery({
-    queryKey: ["customers", "search", customerSearch.trim().toLowerCase()],
+    queryKey: ["customers", "search", customerSearch.trim().toLowerCase(), "local"],
     enabled: customerSearch.trim().length >= 2,
-    queryFn: async () => (await supabase.from("customers").select("id, name, phone, outstanding_balance")
-      .is("deleted_at", null)
-      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
-      .limit(6)).data ?? [],
+    queryFn: () => searchCustomersLocal(customerSearch),
   });
 
   const { data: pendingInvoices = [] } = useQuery({
-    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
+    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase(), "local"],
     enabled: invoiceSearch.trim().length >= 2,
-    queryFn: async () => (await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? [],
+    queryFn: () => searchPendingSalesLocal(invoiceSearch),
   });
+
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
