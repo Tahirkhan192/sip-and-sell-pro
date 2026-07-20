@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,7 +16,6 @@ import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 import { listProductsLocal, getSaleWithItemsLocal, searchCustomersLocal, searchPendingSalesLocal } from "@/lib/local-repo";
-import { salesRepository } from "@/repositories";
 import { deleteSaleTransaction, saveSaleTransaction } from "@/pwa/transaction-engine";
 
 const searchSchema = z.object({ edit: z.string().optional() });

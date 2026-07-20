@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,6 @@ function StatusBadge({ s }: { s: any }) {
 type QuickRange = "date" | "week" | "month" | "overall";
 
 import { buildRange, formatBusinessTime, businessDateOf, businessToday, businessDayStartUTC, businessDayEndUTC } from "@/lib/business-date";
-import { salesRepository } from "@/repositories";
 import { deleteSaleTransaction } from "@/pwa/transaction-engine";
 
 function rangeFor(q: QuickRange, date: string): { from?: string; to?: string; startUTC?: string; endExclusiveUTC?: string } {

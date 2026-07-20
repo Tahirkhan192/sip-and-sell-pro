@@ -17,7 +17,7 @@ import { useCategories } from "@/lib/use-categories";
 import { PageHeader } from "@/components/CrudHelpers";
 import { ResizeHandle, useResizableColumns, measureTextWidth, type ColumnDef } from "@/components/ResizableColumns";
 import { toast } from "sonner";
-import { productsRepository, purchaseItemsRepository, purchasesRepository, stockItemsRepository } from "@/repositories";
+import { productsRepository, purchasesRepository, stockItemsRepository } from "@/repositories";
 import { deletePurchaseTransaction, savePurchaseTransaction } from "@/pwa/transaction-engine";
 
 const PURCHASE_ITEM_COLUMNS: ColumnDef[] = [
