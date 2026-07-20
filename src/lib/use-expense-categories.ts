@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { expenseCategoriesRepository } from "@/repositories";
 
@@ -14,8 +13,7 @@ export function useExpenseCategories(opts: { activeOnly?: boolean } = { activeOn
   return useQuery({
     queryKey: ["expense_categories", opts.activeOnly ?? true],
     queryFn: async () => {
-      let q = (supabase as any)
-        .from("expense_categories")
+      let q = expenseCategoriesRepository.query()
         .select("id, name, active, sort_order")
         .is("deleted_at", null)
         .order("sort_order")

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { formatBusinessTime, businessDateOf } from "@/lib/business-date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,8 +74,7 @@ function Page() {
   });
   const { data = [] } = useQuery({
     queryKey: ["purchases_v2"],
-    queryFn: async () => (await (supabase as any)
-      .from("purchases")
+    queryFn: async () => (await purchasesRepository.query()
       .select("*, purchase_items(*, products(name,unit), stock_items(name,unit))")
       .is("deleted_at", null)
       .order("date", { ascending: false })
