@@ -19,6 +19,7 @@
 import { localDb } from "./db";
 import { enqueueRequest, scheduleOutboxFlush } from "./outbox";
 import { runLocalTriggers } from "./local-triggers";
+import { serveLocalRead } from "./local-read";
 
 let installed = false;
 
@@ -230,6 +231,19 @@ export function installOfflineFetchInterceptor() {
       body = init?.body != null ? String(init.body) : null;
     }
     headers = await headersToObject(init?.headers, baseHeaders);
+
+    // Local-first READS: serve GET/HEAD against /rest/v1/<table> from IndexedDB.
+    const M = method.toUpperCase();
+    if (M === "GET" || M === "HEAD") {
+      try {
+        const hdrs = new Headers(headers);
+        const local = await serveLocalRead(url, M, hdrs);
+        if (local) return local;
+      } catch (err) {
+        console.warn("[local-first] read interceptor failed", err);
+      }
+      return original(input as never, init);
+    }
 
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
