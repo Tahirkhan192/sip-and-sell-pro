@@ -232,6 +232,19 @@ export function installOfflineFetchInterceptor() {
     }
     headers = await headersToObject(init?.headers, baseHeaders);
 
+    // Local-first READS: serve GET/HEAD against /rest/v1/<table> from IndexedDB.
+    const M = method.toUpperCase();
+    if (M === "GET" || M === "HEAD") {
+      try {
+        const hdrs = new Headers(headers);
+        const local = await serveLocalRead(url, M, hdrs);
+        if (local) return local;
+      } catch (err) {
+        console.warn("[local-first] read interceptor failed", err);
+      }
+      return original(input as never, init);
+    }
+
     const target = isRestWrite(url, method);
     if (!target) return original(input as never, init);
 
