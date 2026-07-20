@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,7 +16,7 @@ import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 import { listProductsLocal, getSaleWithItemsLocal, searchCustomersLocal, searchPendingSalesLocal } from "@/lib/local-repo";
-import { salesRepository } from "@/repositories";
+import { deleteSaleTransaction, saveSaleTransaction } from "@/pwa/transaction-engine";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -244,11 +243,7 @@ function POS() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Pending invoices already reduced stock — restore before soft-delete.
-      const { error: restoreErr } = await supabase.rpc("restore_sale_stock" as any, { _sale_id: id });
-      if (restoreErr) throw restoreErr;
-      const { error } = await salesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteSaleTransaction(id);
     },
     onSuccess: () => {
       toast.success("Pending KDF deleted");
@@ -301,21 +296,25 @@ function POS() {
       else if (dateMode === "current") saleTs = new Date().toISOString();
       else saleTs = saleDate && saleDate !== today ? businessDayStartUTC(saleDate) : new Date().toISOString();
 
-      if (editId) {
-        const { data, error } = await supabase.rpc("update_sale" as any, {
-          _sale_id: editId, ...args,
-          _sale_date: saleTs, // NULL keeps existing (see update_sale COALESCE)
-        });
-        if (error) throw error;
-        return { sale: data, status };
-      }
-      const { data, error } = await supabase.rpc("save_sale" as any, args);
-      if (error) throw error;
-      // If cashier chose a back-date, sync sale_date
-      if (data && saleTs && saleDate && saleDate !== today) {
-        await salesRepository.query().update({ sale_date: saleTs } as any).eq("id", (data as any).id);
-      }
-      return { sale: data, status };
+      const sale = await saveSaleTransaction({
+        id: editId,
+        items,
+        status,
+        customer_name: customer,
+        customer_phone: phone,
+        delivery_charges: effectiveDelivery,
+        payment_method: paymentMethod,
+        cash_paid: paymentMethod === "cash" ? paidNum : 0,
+        online_paid: paymentMethod === "online" ? paidNum : 0,
+        order_type: orderType,
+        delivery_boy: deliveryBoy,
+        delivery_address: deliveryAddress,
+        katha,
+        discount_type: discountType,
+        discount_value: num(discountValue),
+        sale_date: saleTs,
+      });
+      return { sale, status };
     },
     onSuccess: async ({ sale, status }: any) => {
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);

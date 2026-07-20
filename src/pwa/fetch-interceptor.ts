@@ -267,18 +267,7 @@ export function installOfflineFetchInterceptor() {
     // network fails, emulate them locally so the UI never blocks on cloud.
     const rpcName = M === "POST" ? rpcNameFromUrl(url) : null;
     if (rpcName) {
-      const offline = typeof navigator !== "undefined" && !navigator.onLine;
       const canEmulate = isKnownLocalRpc(rpcName);
-      if (!offline) {
-        try {
-          const res = await original(input as never, init);
-          // If cloud rejected purely because of connectivity, fall back below.
-          return res;
-        } catch (err) {
-          if (!canEmulate) throw err;
-          console.warn("[local-first] RPC network failed, emulating locally", rpcName, err);
-        }
-      }
       if (canEmulate) {
         const local = await serveLocalRpc(rpcName, body, url, headers);
         if (local) {

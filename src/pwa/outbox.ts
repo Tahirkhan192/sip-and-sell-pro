@@ -9,6 +9,7 @@
  * payload so we can replay it faithfully (URL, headers, body).
  */
 
+import { supabase } from "@/integrations/supabase/client";
 import { localDb } from "./db";
 
 export type QueuedRequest = {
@@ -28,6 +29,8 @@ function emit() {
     try { cb(); } catch { /* noop */ }
   }
 }
+
+export function notifyOutboxChanged() { emit(); }
 
 export async function pendingCount(): Promise<number> {
   try {
@@ -95,6 +98,18 @@ export async function enqueueRequest(req: QueuedRequest): Promise<number> {
   return id as number;
 }
 
+async function withFreshAuthHeaders(headers: Record<string, string>): Promise<Record<string, string>> {
+  const next = { ...headers };
+  const publishable = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
+  if (publishable && !next.apikey) next.apikey = publishable;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) next.Authorization = `Bearer ${token}`;
+  } catch { /* keep queued headers */ }
+  return next;
+}
+
 function backoffMs(attempts: number): number {
   const base = 2000; // 2s
   const cap = 5 * 60 * 1000; // 5m
@@ -126,7 +141,7 @@ export async function flushOutbox(): Promise<{ processed: number; failed: number
       try {
         const res = await fetch(req.url, {
           method: req.method,
-          headers: req.headers,
+          headers: await withFreshAuthHeaders(req.headers),
           body: req.body,
         });
         if (!res.ok) {
