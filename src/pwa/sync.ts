@@ -6,10 +6,50 @@
  * offline writes are never clobbered by a stale server copy.
  */
 
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDb, SYNCED_TABLES, type SyncedTable } from "./db";
+import { markLocalReady, setReadinessProgress } from "./readiness";
 
 const PAGE_SIZE = 1000;
+
+/**
+ * Dedicated Supabase client for hydration. Marks every request with
+ * `x-lf-bypass: 1` so the local-read interceptor lets it through to the real
+ * network — otherwise sync would query the very IndexedDB store it's trying
+ * to fill and think the cloud is empty.
+ */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+let _syncClient: ReturnType<typeof createClient> | null = null;
+async function getSyncClient() {
+  if (_syncClient) return _syncClient;
+  const bypassFetch: typeof fetch = (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("apikey", SUPABASE_KEY);
+    headers.set("x-lf-bypass", "1");
+    // Attach the user's access token so RLS applies as usual.
+    const auth = init?.headers ? new Headers(init.headers).get("Authorization") : null;
+    if (auth) headers.set("Authorization", auth);
+    return fetch(input as never, { ...init, headers });
+  };
+  _syncClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: bypassFetch },
+  });
+  // Mirror the current session so RLS sees the same user.
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      await _syncClient.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+    }
+  } catch { /* noop */ }
+  return _syncClient;
+}
+
 
 /* ---------- observable sync state ---------- */
 
