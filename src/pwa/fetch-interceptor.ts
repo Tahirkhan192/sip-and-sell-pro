@@ -82,16 +82,23 @@ function matchesFilters(row: Record<string, unknown>, filters: Record<string, st
   return true;
 }
 
+type ApplyResult = {
+  /** Rows AFTER the mutation, used for the synthetic response. */
+  after: Array<Record<string, unknown>>;
+  /** Rows BEFORE the mutation, used by local triggers to compute deltas. */
+  before: Array<Record<string, unknown> | null>;
+};
+
 /**
  * Apply the write to IndexedDB. Returns the resulting rows (for synthetic
- * response). If the table isn't mirrored locally, returns null so callers
- * can decide whether to fall back to the network.
+ * response) and the previous state (for triggers). If the table isn't
+ * mirrored locally, returns null so callers fall back to the network.
  */
 async function applyLocal(
   target: WriteTarget,
   bodyText: string | null,
   url: string,
-): Promise<Array<Record<string, unknown>> | null> {
+): Promise<ApplyResult | null> {
   const dexie = localDb();
   if (!dexie.tables.some((t) => t.name === target.table)) return null;
   const tbl = dexie.table(target.table);
@@ -99,31 +106,36 @@ async function applyLocal(
 
   if (target.op === "delete") {
     const filters = parseEqFilters(url);
-    if (!Object.keys(filters).length) return [];
-    // If filtering by id only, delete directly; otherwise scan.
+    if (!Object.keys(filters).length) return { after: [], before: [] };
     if (filters.id && Object.keys(filters).length === 1) {
+      const existing = (await tbl.get(filters.id)) as Record<string, unknown> | undefined;
       await tbl.delete(filters.id).catch(() => {});
-      return [{ id: filters.id }];
+      return { after: [{ id: filters.id }], before: [existing ?? null] };
     }
     const all = (await tbl.toArray()) as Array<Record<string, unknown>>;
     const toDelete = all.filter((r) => matchesFilters(r, filters));
     if (toDelete.length) {
       await tbl.bulkDelete(toDelete.map((r) => String(r.id))).catch(() => {});
     }
-    return toDelete.map((r) => ({ id: r.id }));
+    return {
+      after: toDelete.map((r) => ({ id: r.id })),
+      before: toDelete.map((r) => r),
+    };
   }
 
-  if (!bodyText) return [];
+  if (!bodyText) return { after: [], before: [] };
   let parsed: unknown;
-  try { parsed = JSON.parse(bodyText); } catch { return []; }
+  try { parsed = JSON.parse(bodyText); } catch { return { after: [], before: [] }; }
   const rows = (Array.isArray(parsed) ? parsed : [parsed]).filter(
     (r): r is Record<string, unknown> => !!r && typeof r === "object",
   );
 
   if (target.op === "insert" || target.op === "upsert") {
-    const result: Array<Record<string, unknown>> = [];
+    const after: Array<Record<string, unknown>> = [];
+    const before: Array<Record<string, unknown> | null> = [];
     for (const r of rows) {
       const id = String((r.id as string | undefined) ?? "") || newUuid();
+      const prior = (await tbl.get(id)) as Record<string, unknown> | undefined;
       const merged: Record<string, unknown> = {
         created_at: nowIso,
         updated_at: nowIso,
@@ -133,9 +145,10 @@ async function applyLocal(
         _op: target.op === "upsert" ? "update" : "insert",
       };
       await tbl.put(merged as never).catch(() => {});
-      result.push(merged);
+      after.push(merged);
+      before.push(prior ?? null);
     }
-    return result;
+    return { after, before };
   }
 
   // update: PATCH with URL filters carrying id(s).
@@ -147,17 +160,18 @@ async function applyLocal(
     const existing = (await tbl.get(filters.id)) as Record<string, unknown> | undefined;
     const merged = { ...(existing ?? { id: filters.id }), ...patchWithMeta, id: filters.id };
     await tbl.put(merged as never).catch(() => {});
-    return [merged];
+    return { after: [merged], before: [existing ?? null] };
   }
   const all = (await tbl.toArray()) as Array<Record<string, unknown>>;
   const matched = all.filter((r) => matchesFilters(r, filters));
   const merged: Array<Record<string, unknown>> = [];
+  const priors: Array<Record<string, unknown> | null> = [];
   for (const row of matched) {
-    const next = { ...row, ...patchWithMeta, id: row.id };
-    merged.push(next);
+    priors.push({ ...row });
+    merged.push({ ...row, ...patchWithMeta, id: row.id });
   }
   if (merged.length) await tbl.bulkPut(merged as never).catch(() => {});
-  return merged;
+  return { after: merged, before: priors };
 }
 
 /** Rewrite the outgoing body so any client-generated ids are also sent to the cloud. */
