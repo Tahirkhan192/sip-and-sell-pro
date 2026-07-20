@@ -43,7 +43,7 @@ function ProductionPage() {
   const { data: recipe = [] } = useQuery({
     queryKey: ["production", "recipe", productId],
     enabled: !!productId,
-    queryFn: async () => (awaitrecipesRepository.query()
+    queryFn: async () => (await recipesRepository.query()
       .select("quantity, component_product_id, component_stock_item_id, products:component_product_id(name, category, cost_price), stock_items:component_stock_item_id(name, category, purchase_price)")
       .eq("parent_product_id", productId)
       .is("deleted_at", null)).data ?? [],
@@ -60,7 +60,7 @@ function ProductionPage() {
 
   const { data: batches = [] } = useQuery({
     queryKey: ["production", "batches"],
-    queryFn: async () => (awaitproductionBatchesRepository.query()
+    queryFn: async () => (await productionBatchesRepository.query()
       .select("*, products(name, category), production_batch_items(*, products:component_product_id(name, category), stock_items:component_stock_item_id(name, category))")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })

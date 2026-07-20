@@ -34,7 +34,7 @@ export function useCategoryRows() {
   return useQuery({
     queryKey: ["categories", "rows"],
     queryFn: async () => {
-      const { data } = awaitcategoriesRepository.query()
+      const { data } = await categoriesRepository.query()
         .select("*")
         .is("deleted_at", null)
         .order("sort_order")

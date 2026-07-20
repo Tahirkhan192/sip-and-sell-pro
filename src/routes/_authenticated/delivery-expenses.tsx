@@ -26,15 +26,15 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["delivery_expenses"],
-    queryFn: async () => (awaitdeliveryExpensesRepository.query().select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
+    queryFn: async () => (await deliveryExpensesRepository.query().select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
   });
 
   const save = useMutation({
     mutationFn: async (p: D) => {
       const payload = { date: p.date, fuel_cost: p.fuel_cost, maintenance_cost: p.maintenance_cost, description: p.description || null };
       const res = p.id
-        ? awaitdeliveryExpensesRepository.query().update(payload).eq("id", p.id)
-        : awaitdeliveryExpensesRepository.query().insert(payload);
+        ? await deliveryExpensesRepository.query().update(payload).eq("id", p.id)
+        : await deliveryExpensesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); toast.success("Saved"); },
@@ -42,7 +42,7 @@ function Page() {
   });
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitdeliveryExpensesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await deliveryExpensesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); toast.success("Deleted"); },

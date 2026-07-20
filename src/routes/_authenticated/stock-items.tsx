@@ -47,12 +47,12 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["stock_items"],
-    queryFn: async () => (awaitstockItemsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
-    queryFn: async () => (awaitsuppliersRepository.query().select("id, name").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await suppliersRepository.query().select("id, name").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const save = useMutation({
@@ -69,7 +69,7 @@ function Page() {
         purchase_date: p.purchase_date || null,
         notes: p.notes || null,
       };
-      const res = p.id ? awaitstockItemsRepository.query().update(payload).eq("id", p.id) : awaitstockItemsRepository.query().insert(payload);
+      const res = p.id ? await stockItemsRepository.query().update(payload).eq("id", p.id) : await stockItemsRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => {
@@ -83,7 +83,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitstockItemsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await stockItemsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock_items"] }); toast.success("Deleted"); },
@@ -104,7 +104,7 @@ function Page() {
           <Button variant="outline" onClick={async () => {
             if (!confirm("Copy Current Stock → Opening Stock for ALL stock items? Use this at the start of a new business month after physical stock counting.")) return;
             for (const r of data as any[]) {
-              const { error } = awaitstockItemsRepository.query().update({ opening_stock: num(r.current_stock) }).eq("id", r.id);
+              const { error } = await stockItemsRepository.query().update({ opening_stock: num(r.current_stock) }).eq("id", r.id);
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["stock_items"] });

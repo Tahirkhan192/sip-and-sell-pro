@@ -36,16 +36,16 @@ function RecipesPage() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => (awaitproductsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: stockItems = [] } = useQuery({
     queryKey: ["stock_items"],
-    queryFn: async () => (awaitstockItemsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("id, name, unit").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const { data = [] } = useQuery({
     queryKey: ["recipes"],
-    queryFn: async () => (awaitrecipesRepository.query()
+    queryFn: async () => (await recipesRepository.query()
       .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })).data ?? [],
@@ -66,8 +66,8 @@ function RecipesPage() {
         unit: r.unit,
       };
       const res = r.id
-        ? awaitrecipesRepository.query().update(payload).eq("id", r.id)
-        : awaitrecipesRepository.query().insert(payload);
+        ? await recipesRepository.query().update(payload).eq("id", r.id)
+        : await recipesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Saved"); setOpen(false); },
@@ -76,7 +76,7 @@ function RecipesPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitrecipesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await recipesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Deleted"); },

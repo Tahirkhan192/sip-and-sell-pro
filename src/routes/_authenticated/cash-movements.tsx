@@ -109,8 +109,8 @@ function Page() {
         payload.occurred_at = new Date().toISOString();
       }
       const res = editing
-        ? awaitcashMovementsRepository.query().update(payload).eq("id", f.id!)
-        : awaitcashMovementsRepository.query().insert(payload);
+        ? await cashMovementsRepository.query().update(payload).eq("id", f.id!)
+        : await cashMovementsRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => {
@@ -124,7 +124,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitcashMovementsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await cashMovementsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },

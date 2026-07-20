@@ -18,7 +18,7 @@ function Page() {
 
   const { data: deliveries = [] } = useQuery({
     queryKey: ["delivery_report", from, to],
-    queryFn: async () => (awaitsalesRepository.query()
+    queryFn: async () => (await salesRepository.query()
       .select("id, invoice_no, sale_date, customer_name, delivery_charges, status, grand_total")
       .is("deleted_at", null)
       .gt("delivery_charges", 0)
@@ -30,7 +30,7 @@ function Page() {
 
   const { data: expenses = [] } = useQuery({
     queryKey: ["delivery_expenses_report", from, to],
-    queryFn: async () => (awaitdeliveryExpensesRepository.query()
+    queryFn: async () => (await deliveryExpensesRepository.query()
       .select("*")
       .is("deleted_at", null)
       .gte("date", from)

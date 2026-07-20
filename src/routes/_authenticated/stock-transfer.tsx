@@ -58,11 +58,11 @@ function Page() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "all-for-transfer"],
-    queryFn: async () => (awaitproductsRepository.query().select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: stockItems = [] } = useQuery({
     queryKey: ["stock_items", "all-for-transfer"],
-    queryFn: async () => (awaitstockItemsRepository.query().select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: transfers = [] } = useQuery({
     queryKey: ["stock_transfers"],

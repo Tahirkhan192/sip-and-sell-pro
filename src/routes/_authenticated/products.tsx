@@ -48,7 +48,7 @@ function ProductsPage() {
 
   const { data = [] } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => (awaitproductsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const save = useMutation({
@@ -67,8 +67,8 @@ function ProductsPage() {
         track_stock: p.track_stock,
       };
       const res = p.id
-        ? awaitproductsRepository.query().update(payload).eq("id", p.id)
-        : awaitproductsRepository.query().insert(payload);
+        ? await productsRepository.query().update(payload).eq("id", p.id)
+        : await productsRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Saved"); },
@@ -77,7 +77,7 @@ function ProductsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitproductsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await productsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Deleted"); },
@@ -120,7 +120,7 @@ function ProductsPage() {
             if (!confirm("Copy Current Stock → Opening Stock for ALL products? Use this at the start of a new business month after physical stock counting.")) return;
             const rows = (data as any[]).map((p) => ({ id: p.id, opening_stock: num(p.current_stock) }));
             for (const r of rows) {
-              const { error } = awaitproductsRepository.query().update({ opening_stock: r.opening_stock }).eq("id", r.id);
+              const { error } = await productsRepository.query().update({ opening_stock: r.opening_stock }).eq("id", r.id);
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["products"] });

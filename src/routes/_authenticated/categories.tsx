@@ -35,7 +35,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["categories", "admin"],
-    queryFn: async () => (awaitcategoriesRepository.query().select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
+    queryFn: async () => (await categoriesRepository.query().select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
   });
 
   const invalidateAll = () => {
@@ -56,8 +56,8 @@ function Page() {
         active: p.active,
       };
       const res = p.id
-        ? awaitcategoriesRepository.query().update(payload).eq("id", p.id)
-        : awaitcategoriesRepository.query().insert(payload);
+        ? await categoriesRepository.query().update(payload).eq("id", p.id)
+        : await categoriesRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Saved"); },
@@ -66,7 +66,7 @@ function Page() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = awaitcategoriesRepository.query().update({ active }).eq("id", id);
+      const { error } = await categoriesRepository.query().update({ active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => invalidateAll(),
@@ -79,11 +79,11 @@ function Page() {
       ]);
       if ((prodCount ?? 0) > 0 || (stockCount ?? 0) > 0) {
         // mark inactive instead
-        const { error } = awaitcategoriesRepository.query().update({ active: false }).eq("id", c.id);
+        const { error } = await categoriesRepository.query().update({ active: false }).eq("id", c.id);
         if (error) throw error;
         return { softened: true };
       }
-      const { error } = awaitcategoriesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
+      const { error } = await categoriesRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
       if (error) throw error;
       return { softened: false };
     },

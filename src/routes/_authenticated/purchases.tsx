@@ -66,11 +66,11 @@ function Page() {
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active-all"],
-    queryFn: async () => (awaitproductsRepository.query().select("id,name,category,unit").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await productsRepository.query().select("id,name,category,unit").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", "all"],
-    queryFn: async () => (awaitstockItemsRepository.query().select("id,name,unit,category").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await stockItemsRepository.query().select("id,name,unit,category").is("deleted_at", null).order("name")).data ?? [],
   });
   const { data = [] } = useQuery({
     queryKey: ["purchases_v2"],

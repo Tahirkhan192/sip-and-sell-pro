@@ -38,8 +38,8 @@ function Page() {
     mutationFn: async (p: C) => {
       const payload = { name: p.name.trim(), phone: p.phone.trim() || null, address: p.address || null, notes: p.notes || null };
       const res = p.id
-        ? awaitcustomersRepository.query().update(payload).eq("id", p.id)
-        : awaitcustomersRepository.query().insert(payload);
+        ? await customersRepository.query().update(payload).eq("id", p.id)
+        : await customersRepository.query().insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Saved"); },
@@ -48,7 +48,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = awaitcustomersRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await customersRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Deleted"); },

@@ -22,7 +22,7 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseFor(ctx);
-    const { data, error } = awaitsupabase.from("sales")
+    const { data, error } = await supabase.from("sales")
       .select("grand_total, status")
       .is("deleted_at", null)
       .gte("business_date", from_business_date)

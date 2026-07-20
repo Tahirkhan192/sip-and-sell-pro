@@ -20,7 +20,7 @@ export function useSettings() {
   return useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
-      const { data } = awaitsettingsRepository.query().select("*").eq("id", 1).maybeSingle();
+      const { data } = await settingsRepository.query().select("*").eq("id", 1).maybeSingle();
       return (data ?? null) as SettingsRow | null;
     },
     staleTime: 60_000,
