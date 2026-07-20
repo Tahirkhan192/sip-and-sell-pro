@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import {
-import { settingsRepository } from "@/repositories";
   businessToday,
   formatInTZ,
   getBusinessConfig,
@@ -18,6 +17,7 @@ import { settingsRepository } from "@/repositories";
   setBusinessConfig,
   subscribeBusinessConfig,
 } from "@/lib/business-date";
+import { settingsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/settings")({ component: SettingsPage });
 
