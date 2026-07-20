@@ -30,13 +30,16 @@ async function pullTable(table: SyncedTable) {
   let from = 0;
   let latest = cursor;
   while (true) {
-    let q = supabase.from(table as string).select("*").order("updated_at", { ascending: true }).range(from, from + PAGE_SIZE - 1);
+    const client = supabase as unknown as {
+      from: (name: string) => any;
+    };
+    let q = client.from(table as string).select("*").order("updated_at", { ascending: true }).range(from, from + PAGE_SIZE - 1);
     if (cursor) q = q.gt("updated_at", cursor);
     const { data, error } = await q;
     if (error) {
       // Table may not expose updated_at (e.g. user_roles). Fall back to a full pull once.
       if (!cursor && /updated_at/i.test(error.message)) {
-        const { data: full, error: err2 } = await supabase.from(table as string).select("*");
+        const { data: full, error: err2 } = await client.from(table as string).select("*");
         if (err2) throw err2;
         if (full && full.length) {
           await localDb().table(table).bulkPut(full as any);
