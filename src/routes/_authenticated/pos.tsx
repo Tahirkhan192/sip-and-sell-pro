@@ -73,16 +73,14 @@ function POS() {
   const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products", "active"],
-    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
-      .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
-      .order("name")).data ?? [],
+    queryKey: ["products", "active", "local"],
+    queryFn: () => listProductsLocal({ active: true }),
   });
 
   const { data: editingSale } = useQuery({
-    queryKey: ["sales", "edit", editId],
+    queryKey: ["sales", "edit", editId, "local"],
     enabled: !!editId,
-    queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
+    queryFn: () => getSaleWithItemsLocal(editId!),
   });
 
   useEffect(() => {
