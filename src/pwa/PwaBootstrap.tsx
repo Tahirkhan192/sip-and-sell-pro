@@ -1,9 +1,11 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { registerPwa } from "./register";
-import { scheduleBackgroundSync, startPeriodicSync, stopPeriodicSync } from "./sync";
+import { ensureInitialHydration, scheduleBackgroundSync, startPeriodicSync, stopPeriodicSync } from "./sync";
 import { supabase } from "@/integrations/supabase/client";
 import { installOfflineFetchInterceptor } from "./fetch-interceptor";
 import { flushOutbox, scheduleOutboxFlush } from "./outbox";
+import { subscribeReadiness, isLocalReady } from "./readiness";
 
 /**
  * Bootstraps offline capability:
@@ -14,6 +16,7 @@ import { flushOutbox, scheduleOutboxFlush } from "./outbox";
  *      regains network, and flushes any queued writes on reconnect.
  */
 export function PwaBootstrap() {
+  const qc = useQueryClient();
   useEffect(() => {
     installOfflineFetchInterceptor();
     void registerPwa();
@@ -22,7 +25,7 @@ export function PwaBootstrap() {
     const kickIfAuthed = async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
-        scheduleBackgroundSync();
+        void ensureInitialHydration();
         scheduleOutboxFlush(500);
       }
     };
@@ -30,7 +33,7 @@ export function PwaBootstrap() {
 
     const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION")) {
-        scheduleBackgroundSync();
+        void ensureInitialHydration();
         scheduleOutboxFlush(500);
       }
     });
@@ -40,6 +43,17 @@ export function PwaBootstrap() {
       void flushOutbox();
     };
     window.addEventListener("online", onOnline);
+
+    // Refresh every mounted query the moment initial hydration finishes so
+    // Dashboard / Sales / Reports pick up the newly back-filled rows without
+    // any manual refresh.
+    let wasReady = isLocalReady();
+    const unsubReady = subscribeReadiness(() => {
+      if (!wasReady && isLocalReady()) {
+        wasReady = true;
+        qc.invalidateQueries();
+      }
+    });
 
     // Periodic safety-net flush (handles missed online events, backoff retries).
     const iv = window.setInterval(() => {
@@ -52,10 +66,12 @@ export function PwaBootstrap() {
       authSub.subscription.unsubscribe();
       window.removeEventListener("online", onOnline);
       window.clearInterval(iv);
+      unsubReady();
       stopPeriodicSync();
     };
-  }, []);
+  }, [qc]);
 
   return null;
 }
+
 
