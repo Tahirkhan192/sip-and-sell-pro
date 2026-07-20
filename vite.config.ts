@@ -69,14 +69,14 @@ export default defineConfig({
               },
             },
             {
-              // Supabase REST reads — network first, cache fallback when offline.
+              // Supabase REST reads — stale-while-revalidate so pages render
+              // instantly from cache and refresh in the background.
               urlPattern: /https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-              handler: "NetworkFirst",
+              handler: "StaleWhileRevalidate",
               method: "GET",
               options: {
                 cacheName: "supabase-rest",
-                networkTimeoutSeconds: 5,
-                expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 14 },
+                expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 30 },
                 cacheableResponse: { statuses: [0, 200] },
               },
             },

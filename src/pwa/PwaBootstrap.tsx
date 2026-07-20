@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { registerPwa } from "./register";
-import { scheduleBackgroundSync } from "./sync";
+import { scheduleBackgroundSync, startPeriodicSync, stopPeriodicSync } from "./sync";
 import { supabase } from "@/integrations/supabase/client";
 import { installOfflineFetchInterceptor } from "./fetch-interceptor";
 import { flushOutbox, scheduleOutboxFlush } from "./outbox";
@@ -45,12 +45,14 @@ export function PwaBootstrap() {
     const iv = window.setInterval(() => {
       if (navigator.onLine) void flushOutbox();
     }, 30_000);
+    startPeriodicSync(60_000);
 
     return () => {
       cancelled = true;
       authSub.subscription.unsubscribe();
       window.removeEventListener("online", onOnline);
       window.clearInterval(iv);
+      stopPeriodicSync();
     };
   }, []);
 
