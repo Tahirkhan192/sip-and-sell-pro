@@ -69,16 +69,17 @@ export async function searchPendingSalesLocal(term: string, limit = 8): Promise<
 async function joinSaleItems(sales: Row[]): Promise<Row[]> {
   if (sales.length === 0) return sales;
   const ids = sales.map((s) => s.id).filter(Boolean) as string[];
-  const items = await localDb().sale_items.where("sale_id").anyOf(ids).toArray();
+  const items = (await localDb().sale_items.where("sale_id").anyOf(ids).toArray()) as Row[];
   const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean))) as string[];
   const products = productIds.length ? await localDb().products.bulkGet(productIds) : [];
   const prodById: Record<string, Row> = {};
   for (const p of products) if (p) prodById[(p as Row).id] = p as Row;
   const bySale: Record<string, Row[]> = {};
   for (const it of items) {
-    (bySale[it.sale_id] ??= []).push({ ...it, products: prodById[it.product_id] });
+    const sid = String(it.sale_id);
+    (bySale[sid] ??= []).push({ ...it, products: it.product_id ? prodById[String(it.product_id)] : undefined });
   }
-  return sales.map((s) => ({ ...s, sale_items: bySale[s.id] ?? [] }));
+  return sales.map((s) => ({ ...s, sale_items: bySale[String(s.id)] ?? [] }));
 }
 
 /** Full sale with items + product info, for editing in POS. */
@@ -121,11 +122,11 @@ export async function listStockPurchasesInRangeLocal(from?: string, to?: string)
   const sById: Record<string, Row> = {};
   for (const p of products) if (p) pById[(p as Row).id] = p as Row;
   for (const s of items) if (s) sById[(s as Row).id] = s as Row;
-  return filtered.map((r) => ({
+  return filtered.map((r: Row) => ({
     ...r,
-    products: r.product_id ? pById[r.product_id] : undefined,
-    stock_items: r.stock_item_id ? sById[r.stock_item_id] : undefined,
-  })).sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+    products: r.product_id ? pById[String(r.product_id)] : undefined,
+    stock_items: r.stock_item_id ? sById[String(r.stock_item_id)] : undefined,
+  })).sort((a: Row, b: Row) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
 }
 
 export async function listExpensesInRangeLocal(from?: string, to?: string): Promise<Row[]> {
