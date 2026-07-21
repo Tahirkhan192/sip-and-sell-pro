@@ -6,6 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   tanstackStart: {
@@ -14,6 +15,57 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [mcpPlugin()],
+    plugins: [
+      mcpPlugin(),
+      VitePWA({
+        strategies: "generateSW",
+        registerType: "autoUpdate",
+        injectRegister: null,
+        filename: "sw.js",
+        devOptions: { enabled: false },
+        manifest: false,
+        workbox: {
+          navigateFallback: "/",
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/\.mcp\//,
+            /^\/\.lovable\//,
+            /^\/\.well-known\//,
+            /^\/~oauth/,
+          ],
+          globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,webp,ico,woff,woff2,ttf,otf}"],
+          runtimeCaching: [
+            {
+              urlPattern: ({ request, sameOrigin }) =>
+                sameOrigin && request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "app-navigations",
+                networkTimeoutSeconds: 5,
+                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              },
+            },
+            {
+              urlPattern: ({ url, sameOrigin, request }) =>
+                sameOrigin &&
+                (request.destination === "style" ||
+                  request.destination === "script" ||
+                  request.destination === "worker" ||
+                  request.destination === "font" ||
+                  request.destination === "image") &&
+                !url.pathname.startsWith("/api/") &&
+                !url.pathname.startsWith("/.mcp/") &&
+                !url.pathname.startsWith("/.lovable/") &&
+                !url.pathname.startsWith("/.well-known/"),
+              handler: "CacheFirst",
+              options: {
+                cacheName: "app-assets",
+                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              },
+            },
+          ],
+        },
+      }),
+    ],
   },
 });
