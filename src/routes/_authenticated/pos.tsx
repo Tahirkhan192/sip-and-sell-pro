@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,6 @@ import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
-import { listProductsLocal, getSaleWithItemsLocal, searchCustomersLocal, searchPendingSalesLocal } from "@/lib/local-repo";
-import { deleteSaleTransaction, saveSaleTransaction } from "@/pwa/transaction-engine";
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -74,14 +73,16 @@ function POS() {
   const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products", "active", "local"],
-    queryFn: () => listProductsLocal({ active: true }),
+    queryKey: ["products", "active"],
+    queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
+      .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
+      .order("name")).data ?? [],
   });
 
   const { data: editingSale } = useQuery({
-    queryKey: ["sales", "edit", editId, "local"],
+    queryKey: ["sales", "edit", editId],
     enabled: !!editId,
-    queryFn: () => getSaleWithItemsLocal(editId!),
+    queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
   });
 
   useEffect(() => {
@@ -117,17 +118,19 @@ function POS() {
   }, [editingSale]);
 
   const { data: customerSuggestions = [] } = useQuery({
-    queryKey: ["customers", "search", customerSearch.trim().toLowerCase(), "local"],
+    queryKey: ["customers", "search", customerSearch.trim().toLowerCase()],
     enabled: customerSearch.trim().length >= 2,
-    queryFn: () => searchCustomersLocal(customerSearch),
+    queryFn: async () => (await supabase.from("customers").select("id, name, phone, outstanding_balance")
+      .is("deleted_at", null)
+      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
+      .limit(6)).data ?? [],
   });
 
   const { data: pendingInvoices = [] } = useQuery({
-    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase(), "local"],
+    queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
     enabled: invoiceSearch.trim().length >= 2,
-    queryFn: () => searchPendingSalesLocal(invoiceSearch),
+    queryFn: async () => (await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? [],
   });
-
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -243,7 +246,11 @@ function POS() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await deleteSaleTransaction(id);
+      // Pending invoices already reduced stock — restore before soft-delete.
+      const { error: restoreErr } = await supabase.rpc("restore_sale_stock" as any, { _sale_id: id });
+      if (restoreErr) throw restoreErr;
+      const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Pending KDF deleted");
@@ -296,25 +303,21 @@ function POS() {
       else if (dateMode === "current") saleTs = new Date().toISOString();
       else saleTs = saleDate && saleDate !== today ? businessDayStartUTC(saleDate) : new Date().toISOString();
 
-      const sale = await saveSaleTransaction({
-        id: editId,
-        items,
-        status,
-        customer_name: customer,
-        customer_phone: phone,
-        delivery_charges: effectiveDelivery,
-        payment_method: paymentMethod,
-        cash_paid: paymentMethod === "cash" ? paidNum : 0,
-        online_paid: paymentMethod === "online" ? paidNum : 0,
-        order_type: orderType,
-        delivery_boy: deliveryBoy,
-        delivery_address: deliveryAddress,
-        katha,
-        discount_type: discountType,
-        discount_value: num(discountValue),
-        sale_date: saleTs,
-      });
-      return { sale, status };
+      if (editId) {
+        const { data, error } = await supabase.rpc("update_sale" as any, {
+          _sale_id: editId, ...args,
+          _sale_date: saleTs, // NULL keeps existing (see update_sale COALESCE)
+        });
+        if (error) throw error;
+        return { sale: data, status };
+      }
+      const { data, error } = await supabase.rpc("save_sale" as any, args);
+      if (error) throw error;
+      // If cashier chose a back-date, sync sale_date
+      if (data && saleTs && saleDate && saleDate !== today) {
+        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
+      }
+      return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listProductsLocal, listStockPurchasesInRangeLocal, listExpensesInRangeLocal } from "@/lib/local-repo";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -213,8 +213,8 @@ function CategoryReport() {
 // ============================================================ STOCK
 function StockReport() {
   const { data = [] } = useQuery({
-    queryKey: ["report", "stock", "local"],
-    queryFn: () => listProductsLocal(),
+    queryKey: ["report", "stock"],
+    queryFn: async () => (await supabase.from("products").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
   const totalValue = (data as any[]).reduce((s, p) => s + num(p.current_stock) * num(p.cost_price), 0);
   return (
@@ -251,8 +251,8 @@ function StockReport() {
 function PurchaseReport() {
   const r = useRange("month");
   const { data = [] } = useQuery({
-    queryKey: ["report", "purchases", r.from, r.to, "local"],
-    queryFn: () => listStockPurchasesInRangeLocal(r.from, r.to),
+    queryKey: ["report", "purchases", r.from, r.to],
+    queryFn: async () => (await supabase.from("stock_purchases").select("*, products(name), stock_items(name)").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
   });
   const total = (data as any[]).reduce((s, x) => s + num(x.total_cost), 0);
   return (<>
@@ -282,8 +282,8 @@ function PurchaseReport() {
 function ExpenseReport() {
   const r = useRange("month");
   const { data = [] } = useQuery({
-    queryKey: ["report", "expenses", r.from, r.to, "local"],
-    queryFn: () => listExpensesInRangeLocal(r.from, r.to),
+    queryKey: ["report", "expenses", r.from, r.to],
+    queryFn: async () => (await supabase.from("expenses").select("*").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
   });
   const byCat = useMemo(() => {
     const m: Record<string, number> = {};

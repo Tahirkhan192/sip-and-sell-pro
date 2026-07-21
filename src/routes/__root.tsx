@@ -11,7 +11,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { PwaBootstrap } from "../pwa/PwaBootstrap";
 
 function NotFoundComponent() {
   return (
@@ -77,27 +76,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#3d2415" },
-      { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "Café Manager" },
-      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Café Manager — POS & Reports" },
-      { name: "description", content: "Café Manager is an offline-first, installable point of sale and reporting system for cafés — invoices, purchases, expenses, stock, and profit reports powered by Business Date." },
+      { name: "description", content: "Café Manager is a web-based point of sale and reporting system for cafés — invoices, purchases, expenses, stock, and profit reports powered by Business Date." },
       { name: "author", content: "Café Manager" },
       { property: "og:title", content: "Café Manager — POS & Reports" },
-      { property: "og:description", content: "Offline-first point of sale and reporting system for cafés." },
+      { property: "og:description", content: "Café Manager is a web-based point of sale and reporting system for cafés — invoices, purchases, expenses, stock, and profit reports powered by Business Date." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Café Manager — POS & Reports" },
-      { name: "twitter:description", content: "Offline-first point of sale and reporting system for cafés." },
+      { name: "twitter:description", content: "Café Manager is a web-based point of sale and reporting system for cafés." },
     ],
     links: [
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "stylesheet", href: appCss },
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -125,7 +120,6 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PwaBootstrap />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

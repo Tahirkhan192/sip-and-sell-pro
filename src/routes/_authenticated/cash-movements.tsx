@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,8 +16,6 @@ import { money } from "@/lib/format";
 import { businessToday, formatBusinessTime, formatBusinessDate } from "@/lib/business-date";
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
-import { cashMovementsRepository } from "@/repositories";
-import { deleteMoneyMovementTransaction, saveMoneyMovementTransaction } from "@/pwa/transaction-engine";
 
 export const Route = createFileRoute("/_authenticated/cash-movements")({ component: Page });
 
@@ -61,7 +60,7 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
-      let q =cashMovementsRepository.query().select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
+      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
       if (typeFilter !== "all") q = q.eq("type", typeFilter);
       if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
@@ -95,13 +94,24 @@ function Page() {
   const save = useMutation({
     mutationFn: async (f: FormState) => {
       if (!f.amount || Number(f.amount) <= 0) throw new Error("Enter a valid amount");
-      await saveMoneyMovementTransaction({
-        id: f.id,
+      const editing = !!f.id;
+      const payload: any = {
         type: f.direction,
         payment_source: f.payment_source,
         amount: Number(f.amount),
         notes: f.notes || null,
-      });
+        movement_category: null,
+        subcategory: null,
+        reason: f.notes || null,
+      };
+      if (!editing) {
+        payload.business_date = businessDate;
+        payload.occurred_at = new Date().toISOString();
+      }
+      const res = editing
+        ? await supabase.from("cash_movements" as any).update(payload).eq("id", f.id!)
+        : await supabase.from("cash_movements" as any).insert(payload);
+      if (res.error) throw res.error;
     },
     onSuccess: () => {
       toast.success(form.id ? "Movement updated" : "Movement saved");
@@ -114,7 +124,8 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      await deleteMoneyMovementTransaction(id);
+      const { error } = await supabase.from("cash_movements" as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Deleted"); },
   });

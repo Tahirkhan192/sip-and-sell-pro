@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+
 function supabaseFor(ctx: ToolContext) {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
@@ -22,7 +23,8 @@ export default defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseFor(ctx);
-    const { data, error } = await supabase.from("sales")
+    const { data, error } = await supabase
+      .from("sales")
       .select("grand_total, status")
       .is("deleted_at", null)
       .gte("business_date", from_business_date)

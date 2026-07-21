@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,6 @@ import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { money } from "@/lib/format";
 import { toast } from "sonner";
-import { customersRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/customers")({ component: Page });
 
@@ -28,7 +28,7 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["customers", search],
     queryFn: async () => {
-      let q =customersRepository.query().select("*").is("deleted_at", null).order("last_visit", { ascending: false, nullsFirst: false }).order("name").range(0, 99999);
+      let q = supabase.from("customers").select("*").is("deleted_at", null).order("last_visit", { ascending: false, nullsFirst: false }).order("name").range(0, 99999);
       if (search.trim()) q = q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
       return (await q).data ?? [];
     },
@@ -38,8 +38,8 @@ function Page() {
     mutationFn: async (p: C) => {
       const payload = { name: p.name.trim(), phone: p.phone.trim() || null, address: p.address || null, notes: p.notes || null };
       const res = p.id
-        ? await customersRepository.query().update(payload).eq("id", p.id)
-        : await customersRepository.query().insert(payload);
+        ? await supabase.from("customers").update(payload).eq("id", p.id)
+        : await supabase.from("customers").insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Saved"); },
@@ -48,7 +48,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await customersRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await supabase.from("customers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Deleted"); },

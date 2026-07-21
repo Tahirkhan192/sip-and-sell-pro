@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,6 @@ import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
-import { productsRepository } from "@/repositories";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
@@ -48,7 +48,7 @@ function ProductsPage() {
 
   const { data = [] } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => (await productsRepository.query().select("*").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const save = useMutation({
@@ -67,8 +67,8 @@ function ProductsPage() {
         track_stock: p.track_stock,
       };
       const res = p.id
-        ? await productsRepository.query().update(payload).eq("id", p.id)
-        : await productsRepository.query().insert(payload);
+        ? await supabase.from("products").update(payload).eq("id", p.id)
+        : await supabase.from("products").insert(payload);
       if (res.error) throw res.error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Saved"); },
@@ -77,7 +77,7 @@ function ProductsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await productsRepository.query().update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await supabase.from("products").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Deleted"); },
@@ -120,7 +120,7 @@ function ProductsPage() {
             if (!confirm("Copy Current Stock → Opening Stock for ALL products? Use this at the start of a new business month after physical stock counting.")) return;
             const rows = (data as any[]).map((p) => ({ id: p.id, opening_stock: num(p.current_stock) }));
             for (const r of rows) {
-              const { error } = await productsRepository.query().update({ opening_stock: r.opening_stock }).eq("id", r.id);
+              const { error } = await supabase.from("products").update({ opening_stock: r.opening_stock }).eq("id", r.id);
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["products"] });

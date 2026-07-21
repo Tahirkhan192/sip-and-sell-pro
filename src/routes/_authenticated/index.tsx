@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { money, num } from "@/lib/format";
@@ -8,7 +9,6 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { buildRange, businessToday } from "@/lib/business-date";
 import { useCategories } from "@/lib/use-categories";
 import { fetchReportEngine } from "@/lib/report-engine";
-import { listProductsLocal } from "@/lib/local-repo";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
@@ -18,10 +18,12 @@ async function fetchDashboard() {
   const businessDay = businessToday();
   const weekRange = buildRange("custom", addDaysISO(businessDay, -6), businessDay);
 
-  const [todayReport, monthReport, products, weekReport] = await Promise.all([
+  const [
+    todayReport, monthReport, productsQ, weekReport,
+  ] = await Promise.all([
     fetchReportEngine(todayRange),
     fetchReportEngine(monthRange),
-    listProductsLocal(),
+    supabase.from("products").select("id, name, current_stock, minimum_stock, cost_price, category").is("deleted_at", null),
     fetchReportEngine(weekRange),
   ]);
 
@@ -48,7 +50,7 @@ async function fetchDashboard() {
     c.monthPurch += r.purchases;
   }
 
-  const low = (products as any[]).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
+  const low = (productsQ.data ?? []).filter((r: any) => num(r.current_stock) < num(r.minimum_stock));
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDaysISO(businessDay, i - 6);
     return { day: d.slice(5), total: weekReport.salesByBusinessDate[d]?.totalSales ?? 0 };
@@ -96,7 +98,7 @@ function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-            {categories.map((c: any) => {
+            {categories.map((c) => {
               const cd = d?.catMap?.[c] ?? { todaySales: 0, monthSales: 0, monthCogs: 0, monthPurch: 0 };
               const monthProfit = cd.monthSales - cd.monthCogs;
               return (
