@@ -1,0 +1,14 @@
+{
+  "name": "Café Manager — POS & Reports",
+  "short_name": "Café Manager",
+  "description": "Point of sale and reporting system for cafés.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fff5e6",
+  "theme_color": "#7c4a2a",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
