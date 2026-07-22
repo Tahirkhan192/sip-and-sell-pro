@@ -72,7 +72,7 @@ function Page() {
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Fuel</TableHead><TableHead className="text-right">Maintenance</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Fuel</TableHead><TableHead className="text-right">Maintenance</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Method</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
@@ -80,13 +80,17 @@ function Page() {
                 <TableCell className="text-right">{money(p.fuel_cost)}</TableCell>
                 <TableCell className="text-right">{money(p.maintenance_cost)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
+                <TableCell>{(p.payment_status ?? "unpaid") === "paid"
+                  ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Paid</Badge>
+                  : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
+                <TableCell className="capitalize">{p.payment_method ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "", payment_status: (p.payment_status ?? "unpaid") as any, payment_method: (p.payment_method ?? "") as any }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No delivery expenses</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">No delivery expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
