@@ -33,13 +33,18 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: D) => {
-      const payload = { date: p.date, fuel_cost: p.fuel_cost, maintenance_cost: p.maintenance_cost, description: p.description || null };
+      if (p.payment_status === "paid" && !p.payment_method) throw new Error("Choose Cash or Online");
+      const payload: any = {
+        date: p.date, fuel_cost: p.fuel_cost, maintenance_cost: p.maintenance_cost, description: p.description || null,
+        payment_status: p.payment_status,
+        payment_method: p.payment_status === "paid" ? p.payment_method : null,
+      };
       const res = p.id
         ? await supabase.from("delivery_expenses").update(payload).eq("id", p.id)
         : await supabase.from("delivery_expenses").insert(payload);
       if (res.error) throw res.error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); toast.success("Saved"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); qc.invalidateQueries({ queryKey: ["daily_closing"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
