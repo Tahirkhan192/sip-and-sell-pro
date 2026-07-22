@@ -331,6 +331,7 @@ function POS() {
             grand_total: num(sale.grand_total),
             cash_paid: num(cashPaid),
             online_paid: num(onlinePaid),
+            items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
             if (r.ok) toast.success("WhatsApp KDF sent");
             else if (r.reason !== "not-configured" && r.reason !== "no-phone")
