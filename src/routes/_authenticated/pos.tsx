@@ -95,9 +95,8 @@ function POS() {
       setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
       setDeliveryAddress(s.delivery_address ?? "");
-      const totalPaid = num(s.cash_paid) + num(s.online_paid);
-      setPaid(totalPaid > 0 ? totalPaid : "");
-      setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
+      setCashPaid(num(s.cash_paid) > 0 ? num(s.cash_paid) : "");
+      setOnlinePaid(num(s.online_paid) > 0 ? num(s.online_paid) : "");
       if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
