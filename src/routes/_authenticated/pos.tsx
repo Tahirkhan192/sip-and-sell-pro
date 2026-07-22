@@ -59,8 +59,8 @@ function POS() {
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [cashPaid, setCashPaid] = useState<number | "">("");
-  const [onlinePaid, setOnlinePaid] = useState<number | "">("");
+  const [paid, setPaid] = useState<number | "">("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [discountValue, setDiscountValue] = useState<number | "">("");
   const [saleDate, setSaleDate] = useState<string>(() => businessToday());
@@ -95,8 +95,9 @@ function POS() {
       setDelivery(num(s.delivery_charges) || "");
       setDeliveryBoy(s.delivery_boy ?? "");
       setDeliveryAddress(s.delivery_address ?? "");
-      setCashPaid(num(s.cash_paid) > 0 ? num(s.cash_paid) : "");
-      setOnlinePaid(num(s.online_paid) > 0 ? num(s.online_paid) : "");
+      const totalPaid = num(s.cash_paid) + num(s.online_paid);
+      setPaid(totalPaid > 0 ? totalPaid : "");
+      setPaymentMethod(num(s.online_paid) > num(s.cash_paid) ? "online" : "cash");
       if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
       setDiscountType((s.discount_type ?? "amount") as any);
       setDiscountValue(num(s.discount_value) || "");
@@ -199,7 +200,7 @@ function POS() {
   function resetForm() {
     setCart([]); setCustomer(""); setPhone(""); setKatha(false);
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
-    setCashPaid(""); setOnlinePaid(""); setOrderType("walk_in");
+    setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
     setSaleDate(businessToday());
     setCustomerSearch(""); setShowCustomerResults(false);
@@ -215,7 +216,7 @@ function POS() {
   }, [subtotal, discountType, discountValue]);
   const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
   const grandTotal = round2(Math.max(0, subtotal - discountAmount) + effectiveDelivery);
-  const paidNum = round2(num(cashPaid) + num(onlinePaid));
+  const paidNum = num(paid);
   const remaining = Math.max(0, round2(grandTotal - paidNum));
   const change = Math.max(0, round2(paidNum - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
@@ -281,9 +282,9 @@ function POS() {
         _customer_name: customer,
         _status: status,
         _delivery_charges: effectiveDelivery,
-        _payment_method: num(onlinePaid) > num(cashPaid) ? "card" : "cash",
-        _cash_paid: num(cashPaid),
-        _online_paid: num(onlinePaid),
+        _payment_method: paymentMethod === "online" ? "card" : "cash",
+        _cash_paid: paymentMethod === "cash" ? paidNum : 0,
+        _online_paid: paymentMethod === "online" ? paidNum : 0,
         _order_type: orderType,
         _delivery_boy: deliveryBoy,
         _customer_phone: phone,
@@ -329,8 +330,8 @@ function POS() {
             customer_phone: phone,
             customer_name: customer,
             grand_total: num(sale.grand_total),
-            cash_paid: num(cashPaid),
-            online_paid: num(onlinePaid),
+            cash_paid: paymentMethod === "cash" ? paidNum : 0,
+            online_paid: paymentMethod === "online" ? paidNum : 0,
             items: cart.map((i) => ({ name: i.name, quantity: i.quantity, total: i.total, unit: i.unit })),
           }).then((r) => {
             if (r.ok) toast.success("WhatsApp KDF sent");
@@ -581,31 +582,19 @@ function POS() {
               <span className="text-xl font-bold">{money(grandTotal)}</span>
             </div>
 
-            {/* Split payment: Cash + Online */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Cash</Label>
-                <div className="flex gap-1">
-                  <Input type="number" step="0.01" value={cashPaid} placeholder="0.00"
-                    onChange={(e) => setCashPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
-                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
-                    onClick={() => {
-                      const fill = round2(Math.max(0, grandTotal - num(onlinePaid)));
-                      setCashPaid(fill);
-                    }} disabled={grandTotal <= 0}>Paid All</Button>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Online</Label>
-                <div className="flex gap-1">
-                  <Input type="number" step="0.01" value={onlinePaid} placeholder="0.00"
-                    onChange={(e) => setOnlinePaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
-                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
-                    onClick={() => {
-                      const fill = round2(Math.max(0, grandTotal - num(cashPaid)));
-                      setOnlinePaid(fill);
-                    }} disabled={grandTotal <= 0}>Paid All</Button>
-                </div>
+            {/* Payment method */}
+            <div className="grid grid-cols-2 gap-1">
+              <Button type="button" size="sm" variant={paymentMethod === "cash" ? "default" : "outline"} onClick={() => setPaymentMethod("cash")}>Cash</Button>
+              <Button type="button" size="sm" variant={paymentMethod === "online" ? "default" : "outline"} onClick={() => setPaymentMethod("online")}>Online</Button>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Paid Amount</Label>
+              <div className="flex gap-1">
+                <Input type="number" step="0.01" value={paid} placeholder="0.00"
+                  onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                <Button type="button" size="sm" variant="outline" className="h-9 shrink-0"
+                  onClick={() => setPaid(grandTotal)} disabled={grandTotal <= 0}>Paid All</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">

@@ -8,8 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
@@ -17,8 +15,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/delivery-expenses")({ component: Page });
 
-type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid"; payment_method: "cash" | "online" | "" };
-const empty: D = { date: today(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
+type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string };
+const empty: D = { date: today(), fuel_cost: 0, maintenance_cost: 0, description: "" };
 
 function Page() {
   const qc = useQueryClient();
@@ -33,18 +31,13 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (p: D) => {
-      if (p.payment_status === "paid" && !p.payment_method) throw new Error("Choose Cash or Online");
-      const payload: any = {
-        date: p.date, fuel_cost: p.fuel_cost, maintenance_cost: p.maintenance_cost, description: p.description || null,
-        payment_status: p.payment_status,
-        payment_method: p.payment_status === "paid" ? p.payment_method : null,
-      };
+      const payload = { date: p.date, fuel_cost: p.fuel_cost, maintenance_cost: p.maintenance_cost, description: p.description || null };
       const res = p.id
         ? await supabase.from("delivery_expenses").update(payload).eq("id", p.id)
         : await supabase.from("delivery_expenses").insert(payload);
       if (res.error) throw res.error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); qc.invalidateQueries({ queryKey: ["daily_closing"] }); toast.success("Saved"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery_expenses"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
@@ -72,7 +65,7 @@ function Page() {
       </div>
       <Card>
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Fuel</TableHead><TableHead className="text-right">Maintenance</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Method</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Fuel</TableHead><TableHead className="text-right">Maintenance</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
@@ -80,17 +73,13 @@ function Page() {
                 <TableCell className="text-right">{money(p.fuel_cost)}</TableCell>
                 <TableCell className="text-right">{money(p.maintenance_cost)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
-                <TableCell>{(p.payment_status ?? "unpaid") === "paid"
-                  ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Paid</Badge>
-                  : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
-                <TableCell className="capitalize">{p.payment_method ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "", payment_status: (p.payment_status ?? "unpaid") as any, payment_method: (p.payment_method ?? "") as any }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "" }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">No delivery expenses</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">No delivery expenses</TableCell></TableRow>}
           </TableBody>
         </Table>
         {filtered.length > 0 && (
@@ -112,28 +101,6 @@ function Page() {
           <div className="space-y-2"><Label>Maintenance</Label><Input type="number" step="0.01" value={form.maintenance_cost} onChange={(e) => setForm({ ...form, maintenance_cost: Number(e.target.value) })} /></div>
         </div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-2"><Label>Payment Status</Label>
-            <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v, payment_method: v === "unpaid" ? "" : form.payment_method })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {form.payment_status === "paid" && (
-            <div className="space-y-2"><Label>Payment Method</Label>
-              <Select value={form.payment_method} onValueChange={(v: any) => setForm({ ...form, payment_method: v })}>
-                <SelectTrigger><SelectValue placeholder="Cash or Online" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
       </CrudDialog>
     </div>
   );
