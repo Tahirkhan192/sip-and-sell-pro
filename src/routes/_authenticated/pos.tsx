@@ -59,8 +59,8 @@ function POS() {
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [paid, setPaid] = useState<number | "">("");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
+  const [cashPaid, setCashPaid] = useState<number | "">("");
+  const [onlinePaid, setOnlinePaid] = useState<number | "">("");
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [discountValue, setDiscountValue] = useState<number | "">("");
   const [saleDate, setSaleDate] = useState<string>(() => businessToday());
