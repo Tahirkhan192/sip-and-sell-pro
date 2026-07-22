@@ -251,6 +251,8 @@ export type Database = {
           fuel_cost: number
           id: string
           maintenance_cost: number
+          payment_method: string | null
+          payment_status: string
           updated_at: string
         }
         Insert: {
@@ -261,6 +263,8 @@ export type Database = {
           fuel_cost?: number
           id?: string
           maintenance_cost?: number
+          payment_method?: string | null
+          payment_status?: string
           updated_at?: string
         }
         Update: {
@@ -271,6 +275,8 @@ export type Database = {
           fuel_cost?: number
           id?: string
           maintenance_cost?: number
+          payment_method?: string | null
+          payment_status?: string
           updated_at?: string
         }
         Relationships: []
@@ -350,6 +356,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: string
+          is_stock_transfer: boolean
           notes: string | null
           paid_amount: number
           paid_at: string | null
@@ -366,6 +373,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          is_stock_transfer?: boolean
           notes?: string | null
           paid_amount?: number
           paid_at?: string | null
@@ -382,6 +390,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          is_stock_transfer?: boolean
           notes?: string | null
           paid_amount?: number
           paid_at?: string | null
