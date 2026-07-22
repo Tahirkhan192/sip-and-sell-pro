@@ -215,7 +215,7 @@ function POS() {
   }, [subtotal, discountType, discountValue]);
   const effectiveDelivery = orderType === "delivery" ? num(delivery) : 0;
   const grandTotal = round2(Math.max(0, subtotal - discountAmount) + effectiveDelivery);
-  const paidNum = num(paid);
+  const paidNum = round2(num(cashPaid) + num(onlinePaid));
   const remaining = Math.max(0, round2(grandTotal - paidNum));
   const change = Math.max(0, round2(paidNum - grandTotal));
   const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
