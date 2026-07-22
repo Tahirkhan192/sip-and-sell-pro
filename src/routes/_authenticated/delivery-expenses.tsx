@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
@@ -15,8 +17,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/delivery-expenses")({ component: Page });
 
-type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string };
-const empty: D = { date: today(), fuel_cost: 0, maintenance_cost: 0, description: "" };
+type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid"; payment_method: "cash" | "online" | "" };
+const empty: D = { date: today(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
 
 function Page() {
   const qc = useQueryClient();
