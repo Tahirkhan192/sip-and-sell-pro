@@ -199,7 +199,7 @@ function POS() {
   function resetForm() {
     setCart([]); setCustomer(""); setPhone(""); setKatha(false);
     setDelivery(""); setDeliveryBoy(""); setDeliveryAddress("");
-    setPaid(""); setPaymentMethod("cash"); setOrderType("walk_in");
+    setCashPaid(""); setOnlinePaid(""); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
     setSaleDate(businessToday());
     setCustomerSearch(""); setShowCustomerResults(false);
