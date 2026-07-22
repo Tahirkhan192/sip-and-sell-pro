@@ -581,19 +581,31 @@ function POS() {
               <span className="text-xl font-bold">{money(grandTotal)}</span>
             </div>
 
-            {/* Payment method */}
-            <div className="grid grid-cols-2 gap-1">
-              <Button type="button" size="sm" variant={paymentMethod === "cash" ? "default" : "outline"} onClick={() => setPaymentMethod("cash")}>Cash</Button>
-              <Button type="button" size="sm" variant={paymentMethod === "online" ? "default" : "outline"} onClick={() => setPaymentMethod("online")}>Online</Button>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Paid Amount</Label>
-              <div className="flex gap-1">
-                <Input type="number" step="0.01" value={paid} placeholder="0.00"
-                  onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
-                <Button type="button" size="sm" variant="outline" className="h-9 shrink-0"
-                  onClick={() => setPaid(grandTotal)} disabled={grandTotal <= 0}>Paid All</Button>
+            {/* Split payment: Cash + Online */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Cash</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" value={cashPaid} placeholder="0.00"
+                    onChange={(e) => setCashPaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
+                    onClick={() => {
+                      const fill = round2(Math.max(0, grandTotal - num(onlinePaid)));
+                      setCashPaid(fill);
+                    }} disabled={grandTotal <= 0}>Paid All</Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Online</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" value={onlinePaid} placeholder="0.00"
+                    onChange={(e) => setOnlinePaid(e.target.value === "" ? "" : Number(e.target.value))} className="h-9" />
+                  <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 px-2"
+                    onClick={() => {
+                      const fill = round2(Math.max(0, grandTotal - num(cashPaid)));
+                      setOnlinePaid(fill);
+                    }} disabled={grandTotal <= 0}>Paid All</Button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
