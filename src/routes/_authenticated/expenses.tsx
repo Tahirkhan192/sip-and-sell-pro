@@ -120,14 +120,14 @@ function Page() {
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
-                <TableCell className="capitalize">{p.payment_method ?? "cash"}</TableCell>
+                <TableCell className="capitalize">{p.is_stock_transfer || p.payment_method === "stock_transfer" ? "Stock Transfer" : (p.payment_method ?? "cash")}</TableCell>
                 <TableCell><span className={"inline-block rounded px-2 py-0.5 text-xs " + (status === "paid" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>{status}</span></TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as "cash" | "online", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
               );
