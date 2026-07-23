@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
-type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online"; payment_status: "paid" | "unpaid" };
+type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" | "stock_transfer"; payment_status: "paid" | "unpaid"; is_stock_transfer?: boolean };
 const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash", payment_status: "paid" };
 
 function Page() {
