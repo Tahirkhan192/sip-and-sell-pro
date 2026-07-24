@@ -17,6 +17,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/recipes")({ component: RecipesPage });
 
 type ComponentType = "product" | "stock_item";
+type OrderType = "walk_in" | "take_away" | "delivery";
 type R = {
   id?: string;
   parent_product_id: string;
@@ -25,8 +26,12 @@ type R = {
   component_stock_item_id: string | null;
   quantity: number;
   unit: string;
+  applies_to: OrderType[];
 };
-const empty: R = { parent_product_id: "", component_type: "stock_item", component_product_id: null, component_stock_item_id: null, quantity: 1, unit: "pcs" };
+const ALL_ORDER_TYPES: OrderType[] = ["walk_in", "take_away", "delivery"];
+const ORDER_LABEL: Record<OrderType, string> = { walk_in: "Walk-in", take_away: "Take Away", delivery: "Delivery" };
+const empty: R = { parent_product_id: "", component_type: "stock_item", component_product_id: null, component_stock_item_id: null, quantity: 1, unit: "pcs", applies_to: ["walk_in", "take_away", "delivery"] };
+
 
 function RecipesPage() {
   const qc = useQueryClient();
@@ -47,7 +52,7 @@ function RecipesPage() {
     queryKey: ["recipes"],
     queryFn: async () => (await supabase
       .from("recipes" as any)
-      .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
+      .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, applies_to, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })).data ?? [],
   });
@@ -59,12 +64,14 @@ function RecipesPage() {
       if (r.component_type === "stock_item" && !r.component_stock_item_id) throw new Error("Choose a component stock item");
       if (r.component_type === "product" && r.parent_product_id === r.component_product_id) throw new Error("Parent and component cannot be the same");
       if (num(r.quantity) <= 0) throw new Error("Quantity must be > 0");
+      if (!r.applies_to || r.applies_to.length === 0) throw new Error("Choose at least one Apply-For option");
       const payload = {
         parent_product_id: r.parent_product_id,
         component_product_id: r.component_type === "product" ? r.component_product_id : null,
         component_stock_item_id: r.component_type === "stock_item" ? r.component_stock_item_id : null,
         quantity: r.quantity,
         unit: r.unit,
+        applies_to: r.applies_to,
       };
       const res = r.id
         ? await supabase.from("recipes" as any).update(payload).eq("id", r.id)
@@ -115,6 +122,7 @@ function RecipesPage() {
               <TableHead>Source</TableHead>
               <TableHead className="text-right">Qty / sale</TableHead>
               <TableHead>Unit</TableHead>
+              <TableHead>Apply For</TableHead>
               <TableHead className="w-28"></TableHead>
             </TableRow>
           </TableHeader>
@@ -129,6 +137,10 @@ function RecipesPage() {
                   <TableCell><Badge variant="outline" className="text-[10px]">{isStock ? "Stock Item" : "Product"}</Badge></TableCell>
                   <TableCell className="text-right">{num(r.quantity).toFixed(3)}</TableCell>
                   <TableCell className="uppercase text-xs">{r.unit}</TableCell>
+                  <TableCell className="text-xs">
+                    {((r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[])
+                      .map((o) => ORDER_LABEL[o]).join(", ")}
+                  </TableCell>
                   <TableCell className="flex gap-1">
                     <Button size="icon" variant="ghost" onClick={() => {
                       setForm({
@@ -137,6 +149,7 @@ function RecipesPage() {
                         component_product_id: r.component_product_id,
                         component_stock_item_id: r.component_stock_item_id,
                         quantity: r.quantity, unit: r.unit,
+                        applies_to: (r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[],
                       });
                       setOpen(true);
                     }}><Pencil className="h-4 w-4" /></Button>
@@ -147,6 +160,7 @@ function RecipesPage() {
                         component_product_id: r.component_product_id,
                         component_stock_item_id: r.component_stock_item_id,
                         quantity: r.quantity, unit: r.unit,
+                        applies_to: (r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[],
                       });
                       setOpen(true);
                     }}><Copy className="h-4 w-4" /></Button>
@@ -155,7 +169,7 @@ function RecipesPage() {
                 </TableRow>
               );
             })}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">No recipes</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">No recipes</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
@@ -177,12 +191,12 @@ function RecipesPage() {
         </div>
 
         <div className="space-y-2">
-          <Label>Ingredient source</Label>
+          <Label>Connection Type</Label>
           <div className="grid grid-cols-2 gap-1">
-            <Button type="button" size="sm" variant={form.component_type === "stock_item" ? "default" : "outline"}
-              onClick={() => setForm({ ...form, component_type: "stock_item", component_product_id: null })}>Stock Item</Button>
             <Button type="button" size="sm" variant={form.component_type === "product" ? "default" : "outline"}
-              onClick={() => setForm({ ...form, component_type: "product", component_stock_item_id: null })}>Product</Button>
+              onClick={() => setForm({ ...form, component_type: "product", component_stock_item_id: null })}>Product → Product</Button>
+            <Button type="button" size="sm" variant={form.component_type === "stock_item" ? "default" : "outline"}
+              onClick={() => setForm({ ...form, component_type: "stock_item", component_product_id: null })}>Product → Stock</Button>
           </div>
         </div>
 
@@ -229,7 +243,26 @@ function RecipesPage() {
                 <SelectItem value="ltr">LTR</SelectItem>
               </SelectContent>
             </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Apply For (order types this connection is used on)</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {ALL_ORDER_TYPES.map((o) => {
+              const active = form.applies_to.includes(o);
+              return (
+                <Button key={o} type="button" size="sm"
+                  variant={active ? "default" : "outline"}
+                  onClick={() => setForm({
+                    ...form,
+                    applies_to: active
+                      ? form.applies_to.filter((x) => x !== o)
+                      : [...form.applies_to, o],
+                  })}>{ORDER_LABEL[o]}</Button>
+              );
+            })}
           </div>
+        </div>
         </div>
       </CrudDialog>
     </div>

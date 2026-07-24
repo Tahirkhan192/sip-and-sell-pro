@@ -773,6 +773,7 @@ export type Database = {
       }
       recipes: {
         Row: {
+          applies_to: string[]
           component_product_id: string | null
           component_stock_item_id: string | null
           created_at: string
@@ -784,6 +785,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          applies_to?: string[]
           component_product_id?: string | null
           component_stock_item_id?: string | null
           created_at?: string
@@ -795,6 +797,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          applies_to?: string[]
           component_product_id?: string | null
           component_stock_item_id?: string | null
           created_at?: string
@@ -1269,10 +1272,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      apply_stock_for_sale_item: {
-        Args: { _product_id: string; _quantity: number; _sign: number }
-        Returns: undefined
-      }
+      apply_stock_for_sale_item:
+        | {
+            Args: { _product_id: string; _quantity: number; _sign: number }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _order_type?: string
+              _product_id: string
+              _quantity: number
+              _sign: number
+            }
+            Returns: undefined
+          }
       business_date: { Args: { ts: string }; Returns: string }
       business_date_of: { Args: { _ts: string }; Returns: string }
       category_monthly_report: {

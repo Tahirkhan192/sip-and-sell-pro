@@ -145,7 +145,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   };
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
-  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
+  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity, applies_to").is("deleted_at", null);
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
@@ -204,19 +204,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ensureCat(s.category ?? "—");
   }
 
-  // Recipe components indexed by parent product, using current weighted-average cost.
-  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number };
+  // Recipe components indexed by parent product + order type, using current weighted-average cost.
+  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number; appliesTo: Set<string> };
   const recipesByParent: Record<string, RecipeComp[]> = {};
+  const ALL_OT = ["walk_in", "take_away", "delivery"];
   for (const r of recipes) {
     const parent = r.parent_product_id;
     if (!parent) continue;
+    const applies = new Set<string>((Array.isArray(r.applies_to) && r.applies_to.length > 0) ? r.applies_to : ALL_OT);
     let comp: RecipeComp | null = null;
     if (r.component_product_id) {
       const cp = prodById[r.component_product_id];
-      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity) };
+      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity), appliesTo: applies };
     } else if (r.component_stock_item_id) {
       const cs = stockById[r.component_stock_item_id];
-      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity) };
+      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity), appliesTo: applies };
     }
     if (comp) (recipesByParent[parent] ??= []).push(comp);
   }
@@ -230,9 +232,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   let kathaAmount = 0;
 
   for (const sale of invoices) {
-    // Pending invoices reduce inventory only; they never contribute to
-    // financial totals, category rollups, product sales, or daily closing.
-    if (sale.status === "pending") continue;
+    const isPending = sale.status === "pending";
     const businessDate = businessDateOf(sale.sale_date);
     const grand = num(sale.grand_total);
     const delivery = num(sale.delivery_charges);
@@ -245,27 +245,35 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       if (sale.payment_method === "card") online = grand;
     }
     const remaining = Math.max(0, grand - cash - online);
+    const orderType: string = sale.order_type ?? "walk_in";
 
-    totalSales += grand;
-    deliveryCharges += delivery;
-    totalCashPaid += cash;
-    totalOnlinePaid += online;
-    if (sale.katha) kathaAmount += remaining;
+    // Financial totals only for completed sales — pending is inventory-only.
+    if (!isPending) {
+      totalSales += grand;
+      deliveryCharges += delivery;
+      totalCashPaid += cash;
+      totalOnlinePaid += online;
+      if (sale.katha) kathaAmount += remaining;
+    }
 
     const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0 });
     day.count += 1;
-    day.totalSales += grand;
-    day.delivery += delivery;
-    day.cash += cash;
-    day.online += online;
-    if (sale.katha) day.katha += remaining;
+    if (!isPending) {
+      day.totalSales += grand;
+      day.delivery += delivery;
+      day.cash += cash;
+      day.online += online;
+      if (sale.katha) day.katha += remaining;
+    }
 
     if (items.length === 0) {
-      const cat = ensureCat("Uncategorized");
-      cat.sales += grand;
-      const key = "unallocated";
-      productMap[key] ??= { id: key, name: "Unallocated invoice", category: "Uncategorized", qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
-      productMap[key].rev += grand;
+      if (!isPending) {
+        const cat = ensureCat("Uncategorized");
+        cat.sales += grand;
+        const key = "unallocated";
+        productMap[key] ??= { id: key, name: "Unallocated invoice", category: "Uncategorized", qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
+        productMap[key].rev += grand;
+      }
       continue;
     }
 
@@ -276,7 +284,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const itemTotal = num(it.total);
       const allocatedSales = itemSubtotal > 0 ? (grand * itemTotal) / itemSubtotal : grand / items.length;
       const cat = ensureCat(category);
-      cat.sales += allocatedSales;
+      // Quantities and product rows include pending so Reports match the Sales page.
       cat.revenueQty += qty;
       totalQtySold += qty;
       day.totalQtySold += qty;
@@ -288,16 +296,16 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       if (recipe && recipe.length > 0) {
         cost = 0;
         for (const comp of recipe) {
+          if (!comp.appliesTo.has(orderType)) continue;
           const ingredientCost = qty * comp.qtyPerParent * comp.unitCost;
           if (ingredientCost === 0) continue;
           cost += ingredientCost;
-          const src = ensureCat(comp.category);
-          // Source category loses purchase value (bucketed by component kind so it
-          // offsets the same bucket the original purchase landed in).
-          if (comp.kind === "product") src.productPurchases -= ingredientCost;
-          else src.stockPurchases -= ingredientCost;
-          // Destination (finished product's category) gains purchase value.
-          cat.productPurchases += ingredientCost;
+          if (!isPending) {
+            const src = ensureCat(comp.category);
+            if (comp.kind === "product") src.productPurchases -= ingredientCost;
+            else src.stockPurchases -= ingredientCost;
+            cat.productPurchases += ingredientCost;
+          }
         }
       } else {
         cost = qty * num(product.cost_price);
@@ -306,8 +314,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const pid = it.product_id ?? `unknown-${category}`;
       productMap[pid] ??= { id: pid, name: product.name ?? "Unknown product", category, qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
       productMap[pid].qty += qty;
-      productMap[pid].rev += allocatedSales;
-      productMap[pid].cogs += cost;
+      if (!isPending) {
+        cat.sales += allocatedSales;
+        productMap[pid].rev += allocatedSales;
+        productMap[pid].cogs += cost;
+      }
     }
   }
 
