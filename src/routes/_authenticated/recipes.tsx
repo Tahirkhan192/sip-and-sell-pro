@@ -64,12 +64,14 @@ function RecipesPage() {
       if (r.component_type === "stock_item" && !r.component_stock_item_id) throw new Error("Choose a component stock item");
       if (r.component_type === "product" && r.parent_product_id === r.component_product_id) throw new Error("Parent and component cannot be the same");
       if (num(r.quantity) <= 0) throw new Error("Quantity must be > 0");
+      if (!r.applies_to || r.applies_to.length === 0) throw new Error("Choose at least one Apply-For option");
       const payload = {
         parent_product_id: r.parent_product_id,
         component_product_id: r.component_type === "product" ? r.component_product_id : null,
         component_stock_item_id: r.component_type === "stock_item" ? r.component_stock_item_id : null,
         quantity: r.quantity,
         unit: r.unit,
+        applies_to: r.applies_to,
       };
       const res = r.id
         ? await supabase.from("recipes" as any).update(payload).eq("id", r.id)
