@@ -52,7 +52,7 @@ function RecipesPage() {
     queryKey: ["recipes"],
     queryFn: async () => (await supabase
       .from("recipes" as any)
-      .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
+      .select("id, parent_product_id, component_product_id, component_stock_item_id, quantity, unit, applies_to, parent:products!recipes_parent_product_id_fkey(name), component:products!recipes_component_product_id_fkey(name), stock_component:stock_items(name)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })).data ?? [],
   });
