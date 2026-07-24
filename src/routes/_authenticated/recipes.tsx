@@ -122,6 +122,7 @@ function RecipesPage() {
               <TableHead>Source</TableHead>
               <TableHead className="text-right">Qty / sale</TableHead>
               <TableHead>Unit</TableHead>
+              <TableHead>Apply For</TableHead>
               <TableHead className="w-28"></TableHead>
             </TableRow>
           </TableHeader>
