@@ -144,6 +144,7 @@ function RecipesPage() {
                         component_product_id: r.component_product_id,
                         component_stock_item_id: r.component_stock_item_id,
                         quantity: r.quantity, unit: r.unit,
+                        applies_to: (r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[],
                       });
                       setOpen(true);
                     }}><Pencil className="h-4 w-4" /></Button>
@@ -154,6 +155,7 @@ function RecipesPage() {
                         component_product_id: r.component_product_id,
                         component_stock_item_id: r.component_stock_item_id,
                         quantity: r.quantity, unit: r.unit,
+                        applies_to: (r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[],
                       });
                       setOpen(true);
                     }}><Copy className="h-4 w-4" /></Button>
