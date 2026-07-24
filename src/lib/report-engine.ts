@@ -145,7 +145,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   };
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
-  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity").is("deleted_at", null);
+  const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity, applies_to").is("deleted_at", null);
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
