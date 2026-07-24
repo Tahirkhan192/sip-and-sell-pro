@@ -17,6 +17,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/recipes")({ component: RecipesPage });
 
 type ComponentType = "product" | "stock_item";
+type OrderType = "walk_in" | "take_away" | "delivery";
 type R = {
   id?: string;
   parent_product_id: string;
@@ -25,8 +26,12 @@ type R = {
   component_stock_item_id: string | null;
   quantity: number;
   unit: string;
+  applies_to: OrderType[];
 };
-const empty: R = { parent_product_id: "", component_type: "stock_item", component_product_id: null, component_stock_item_id: null, quantity: 1, unit: "pcs" };
+const ALL_ORDER_TYPES: OrderType[] = ["walk_in", "take_away", "delivery"];
+const ORDER_LABEL: Record<OrderType, string> = { walk_in: "Walk-in", take_away: "Take Away", delivery: "Delivery" };
+const empty: R = { parent_product_id: "", component_type: "stock_item", component_product_id: null, component_stock_item_id: null, quantity: 1, unit: "pcs", applies_to: ["walk_in", "take_away", "delivery"] };
+
 
 function RecipesPage() {
   const qc = useQueryClient();
