@@ -204,19 +204,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ensureCat(s.category ?? "—");
   }
 
-  // Recipe components indexed by parent product, using current weighted-average cost.
-  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number };
+  // Recipe components indexed by parent product + order type, using current weighted-average cost.
+  type RecipeComp = { kind: "product" | "stock_item"; category: string; unitCost: number; qtyPerParent: number; appliesTo: Set<string> };
   const recipesByParent: Record<string, RecipeComp[]> = {};
+  const ALL_OT = ["walk_in", "take_away", "delivery"];
   for (const r of recipes) {
     const parent = r.parent_product_id;
     if (!parent) continue;
+    const applies = new Set<string>((Array.isArray(r.applies_to) && r.applies_to.length > 0) ? r.applies_to : ALL_OT);
     let comp: RecipeComp | null = null;
     if (r.component_product_id) {
       const cp = prodById[r.component_product_id];
-      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity) };
+      if (cp) comp = { kind: "product", category: cp.category ?? "—", unitCost: num(cp.cost_price), qtyPerParent: num(r.quantity), appliesTo: applies };
     } else if (r.component_stock_item_id) {
       const cs = stockById[r.component_stock_item_id];
-      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity) };
+      if (cs) comp = { kind: "stock_item", category: cs.category ?? "—", unitCost: num(cs.purchase_price), qtyPerParent: num(r.quantity), appliesTo: applies };
     }
     if (comp) (recipesByParent[parent] ??= []).push(comp);
   }
