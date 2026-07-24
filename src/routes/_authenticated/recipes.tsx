@@ -243,7 +243,26 @@ function RecipesPage() {
                 <SelectItem value="ltr">LTR</SelectItem>
               </SelectContent>
             </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Apply For (order types this connection is used on)</Label>
+          <div className="grid grid-cols-3 gap-1">
+            {ALL_ORDER_TYPES.map((o) => {
+              const active = form.applies_to.includes(o);
+              return (
+                <Button key={o} type="button" size="sm"
+                  variant={active ? "default" : "outline"}
+                  onClick={() => setForm({
+                    ...form,
+                    applies_to: active
+                      ? form.applies_to.filter((x) => x !== o)
+                      : [...form.applies_to, o],
+                  })}>{ORDER_LABEL[o]}</Button>
+              );
+            })}
           </div>
+        </div>
         </div>
       </CrudDialog>
     </div>
