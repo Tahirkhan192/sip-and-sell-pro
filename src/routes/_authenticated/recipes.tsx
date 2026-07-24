@@ -191,12 +191,12 @@ function RecipesPage() {
         </div>
 
         <div className="space-y-2">
-          <Label>Ingredient source</Label>
+          <Label>Connection Type</Label>
           <div className="grid grid-cols-2 gap-1">
-            <Button type="button" size="sm" variant={form.component_type === "stock_item" ? "default" : "outline"}
-              onClick={() => setForm({ ...form, component_type: "stock_item", component_product_id: null })}>Stock Item</Button>
             <Button type="button" size="sm" variant={form.component_type === "product" ? "default" : "outline"}
-              onClick={() => setForm({ ...form, component_type: "product", component_stock_item_id: null })}>Product</Button>
+              onClick={() => setForm({ ...form, component_type: "product", component_stock_item_id: null })}>Product → Product</Button>
+            <Button type="button" size="sm" variant={form.component_type === "stock_item" ? "default" : "outline"}
+              onClick={() => setForm({ ...form, component_type: "stock_item", component_product_id: null })}>Product → Stock</Button>
           </div>
         </div>
 
