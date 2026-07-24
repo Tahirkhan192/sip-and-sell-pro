@@ -137,6 +137,10 @@ function RecipesPage() {
                   <TableCell><Badge variant="outline" className="text-[10px]">{isStock ? "Stock Item" : "Product"}</Badge></TableCell>
                   <TableCell className="text-right">{num(r.quantity).toFixed(3)}</TableCell>
                   <TableCell className="uppercase text-xs">{r.unit}</TableCell>
+                  <TableCell className="text-xs">
+                    {((r.applies_to?.length ? r.applies_to : ALL_ORDER_TYPES) as OrderType[])
+                      .map((o) => ORDER_LABEL[o]).join(", ")}
+                  </TableCell>
                   <TableCell className="flex gap-1">
                     <Button size="icon" variant="ghost" onClick={() => {
                       setForm({
