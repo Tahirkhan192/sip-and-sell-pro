@@ -157,9 +157,9 @@ function Page() {
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer, ...(p.is_stock_transfer ? { source_quantity: p.source_quantity, source_unit_cost: p.source_unit_cost, source_product_id: p.source_product_id, source_stock_item_id: p.source_stock_item_id } : {}) } as any); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { if (confirm(p.is_stock_transfer ? "Delete this stock transfer? Stock will be restored." : "Delete?")) del.mutate({ id: p.id, isTransfer: !!p.is_stock_transfer }); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
               );
