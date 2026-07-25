@@ -363,6 +363,10 @@ export type Database = {
           payment_method: string
           payment_source: string
           payment_status: string
+          source_product_id: string | null
+          source_quantity: number | null
+          source_stock_item_id: string | null
+          source_unit_cost: number | null
           supplier: string | null
         }
         Insert: {
@@ -380,6 +384,10 @@ export type Database = {
           payment_method?: string
           payment_source?: string
           payment_status?: string
+          source_product_id?: string | null
+          source_quantity?: number | null
+          source_stock_item_id?: string | null
+          source_unit_cost?: number | null
           supplier?: string | null
         }
         Update: {
@@ -397,9 +405,28 @@ export type Database = {
           payment_method?: string
           payment_source?: string
           payment_status?: string
+          source_product_id?: string | null
+          source_quantity?: number | null
+          source_stock_item_id?: string | null
+          source_unit_cost?: number | null
           supplier?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expenses_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_source_stock_item_id_fkey"
+            columns: ["source_stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       money_movement_subcategories: {
         Row: {
@@ -1325,6 +1352,10 @@ export type Database = {
         Args: { _batch_id: string }
         Returns: undefined
       }
+      delete_stock_transfer_expense: {
+        Args: { _expense_id: string }
+        Returns: undefined
+      }
       get_business_config: {
         Args: never
         Returns: {
@@ -1890,6 +1921,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      update_stock_transfer_expense: {
+        Args: {
+          _category: string
+          _date: string
+          _description: string
+          _expense_id: string
+          _notes: string
+          _quantity: number
+        }
+        Returns: undefined
       }
     }
     Enums: {
