@@ -327,6 +327,7 @@ function POS() {
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
+      if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart });
