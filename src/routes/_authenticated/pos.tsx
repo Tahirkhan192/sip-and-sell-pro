@@ -85,35 +85,39 @@ function POS() {
     queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
   });
 
+  const hydratedEditIdRef = useRef<string | null>(null);
+  const skipHydrateIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (editingSale) {
-      const s: any = editingSale;
-      setCustomer(s.customer_name ?? "");
-      setPhone(s.customer_phone ?? "");
-      setKatha(!!s.katha);
-      setOrderType((s.order_type ?? "walk_in") as any);
-      setDelivery(num(s.delivery_charges) || "");
-      setDeliveryBoy(s.delivery_boy ?? "");
-      setDeliveryAddress(s.delivery_address ?? "");
-      setCashPaid(num(s.cash_paid) > 0 ? num(s.cash_paid) : "");
-      setOnlinePaid(num(s.online_paid) > 0 ? num(s.online_paid) : "");
-      if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
-      setDiscountType((s.discount_type ?? "amount") as any);
-      setDiscountValue(num(s.discount_value) || "");
-      setCart((s.sale_items ?? []).map((it: any) => ({
-        product_id: it.product_id,
-        name: it.products?.name ?? "Item",
-        category: it.products?.category ?? "",
-        unit: it.unit ?? it.products?.unit ?? "pcs",
-        selling_method: (it.products?.selling_method ?? "fixed") as "fixed" | "weight",
-        rate: num(it.price),
-        quantity: num(it.quantity),
-        total: num(it.total),
-        current_stock: num(it.products?.current_stock),
-      })));
-      setInvoiceSearch("");
-      setShowInvoiceResults(false);
-    }
+    if (!editingSale) return;
+    const s: any = editingSale;
+    if (skipHydrateIdRef.current === s.id) return; // just saved; ignore stale refetch
+    if (hydratedEditIdRef.current === s.id) return; // already hydrated once
+    hydratedEditIdRef.current = s.id;
+    setCustomer(s.customer_name ?? "");
+    setPhone(s.customer_phone ?? "");
+    setKatha(!!s.katha);
+    setOrderType((s.order_type ?? "walk_in") as any);
+    setDelivery(num(s.delivery_charges) || "");
+    setDeliveryBoy(s.delivery_boy ?? "");
+    setDeliveryAddress(s.delivery_address ?? "");
+    setCashPaid(num(s.cash_paid) > 0 ? num(s.cash_paid) : "");
+    setOnlinePaid(num(s.online_paid) > 0 ? num(s.online_paid) : "");
+    if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
+    setDiscountType((s.discount_type ?? "amount") as any);
+    setDiscountValue(num(s.discount_value) || "");
+    setCart((s.sale_items ?? []).map((it: any) => ({
+      product_id: it.product_id,
+      name: it.products?.name ?? "Item",
+      category: it.products?.category ?? "",
+      unit: it.unit ?? it.products?.unit ?? "pcs",
+      selling_method: (it.products?.selling_method ?? "fixed") as "fixed" | "weight",
+      rate: num(it.price),
+      quantity: num(it.quantity),
+      total: num(it.total),
+      current_stock: num(it.products?.current_stock),
+    })));
+    setInvoiceSearch("");
+    setShowInvoiceResults(false);
   }, [editingSale]);
 
   const { data: customerSuggestions = [] } = useQuery({
@@ -205,9 +209,11 @@ function POS() {
     setCustomerSearch(""); setShowCustomerResults(false);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
+    hydratedEditIdRef.current = null;
     // Drop any cached edit target so a subsequent load fetches fresh data.
     qc.removeQueries({ queryKey: ["sales", "edit"] });
     if (editId) navigate({ to: "/pos", search: {} });
+    setTimeout(() => searchRef.current?.focus(), 0);
   }
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.total, 0), [cart]);
@@ -323,6 +329,7 @@ function POS() {
       return { sale: data, status };
     },
     onSuccess: async ({ sale, status }: any) => {
+      if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart });

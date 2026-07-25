@@ -44,6 +44,19 @@ function Page() {
   const save = useMutation({
     mutationFn: async (p: E) => {
       const amt = Number(p.amount || 0);
+      // Stock-transfer expense: edit via dedicated RPC to keep stock in sync.
+      if (p.id && p.is_stock_transfer) {
+        const { error } = await supabase.rpc("update_stock_transfer_expense" as any, {
+          _expense_id: p.id,
+          _quantity: amt > 0 && (p as any).source_unit_cost ? amt / Number((p as any).source_unit_cost) : (p as any).source_quantity,
+          _date: p.date,
+          _category: p.category,
+          _description: p.description || null,
+          _notes: null,
+        } as any);
+        if (error) throw error;
+        return;
+      }
       const payload = {
         date: p.date,
         category: p.category,
@@ -59,15 +72,34 @@ function Page() {
         : await supabase.from("expenses").insert(payload);
       if (res.error) throw res.error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Saved"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
+      toast.success("Saved");
+    },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, isTransfer }: { id: string; isTransfer: boolean }) => {
+      if (isTransfer) {
+        const { error } = await supabase.rpc("delete_stock_transfer_expense" as any, { _expense_id: id } as any);
+        if (error) throw error;
+        return;
+      }
       const { error } = await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses"] }); toast.success("Deleted"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
+      toast.success("Deleted");
+    },
   });
 
   const filtered = useMemo(() => {
@@ -125,9 +157,9 @@ function Page() {
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" disabled={!!p.is_stock_transfer} onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer, ...(p.is_stock_transfer ? { source_quantity: p.source_quantity, source_unit_cost: p.source_unit_cost, source_product_id: p.source_product_id, source_stock_item_id: p.source_stock_item_id } : {}) } as any); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { if (confirm(p.is_stock_transfer ? "Delete this stock transfer? Stock will be restored." : "Delete?")) del.mutate({ id: p.id, isTransfer: !!p.is_stock_transfer }); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
               );
