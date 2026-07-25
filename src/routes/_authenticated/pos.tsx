@@ -209,9 +209,11 @@ function POS() {
     setCustomerSearch(""); setShowCustomerResults(false);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
+    hydratedEditIdRef.current = null;
     // Drop any cached edit target so a subsequent load fetches fresh data.
     qc.removeQueries({ queryKey: ["sales", "edit"] });
     if (editId) navigate({ to: "/pos", search: {} });
+    setTimeout(() => searchRef.current?.focus(), 0);
   }
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.total, 0), [cart]);
