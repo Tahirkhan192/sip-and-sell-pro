@@ -286,7 +286,38 @@ function POS() {
     mutationFn: async ({ status, dateMode }: SaveArgs) => {
       if (submittingRef.current) throw new Error("Save already in progress");
       submittingRef.current = true;
-      if (cart.length === 0) throw new Error("Cart is empty");
+
+      // Build list of Money Movement rows to persist (if MM enabled)
+      const mmRows: Array<{ payment_source: "cash" | "online"; type: "cash_in" | "cash_out"; amount: number }> = [];
+      if (mmEnabled) {
+        const cAmt = num(mmCashAmt);
+        const oAmt = num(mmOnlineAmt);
+        if (mmCashDir && cAmt > 0) mmRows.push({ payment_source: "cash", type: mmCashDir === "in" ? "cash_in" : "cash_out", amount: cAmt });
+        if (mmOnlineDir && oAmt > 0) mmRows.push({ payment_source: "online", type: mmOnlineDir === "in" ? "cash_in" : "cash_out", amount: oAmt });
+        if (cAmt > 0 && !mmCashDir) throw new Error("Select Cash direction (In or Out)");
+        if (oAmt > 0 && !mmOnlineDir) throw new Error("Select Online direction (In or Out)");
+        if (mmRows.length === 0) throw new Error("Enter a Money Movement amount and direction");
+      }
+
+      // MM-only save (no products): create movements and skip the sale entirely.
+      if (cart.length === 0) {
+        if (!mmEnabled || mmRows.length === 0) throw new Error("Cart is empty");
+        const nowIso = new Date().toISOString();
+        const bDate = businessToday();
+        const payload = mmRows.map((r) => ({
+          type: r.type,
+          payment_source: r.payment_source,
+          amount: r.amount,
+          notes: "POS money movement",
+          business_date: bDate,
+          occurred_at: nowIso,
+          reference_type: "pos_manual",
+        }));
+        const { error } = await supabase.from("cash_movements" as any).insert(payload);
+        if (error) throw error;
+        return { sale: null, status, mmOnly: true };
+      }
+
       const items = cart.map((i) => ({
         product_id: i.product_id,
         quantity: i.quantity,
@@ -310,30 +341,47 @@ function POS() {
         _delivery_address: deliveryAddress,
       };
       const today = businessToday();
-      // Determine sale timestamp.
-      // - dateMode "original": keep DB's existing sale_date (only meaningful when editing).
-      // - dateMode "current": use "now" so both business date & time reflect right now.
-      // - default: same as before — anchor to start of the chosen business day, or now if today.
       let saleTs: string | null;
       if (dateMode === "original") saleTs = null;
       else if (dateMode === "current") saleTs = new Date().toISOString();
       else saleTs = saleDate && saleDate !== today ? businessDayStartUTC(saleDate) : new Date().toISOString();
 
+      let saleData: any;
       if (editId) {
         const { data, error } = await supabase.rpc("update_sale" as any, {
           _sale_id: editId, ...args,
-          _sale_date: saleTs, // NULL keeps existing (see update_sale COALESCE)
+          _sale_date: saleTs,
         });
         if (error) throw error;
-        return { sale: data, status };
+        saleData = data;
+      } else {
+        const { data, error } = await supabase.rpc("save_sale" as any, args);
+        if (error) throw error;
+        saleData = data;
+        if (data && saleTs && saleDate && saleDate !== today) {
+          await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
+        }
       }
-      const { data, error } = await supabase.rpc("save_sale" as any, args);
-      if (error) throw error;
-      // If cashier chose a back-date, sync sale_date
-      if (data && saleTs && saleDate && saleDate !== today) {
-        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
+
+      // Attach money movements linked to this sale
+      if (mmRows.length > 0 && saleData) {
+        const bDate = businessToday();
+        const nowIso = new Date().toISOString();
+        const payload = mmRows.map((r) => ({
+          type: r.type,
+          payment_source: r.payment_source,
+          amount: r.amount,
+          notes: `POS ${saleData.invoice_no ?? ""}`.trim(),
+          business_date: bDate,
+          occurred_at: nowIso,
+          reference_type: "sale",
+          reference_id: saleData.id ?? null,
+        }));
+        const { error: mmErr } = await supabase.from("cash_movements" as any).insert(payload);
+        if (mmErr) throw mmErr;
       }
-      return { sale: data, status };
+
+      return { sale: saleData, status };
     },
     onSuccess: async ({ sale, status }: any) => {
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
