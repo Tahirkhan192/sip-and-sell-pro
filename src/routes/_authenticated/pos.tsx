@@ -715,20 +715,56 @@ function POS() {
             )}
           </div>
 
+          {/* Optional Money Movement inside invoice */}
+          <div className="rounded-md border">
+            <label className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer">
+              <input type="checkbox" checked={mmEnabled} onChange={(e) => setMmEnabled(e.target.checked)} />
+              <span className="font-medium">Enable Money Movement</span>
+              <span className="text-muted-foreground">(customer change / wallet exchange)</span>
+            </label>
+            {mmEnabled && (
+              <div className="px-2 pb-2 space-y-2 border-t pt-2">
+                <div className="grid grid-cols-[64px_1fr_1fr_auto] gap-1 items-center text-xs">
+                  <span className="font-medium">Cash</span>
+                  <div className="flex gap-1">
+                    <Button type="button" size="sm" variant={mmCashDir === "in" ? "default" : "outline"} className="h-8 flex-1 px-2" onClick={() => setMmCashDir(mmCashDir === "in" ? "" : "in")}>In</Button>
+                    <Button type="button" size="sm" variant={mmCashDir === "out" ? "destructive" : "outline"} className="h-8 flex-1 px-2" onClick={() => setMmCashDir(mmCashDir === "out" ? "" : "out")}>Out</Button>
+                  </div>
+                  <Input type="number" step="0.01" placeholder="0.00" value={mmCashAmt}
+                    onChange={(e) => setMmCashAmt(e.target.value === "" ? "" : Number(e.target.value))} className="h-8" />
+                  <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0" disabled={change <= 0}
+                    onClick={() => { setMmCashAmt(change); if (!mmCashDir) setMmCashDir("out"); }}>Add Change</Button>
+                </div>
+                <div className="grid grid-cols-[64px_1fr_1fr_auto] gap-1 items-center text-xs">
+                  <span className="font-medium">Online</span>
+                  <div className="flex gap-1">
+                    <Button type="button" size="sm" variant={mmOnlineDir === "in" ? "default" : "outline"} className="h-8 flex-1 px-2" onClick={() => setMmOnlineDir(mmOnlineDir === "in" ? "" : "in")}>In</Button>
+                    <Button type="button" size="sm" variant={mmOnlineDir === "out" ? "destructive" : "outline"} className="h-8 flex-1 px-2" onClick={() => setMmOnlineDir(mmOnlineDir === "out" ? "" : "out")}>Out</Button>
+                  </div>
+                  <Input type="number" step="0.01" placeholder="0.00" value={mmOnlineAmt}
+                    onChange={(e) => setMmOnlineAmt(e.target.value === "" ? "" : Number(e.target.value))} className="h-8" />
+                  <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0" disabled={change <= 0}
+                    onClick={() => { setMmOnlineAmt(change); if (!mmOnlineDir) setMmOnlineDir("out"); }}>Add Change</Button>
+                </div>
+                {cart.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">No products in cart — Save will create only a Money Movement (no invoice).</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" onClick={() => saveMutation.mutate({ status: "pending" })} disabled={cart.length === 0 || saveMutation.isPending}>
               <Clock className="h-4 w-4 mr-1" /> Save Pending
             </Button>
             <Button onClick={() => {
-              // If completing a pending invoice from a previous business date, ask the user
-              // whether to use the current or original business date/time.
               const orig = (editingSale as any);
               if (editId && orig?.status === "pending" && orig?.sale_date && businessDateOf(orig.sale_date) !== businessToday()) {
                 setBackdateDialog(true);
                 return;
               }
               saveMutation.mutate({ status: "completed" });
-            }} disabled={cart.length === 0 || saveMutation.isPending}>
+            }} disabled={(cart.length === 0 && !mmEnabled) || saveMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
