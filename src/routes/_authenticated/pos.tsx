@@ -383,7 +383,16 @@ function POS() {
 
       return { sale: saleData, status };
     },
-    onSuccess: async ({ sale, status }: any) => {
+    onSuccess: async ({ sale, status, mmOnly }: any) => {
+      if (mmOnly) {
+        toast.success("Money movement saved");
+        resetForm();
+        qc.invalidateQueries({ queryKey: ["cash_movements"] });
+        qc.invalidateQueries({ queryKey: ["daily_closing"] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+        qc.invalidateQueries({ queryKey: ["report"] });
+        return;
+      }
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
@@ -411,6 +420,8 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["cash_movements"] });
+      qc.invalidateQueries({ queryKey: ["daily_closing"] });
       qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
