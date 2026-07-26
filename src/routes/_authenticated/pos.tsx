@@ -215,6 +215,7 @@ function POS() {
     setCustomerSearch(""); setShowCustomerResults(false);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
+    setMmEnabled(false); setMmCashDir(""); setMmCashAmt(""); setMmOnlineDir(""); setMmOnlineAmt("");
     hydratedEditIdRef.current = null;
     // Drop any cached edit target so a subsequent load fetches fresh data.
     qc.removeQueries({ queryKey: ["sales", "edit"] });
