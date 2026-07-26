@@ -71,6 +71,12 @@ function POS() {
   const [priorityBump, setPriorityBump] = useState<Record<string, number>>({});
   const [backdateDialog, setBackdateDialog] = useState(false);
   const [backdateChoice, setBackdateChoice] = useState<"current" | "original">("current");
+  // Optional Money Movement inside POS
+  const [mmEnabled, setMmEnabled] = useState(false);
+  const [mmCashDir, setMmCashDir] = useState<"" | "in" | "out">("");
+  const [mmCashAmt, setMmCashAmt] = useState<number | "">("");
+  const [mmOnlineDir, setMmOnlineDir] = useState<"" | "in" | "out">("");
+  const [mmOnlineAmt, setMmOnlineAmt] = useState<number | "">("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
