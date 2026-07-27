@@ -77,6 +77,7 @@ function POS() {
   const [mmCashAmt, setMmCashAmt] = useState<number | "">("");
   const [mmOnlineDir, setMmOnlineDir] = useState<"" | "in" | "out">("");
   const [mmOnlineAmt, setMmOnlineAmt] = useState<number | "">("");
+  const [mmRemark, setMmRemark] = useState<string>("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
