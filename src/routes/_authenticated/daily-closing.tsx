@@ -167,17 +167,71 @@ function Page() {
         </div>
       </Card>
 
+      {/* Grand Totals: Expected vs Actual vs Difference */}
+      <Card className="p-4 mb-4">
+        <h3 className="text-sm font-semibold mb-3">Grand Totals</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          <div className="rounded border p-3">
+            <div className="text-xs text-muted-foreground mb-2">EXPECTED</div>
+            <div className="flex justify-between"><span>Expected Cash</span><span>{money(displaySummary.expected_cash)}</span></div>
+            <div className="flex justify-between"><span>Expected Online</span><span>{money(displaySummary.expected_wallet)}</span></div>
+            <div className="flex justify-between font-semibold border-t mt-2 pt-2"><span>Grand Total</span><span>{money(displaySummary.expected_cash + displaySummary.expected_wallet)}</span></div>
+          </div>
+          <div className="rounded border p-3">
+            <div className="text-xs text-muted-foreground mb-2">ACTUAL</div>
+            <div className="flex justify-between"><span>Actual Cash</span><span>{actualCash === "" ? "—" : money(Number(actualCash))}</span></div>
+            <div className="flex justify-between"><span>Actual Online</span><span>{actualWallet === "" ? "—" : money(Number(actualWallet))}</span></div>
+            <div className="flex justify-between font-semibold border-t mt-2 pt-2"><span>Grand Total</span><span>{actualCash === "" || actualWallet === "" ? "—" : money(Number(actualCash) + Number(actualWallet))}</span></div>
+          </div>
+          {(() => {
+            const hasBoth = actualCash !== "" && actualWallet !== "";
+            const totalExpected = displaySummary.expected_cash + displaySummary.expected_wallet;
+            const totalActual = hasBoth ? Number(actualCash) + Number(actualWallet) : 0;
+            const diff = hasBoth ? totalActual - totalExpected : null;
+            const tone = diff === null ? "muted" : Math.abs(diff) < 0.01 ? "success" : diff < 0 ? "danger" : "muted";
+            const label = diff === null ? "Pending" : Math.abs(diff) < 0.01 ? "Balanced" : diff < 0 ? `Short ${money(Math.abs(diff))}` : `Excess ${money(diff)}`;
+            const badgeCls = diff === null ? "" : Math.abs(diff) < 0.01 ? "bg-emerald-600 hover:bg-emerald-600" : diff < 0 ? "" : "bg-amber-500 hover:bg-amber-500";
+            return (
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground mb-2">DIFFERENCE</div>
+                <div className="flex justify-between"><span>Grand Total Expected</span><span>{money(totalExpected)}</span></div>
+                <div className="flex justify-between"><span>Grand Total Actual</span><span>{hasBoth ? money(totalActual) : "—"}</span></div>
+                <div className="flex justify-between font-semibold border-t mt-2 pt-2">
+                  <span>Grand Total Difference</span>
+                  <span className={tone === "success" ? "text-emerald-600" : tone === "danger" ? "text-destructive" : ""}>
+                    {diff === null ? "—" : money(diff)}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  {diff === null ? <Badge variant="outline">Pending</Badge> : <Badge variant={diff < 0 && Math.abs(diff) >= 0.01 ? "destructive" : "default"} className={badgeCls}>{label}</Badge>}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+        <div className="mt-3 text-[11px] text-muted-foreground">
+          Actual Cash Sales {money(displaySummary.cash_sales)} · Cash In {money(displaySummary.cash_in)} · Cash Out {money(displaySummary.cash_out)}<br />
+          Actual Online Sales {money(displaySummary.online_sales)} · Online In {money(displaySummary.online_in ?? 0)} · Online Out {money(displaySummary.online_out ?? 0)}<br />
+          <span className="italic">Online Sales and Wallet Exchange (Money Movement) are tracked separately — never mixed.</span>
+        </div>
+      </Card>
+
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-2">Recent Closings</h3>
         <div className="text-xs">
           {(history as any[]).length === 0 && <div className="text-muted-foreground">None yet.</div>}
           <div className="divide-y">
-            {(history as any[]).map((h) => (
-              <div key={h.id} className="flex justify-between py-2">
-                <button className="underline" onClick={() => setDate(h.closing_date)}>{h.closing_date}</button>
-                <div>Cash {money(h.actual_cash)} · Wallet {money(h.actual_wallet)}</div>
-              </div>
-            ))}
+            {(history as any[]).map((h) => {
+              const t = h.closed_at ? new Date(h.closed_at) : null;
+              const timeStr = t ? t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+              return (
+                <div key={h.id} className="flex justify-between py-2 gap-2">
+                  <button className="underline" onClick={() => setDate(h.closing_date)}>{h.closing_date}</button>
+                  <div className="text-muted-foreground">Closed at {timeStr}</div>
+                  <div>Cash {money(h.actual_cash)} · Wallet {money(h.actual_wallet)}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </Card>
