@@ -238,6 +238,10 @@ function ProductsPage() {
         </div>
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
+      <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
+        await save.mutateAsync(form);
+        setOpen(false);
+      }} />
     </div>
   );
 }
