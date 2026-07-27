@@ -77,6 +77,7 @@ function POS() {
   const [mmCashAmt, setMmCashAmt] = useState<number | "">("");
   const [mmOnlineDir, setMmOnlineDir] = useState<"" | "in" | "out">("");
   const [mmOnlineAmt, setMmOnlineAmt] = useState<number | "">("");
+  const [mmRemark, setMmRemark] = useState<string>("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
@@ -215,7 +216,7 @@ function POS() {
     setCustomerSearch(""); setShowCustomerResults(false);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
-    setMmEnabled(false); setMmCashDir(""); setMmCashAmt(""); setMmOnlineDir(""); setMmOnlineAmt("");
+    setMmEnabled(false); setMmCashDir(""); setMmCashAmt(""); setMmOnlineDir(""); setMmOnlineAmt(""); setMmRemark("");
     hydratedEditIdRef.current = null;
     // Drop any cached edit target so a subsequent load fetches fresh data.
     qc.removeQueries({ queryKey: ["sales", "edit"] });
@@ -308,7 +309,7 @@ function POS() {
           type: r.type,
           payment_source: r.payment_source,
           amount: r.amount,
-          notes: "POS money movement",
+          notes: mmRemark?.trim() ? mmRemark.trim() : "POS money movement",
           business_date: bDate,
           occurred_at: nowIso,
           reference_type: "pos_manual",
@@ -371,7 +372,7 @@ function POS() {
           type: r.type,
           payment_source: r.payment_source,
           amount: r.amount,
-          notes: `POS ${saleData.invoice_no ?? ""}`.trim(),
+          notes: mmRemark?.trim() ? mmRemark.trim() : `POS ${saleData.invoice_no ?? ""}`.trim(),
           business_date: bDate,
           occurred_at: nowIso,
           reference_type: "sale",
@@ -745,6 +746,10 @@ function POS() {
                     onChange={(e) => setMmOnlineAmt(e.target.value === "" ? "" : Number(e.target.value))} className="h-8" />
                   <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0" disabled={change <= 0}
                     onClick={() => { setMmOnlineAmt(change); if (!mmOnlineDir) setMmOnlineDir("out"); }}>Add Change</Button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Remark (optional)</label>
+                  <Input value={mmRemark} onChange={(e) => setMmRemark(e.target.value)} placeholder='e.g. "Customer requested cash", "Wallet exchange"' className="h-8 text-xs" />
                 </div>
                 {cart.length === 0 && (
                   <p className="text-[11px] text-muted-foreground">No products in cart — Save will create only a Money Movement (no invoice).</p>

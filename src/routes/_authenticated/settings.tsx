@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { changeStockPin } from "@/lib/stock-pin";
 import {
   businessToday,
   formatInTZ,
@@ -185,6 +186,45 @@ function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <StockPinCard />
     </div>
+  );
+}
+
+function StockPinCard() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (next !== confirmPin) { toast.error("New PIN and confirmation don't match"); return; }
+    setBusy(true);
+    try {
+      const res = await changeStockPin(current, next);
+      if (!res.ok) { toast.error(res.error); return; }
+      toast.success("Stock Security PIN updated");
+      setCurrent(""); setNext(""); setConfirmPin("");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div>
+          <Label className="text-base">Stock Security PIN</Label>
+          <p className="text-xs text-muted-foreground mt-1">Required when manually editing Current Stock on Products or Stock Items. Default PIN is <code>1234</code>. Changing the PIN requires the current PIN.</p>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="space-y-1"><Label>Current PIN</Label><Input type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(e.target.value)} /></div>
+          <div className="space-y-1"><Label>New PIN</Label><Input type="password" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Confirm New PIN</Label><Input type="password" inputMode="numeric" value={confirmPin} onChange={(e) => setConfirmPin(e.target.value)} /></div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={submit} disabled={busy || !current || !next || !confirmPin}>Update PIN</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

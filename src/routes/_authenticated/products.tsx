@@ -15,6 +15,7 @@ import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
+import { StockPinDialog } from "@/components/StockPinDialog";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
@@ -45,6 +46,8 @@ function ProductsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<P>(empty);
+  const [originalCurrent, setOriginalCurrent] = useState<number | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
 
   const { data = [] } = useQuery({
     queryKey: ["products"],
@@ -127,7 +130,7 @@ function ProductsPage() {
             qc.invalidateQueries({ queryKey: ["report"] });
             toast.success("Opening Stock updated for all products");
           }}>Set Current as Opening</Button>
-          <Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Product</Button>
+          <Button onClick={() => { setForm(empty); setOriginalCurrent(null); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Product</Button>
         </div>}
       />
 
@@ -169,8 +172,8 @@ function ProductsPage() {
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOriginalCurrent(num(p.current_stock)); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOriginalCurrent(null); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -183,6 +186,10 @@ function ProductsPage() {
       <CrudDialog title={form.id ? "Edit Product" : "Add Product"} open={open} onOpenChange={setOpen} onSubmit={async () => {
         if (!form.name.trim()) { toast.error("Name required"); return false; }
         if (!form.category) { toast.error("Category required"); return false; }
+        if (form.id && originalCurrent !== null && num(form.current_stock) !== originalCurrent) {
+          setPinOpen(true);
+          return false;
+        }
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -231,6 +238,10 @@ function ProductsPage() {
         </div>
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
+      <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
+        await save.mutateAsync(form);
+        setOpen(false);
+      }} />
     </div>
   );
 }

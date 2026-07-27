@@ -15,6 +15,7 @@ import { money, num, today } from "@/lib/format";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { toast } from "sonner";
+import { StockPinDialog } from "@/components/StockPinDialog";
 
 export const Route = createFileRoute("/_authenticated/stock-items")({ component: Page });
 
@@ -43,6 +44,8 @@ function Page() {
   const [catFilter, setCatFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<S>(empty);
+  const [originalCurrent, setOriginalCurrent] = useState<number | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const { data: categories = [] } = useCategories();
 
   const { data = [] } = useQuery({
@@ -111,7 +114,7 @@ function Page() {
             qc.invalidateQueries({ queryKey: ["report"] });
             toast.success("Opening Stock updated for all stock items");
           }}>Set Current as Opening</Button>
-          <Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
+          <Button onClick={() => { setForm(empty); setOriginalCurrent(null); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
         </div>}
       />
 
@@ -161,7 +164,7 @@ function Page() {
                     minimum_stock: num(p.minimum_stock), purchase_price: num(p.purchase_price),
                     supplier_id: p.supplier_id ?? null, purchase_date: p.purchase_date ?? null,
                     notes: p.notes ?? "",
-                  }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  }); setOriginalCurrent(num(p.current_stock)); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -174,6 +177,10 @@ function Page() {
       <CrudDialog title={form.id ? "Edit Stock Item" : "Add Stock Item"} open={open} onOpenChange={setOpen} onSubmit={async () => {
         if (!form.name.trim()) { toast.error("Name required"); return false; }
         if (!form.category) { toast.error("Category required"); return false; }
+        if (form.id && originalCurrent !== null && num(form.current_stock) !== originalCurrent) {
+          setPinOpen(true);
+          return false;
+        }
         await save.mutateAsync(form); return true;
       }}>
         <div className="grid grid-cols-2 gap-2">
@@ -207,6 +214,10 @@ function Page() {
         </div>
         <div className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </CrudDialog>
+      <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
+        await save.mutateAsync(form);
+        setOpen(false);
+      }} />
     </div>
   );
 }
