@@ -45,6 +45,8 @@ function ProductsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<P>(empty);
+  const [originalCurrent, setOriginalCurrent] = useState<number | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
 
   const { data = [] } = useQuery({
     queryKey: ["products"],

@@ -43,6 +43,8 @@ function Page() {
   const [catFilter, setCatFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<S>(empty);
+  const [originalCurrent, setOriginalCurrent] = useState<number | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const { data: categories = [] } = useCategories();
 
   const { data = [] } = useQuery({
