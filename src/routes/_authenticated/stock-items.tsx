@@ -214,7 +214,6 @@ function Page() {
         </div>
         <div className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </CrudDialog>
-      </CrudDialog>
       <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
         await save.mutateAsync(form);
         setOpen(false);
