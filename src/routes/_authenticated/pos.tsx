@@ -364,32 +364,22 @@ function POS() {
         }
       }
 
-      // Attach money movements linked to this sale.
-      // On edit, remove any prior movements tied to this sale so totals stay in sync.
-      if (saleData) {
-        if (editId) {
-          await supabase.from("cash_movements" as any)
-            .update({ deleted_at: new Date().toISOString() })
-            .eq("reference_type", "sale")
-            .eq("reference_id", saleData.id)
-            .is("deleted_at", null);
-        }
-        if (mmRows.length > 0) {
-          const bDate = businessToday();
-          const nowIso = new Date().toISOString();
-          const payload = mmRows.map((r) => ({
-            type: r.type,
-            payment_source: r.payment_source,
-            amount: r.amount,
-            notes: mmRemark?.trim() ? mmRemark.trim() : `POS ${saleData.invoice_no ?? ""}`.trim(),
-            business_date: bDate,
-            occurred_at: nowIso,
-            reference_type: "sale",
-            reference_id: saleData.id ?? null,
-          }));
-          const { error: mmErr } = await supabase.from("cash_movements" as any).insert(payload);
-          if (mmErr) throw mmErr;
-        }
+      // Attach money movements linked to this sale
+      if (mmRows.length > 0 && saleData) {
+        const bDate = businessToday();
+        const nowIso = new Date().toISOString();
+        const payload = mmRows.map((r) => ({
+          type: r.type,
+          payment_source: r.payment_source,
+          amount: r.amount,
+          notes: mmRemark?.trim() ? mmRemark.trim() : `POS ${saleData.invoice_no ?? ""}`.trim(),
+          business_date: bDate,
+          occurred_at: nowIso,
+          reference_type: "sale",
+          reference_id: saleData.id ?? null,
+        }));
+        const { error: mmErr } = await supabase.from("cash_movements" as any).insert(payload);
+        if (mmErr) throw mmErr;
       }
 
       return { sale: saleData, status };
