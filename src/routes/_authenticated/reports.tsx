@@ -250,7 +250,7 @@ function StockReport() {
 // ============================================================ PURCHASES
 function PurchaseReport() {
   const r = useRange("month");
-  const [view, setView] = (require("react") as typeof import("react")).useState<"detailed" | "summary">("detailed");
+  const [view, setView] = useState<"detailed" | "summary">("detailed");
   const { data = [] } = useQuery({
     queryKey: ["report", "purchases", r.from, r.to],
     queryFn: async () => (await supabase.from("stock_purchases").select("*, products(name), stock_items(name)").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
