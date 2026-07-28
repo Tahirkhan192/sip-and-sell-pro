@@ -212,6 +212,7 @@ function Page() {
             <TableHead>Type</TableHead>
             <TableHead>Method</TableHead>
             <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Invoice / Source</TableHead>
             <TableHead>Notes</TableHead>
             <TableHead className="w-24"></TableHead>
           </TableRow></TableHeader>
@@ -227,6 +228,26 @@ function Page() {
                 </TableCell>
                 <TableCell className="capitalize">{r.payment_source ?? "cash"}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.amount)}</TableCell>
+                <TableCell className="text-xs">
+                  {r.reference_type === "sale" && r.sale?.invoice_no ? (
+                    <a
+                      href={`/sales?edit=${r.reference_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-primary underline"
+                    >
+                      {r.sale.invoice_no}
+                      <span className="text-muted-foreground ml-1">(POS Invoice)</span>
+                    </a>
+                  ) : r.reference_type === "purchase" ? (
+                    <span className="text-muted-foreground">Purchase</span>
+                  ) : r.reference_type === "expense" ? (
+                    <span className="text-muted-foreground">Expense</span>
+                  ) : r.reference_type === "delivery_expense" ? (
+                    <span className="text-muted-foreground">Delivery Expense</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="max-w-xs truncate">{r.notes ?? "—"}</TableCell>
                 <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
@@ -234,7 +255,7 @@ function Page() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
