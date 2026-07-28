@@ -60,11 +60,19 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
-      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
+      let q = supabase.from("cash_movements" as any).select("*, sale:sales!cash_movements_reference_id_fkey(id, invoice_no)").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
       if (typeFilter !== "all") q = q.eq("type", typeFilter);
       if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
-      return (await q).data ?? [];
+      let rows = (await q).data ?? [];
+      // Fallback: no FK — resolve invoice numbers manually for sale-linked rows
+      const needIds = (rows as any[]).filter((r) => r.reference_type === "sale" && r.reference_id && !r.sale).map((r) => r.reference_id);
+      if (needIds.length) {
+        const { data: sales } = await supabase.from("sales").select("id, invoice_no").in("id", needIds as any);
+        const map = new Map((sales ?? []).map((s: any) => [s.id, s.invoice_no]));
+        rows = (rows as any[]).map((r) => r.reference_type === "sale" && r.reference_id ? { ...r, sale: { id: r.reference_id, invoice_no: map.get(r.reference_id) } } : r);
+      }
+      return rows;
     },
   });
 
