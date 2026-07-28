@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -250,29 +250,73 @@ function StockReport() {
 // ============================================================ PURCHASES
 function PurchaseReport() {
   const r = useRange("month");
+  const [view, setView] = useState<"detailed" | "summary">("detailed");
   const { data = [] } = useQuery({
     queryKey: ["report", "purchases", r.from, r.to],
     queryFn: async () => (await supabase.from("stock_purchases").select("*, products(name), stock_items(name)").is("deleted_at", null).gte("date", r.from).lte("date", r.to).order("date", { ascending: false })).data ?? [],
   });
-  const total = (data as any[]).reduce((s, x) => s + num(x.total_cost), 0);
+  const rows = data as any[];
+  const total = rows.reduce((s, x) => s + num(x.total_cost), 0);
+
+  const summary = useMemo(() => {
+    const m = new Map<string, { name: string; qty: number; total: number; unit: string }>();
+    for (const p of rows) {
+      const name = p.products?.name ?? p.stock_items?.name ?? "Unknown";
+      const key = (p.product_id ?? p.stock_item_id ?? name) as string;
+      const cur = m.get(key) ?? { name, qty: 0, total: 0, unit: "" };
+      cur.qty += num(p.quantity);
+      cur.total += num(p.total_cost);
+      cur.unit = p.unit ?? cur.unit;
+      m.set(key, cur);
+    }
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [rows]);
+
   return (<>
     {r.el}
+    <div className="flex gap-2 mb-3">
+      <button
+        className={`px-3 py-1 rounded border text-sm ${view === "detailed" ? "bg-primary text-primary-foreground" : ""}`}
+        onClick={() => setView("detailed")}
+      >Detailed</button>
+      <button
+        className={`px-3 py-1 rounded border text-sm ${view === "summary" ? "bg-primary text-primary-foreground" : ""}`}
+        onClick={() => setView("summary")}
+      >Summary</button>
+    </div>
     <Card>
-      <Table>
-        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product / Item</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Supplier</TableHead></TableRow></TableHeader>
-        <TableBody>
-          {(data as any[]).map((p) => (
-            <TableRow key={p.id}>
-              <TableCell>{p.date}</TableCell>
-              <TableCell>{p.products?.name ?? p.stock_items?.name}</TableCell>
-              <TableCell className="text-right">{Number(p.quantity)}</TableCell>
-              <TableCell className="text-right">{money(p.unit_cost)}</TableCell>
-              <TableCell className="text-right">{money(p.total_cost)}</TableCell>
-              <TableCell>{p.supplier ?? "—"}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {view === "detailed" ? (
+        <Table>
+          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product / Item</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Supplier</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {rows.map((p) => (
+              <TableRow key={p.id}>
+                <TableCell>{p.date}</TableCell>
+                <TableCell>{p.products?.name ?? p.stock_items?.name}</TableCell>
+                <TableCell className="text-right">{Number(p.quantity)}</TableCell>
+                <TableCell className="text-right">{money(p.unit_cost)}</TableCell>
+                <TableCell className="text-right">{money(p.total_cost)}</TableCell>
+                <TableCell>{p.supplier ?? "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <Table>
+          <TableHeader><TableRow><TableHead>Product / Item</TableHead><TableHead className="text-right">Total Qty</TableHead><TableHead className="text-right">Avg. Rate</TableHead><TableHead className="text-right">Total Cost</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {summary.map((s) => (
+              <TableRow key={s.name}>
+                <TableCell>{s.name}</TableCell>
+                <TableCell className="text-right">{s.qty}{s.unit ? ` ${s.unit}` : ""}</TableCell>
+                <TableCell className="text-right">{s.qty > 0 ? money(s.total / s.qty) : "—"}</TableCell>
+                <TableCell className="text-right">{money(s.total)}</TableCell>
+              </TableRow>
+            ))}
+            {summary.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No purchases</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      )}
       <div className="flex justify-end border-t px-4 py-2 text-sm font-semibold">Total: {money(total)}</div>
     </Card>
   </>);
