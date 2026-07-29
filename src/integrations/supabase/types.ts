@@ -75,6 +75,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          katha_category: string
           movement_category: string | null
           notes: string | null
           occurred_at: string
@@ -93,6 +94,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          katha_category?: string
           movement_category?: string | null
           notes?: string | null
           occurred_at?: string
@@ -111,6 +113,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          katha_category?: string
           movement_category?: string | null
           notes?: string | null
           occurred_at?: string
@@ -1356,6 +1359,7 @@ export type Database = {
         Args: { _expense_id: string }
         Returns: undefined
       }
+      digi_katha_summary: { Args: { _date: string }; Returns: Json }
       get_business_config: {
         Args: never
         Returns: {

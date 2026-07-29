@@ -25,6 +25,7 @@ import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedProductionRouteImport } from './routes/_authenticated/production'
 import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
+import { Route as AuthenticatedDigiKathaClosingRouteImport } from './routes/_authenticated/digi-katha-closing'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
 import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
 import { Route as AuthenticatedDailyClosingRouteImport } from './routes/_authenticated/daily-closing'
@@ -117,6 +118,12 @@ const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDigiKathaClosingRoute =
+  AuthenticatedDigiKathaClosingRouteImport.update({
+    id: '/digi-katha-closing',
+    path: '/digi-katha-closing',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDeliveryReportRoute =
   AuthenticatedDeliveryReportRouteImport.update({
     id: '/delivery-report',
@@ -193,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
+  '/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
   '/production': typeof AuthenticatedProductionRoute
@@ -220,6 +228,7 @@ export interface FileRoutesByTo {
   '/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
+  '/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/pos': typeof AuthenticatedPosRoute
   '/production': typeof AuthenticatedProductionRoute
@@ -250,6 +259,7 @@ export interface FileRoutesById {
   '/_authenticated/daily-closing': typeof AuthenticatedDailyClosingRoute
   '/_authenticated/delivery-expenses': typeof AuthenticatedDeliveryExpensesRoute
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
+  '/_authenticated/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/pos': typeof AuthenticatedPosRoute
   '/_authenticated/production': typeof AuthenticatedProductionRoute
@@ -281,6 +291,7 @@ export interface FileRouteTypes {
     | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
+    | '/digi-katha-closing'
     | '/expenses'
     | '/pos'
     | '/production'
@@ -308,6 +319,7 @@ export interface FileRouteTypes {
     | '/daily-closing'
     | '/delivery-expenses'
     | '/delivery-report'
+    | '/digi-katha-closing'
     | '/expenses'
     | '/pos'
     | '/production'
@@ -337,6 +349,7 @@ export interface FileRouteTypes {
     | '/_authenticated/daily-closing'
     | '/_authenticated/delivery-expenses'
     | '/_authenticated/delivery-report'
+    | '/_authenticated/digi-katha-closing'
     | '/_authenticated/expenses'
     | '/_authenticated/pos'
     | '/_authenticated/production'
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExpensesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/digi-katha-closing': {
+      id: '/_authenticated/digi-katha-closing'
+      path: '/digi-katha-closing'
+      fullPath: '/digi-katha-closing'
+      preLoaderRoute: typeof AuthenticatedDigiKathaClosingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/delivery-report': {
       id: '/_authenticated/delivery-report'
       path: '/delivery-report'
@@ -567,6 +587,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDailyClosingRoute: typeof AuthenticatedDailyClosingRoute
   AuthenticatedDeliveryExpensesRoute: typeof AuthenticatedDeliveryExpensesRoute
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
+  AuthenticatedDigiKathaClosingRoute: typeof AuthenticatedDigiKathaClosingRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedPosRoute: typeof AuthenticatedPosRoute
   AuthenticatedProductionRoute: typeof AuthenticatedProductionRoute
@@ -589,6 +610,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDailyClosingRoute: AuthenticatedDailyClosingRoute,
   AuthenticatedDeliveryExpensesRoute: AuthenticatedDeliveryExpensesRoute,
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
+  AuthenticatedDigiKathaClosingRoute: AuthenticatedDigiKathaClosingRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedPosRoute: AuthenticatedPosRoute,
   AuthenticatedProductionRoute: AuthenticatedProductionRoute,
@@ -621,13 +643,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

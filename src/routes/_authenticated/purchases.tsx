@@ -46,7 +46,7 @@ type Form = {
   id?: string;
   date: string;
   supplier: string;
-  payment_status: "paid" | "unpaid";
+  payment_status: "paid" | "unpaid" | "katha";
   payment_method: "cash" | "online" | "";
   notes: string;
   items: Line[];
@@ -268,11 +268,12 @@ function Page() {
               <div className="space-y-1"><Label>Purchase Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Supplier</Label><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="e.g. Metro" /></div>
               <div className="space-y-1"><Label>Payment Status</Label>
-                <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v, payment_method: v === "unpaid" ? "" : form.payment_method })}>
+                <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v, payment_method: v === "paid" ? form.payment_method : "" })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unpaid">Unpaid</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="katha">Katha</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -430,6 +431,8 @@ function Page() {
               <div className="text-sm text-muted-foreground">
                 {form.payment_status === "paid" && form.payment_method
                   ? `Will record ${form.payment_method === "cash" ? "Cash Out" : "Online Out"} of ${money(grandTotal)}`
+                  : form.payment_status === "katha"
+                  ? `Katha purchase — increases Loan To Give by ${money(grandTotal)}`
                   : "Unpaid — no cash/wallet impact until marked paid"}
               </div>
               <div className="text-lg font-semibold">Grand Total: {money(grandTotal)}</div>
