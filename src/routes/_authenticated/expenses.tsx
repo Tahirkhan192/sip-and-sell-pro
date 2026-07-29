@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
-type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" | "stock_transfer"; payment_status: "paid" | "unpaid"; is_stock_transfer?: boolean };
+type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" | "stock_transfer"; payment_status: "paid" | "unpaid" | "katha"; is_stock_transfer?: boolean };
 const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash", payment_status: "paid" };
 
 function Page() {
@@ -115,6 +115,7 @@ function Page() {
   const total = filtered.reduce((s, x: any) => s + Number(x.amount), 0);
   const totalPaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "paid") ? Number(x.amount) : 0), 0);
   const totalUnpaid = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "unpaid") ? Number(x.amount) : 0), 0);
+  const totalKatha = filtered.reduce((s, x: any) => s + (((x.payment_status ?? "paid") === "katha") ? Number(x.amount) : 0), 0);
 
   return (
     <div>
@@ -138,6 +139,7 @@ function Page() {
             <SelectItem value="all">All status</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
             <SelectItem value="unpaid">Unpaid</SelectItem>
+            <SelectItem value="katha">Katha</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}><Settings2 className="h-4 w-4 mr-1" />Manage</Button>
@@ -147,13 +149,13 @@ function Page() {
           <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead><TableHead className="w-24"></TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map((p: any) => {
-              const status = (p.payment_status ?? "paid") as "paid" | "unpaid";
+              const status = (p.payment_status ?? "paid") as "paid" | "unpaid" | "katha";
               return (
               <TableRow key={p.id}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.category}</TableCell>
                 <TableCell className="capitalize">{p.is_stock_transfer || p.payment_method === "stock_transfer" ? "Stock Transfer" : (p.payment_method ?? "cash")}</TableCell>
-                <TableCell><span className={"inline-block rounded px-2 py-0.5 text-xs " + (status === "paid" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>{status}</span></TableCell>
+                <TableCell><span className={"inline-block rounded px-2 py-0.5 text-xs " + (status === "paid" ? "bg-primary/10 text-primary" : status === "katha" ? "bg-amber-500/15 text-amber-700 dark:text-amber-400" : "bg-destructive/10 text-destructive")}>{status}</span></TableCell>
                 <TableCell className="text-right font-medium">{money(p.amount)}</TableCell>
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
@@ -171,6 +173,7 @@ function Page() {
           <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-medium">
             <span>Paid: {money(totalPaid)}</span>
             <span>Unpaid: {money(totalUnpaid)}</span>
+            <span>Katha: {money(totalKatha)}</span>
             <span>Total: {money(total)}</span>
           </div>
         )}
@@ -202,11 +205,12 @@ function Page() {
           <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" placeholder="" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
         <div className="space-y-2"><Label>Payment Status</Label>
-          <Select value={form.payment_status} onValueChange={(v) => setForm({ ...form, payment_status: v as "paid" | "unpaid" })}>
+          <Select value={form.payment_status} onValueChange={(v) => setForm({ ...form, payment_status: v as "paid" | "unpaid" | "katha" })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="unpaid">Unpaid</SelectItem>
+              <SelectItem value="katha">Katha</SelectItem>
             </SelectContent>
           </Select>
         </div>

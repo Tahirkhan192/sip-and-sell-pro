@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
+import { PrintButton } from "@/components/PrintButton";
 import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { useDateRangeFilter } from "@/components/DateRangeFilter";
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/reports")({ component: Rep
 function Reports() {
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Daily • Monthly • Category • Stock • Purchases • Expenses • Sales" />
+      <PageHeader title="Reports" subtitle="Daily • Monthly • Category • Stock • Purchases • Expenses • Sales"  action={<PrintButton title="Reports" />} />
       <Tabs defaultValue="daily">
         <TabsList className="flex flex-wrap h-auto">
           <TabsTrigger value="daily">Daily</TabsTrigger>

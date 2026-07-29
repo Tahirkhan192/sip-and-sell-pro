@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/CrudHelpers";
+import { PrintButton } from "@/components/PrintButton";
 import { money } from "@/lib/format";
 import { toast } from "sonner";
 import { businessDayEndUTC, businessDayStartUTC, businessToday } from "@/lib/business-date";
@@ -113,7 +114,7 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Daily Closing" subtitle="One closing record per business date — cash & wallet reconciliation" />
+      <PageHeader title="Daily Closing" subtitle="One closing record per business date — cash & wallet reconciliation" action={<PrintButton title={`Daily Closing ${date}`} />} />
 
       <div className="flex flex-wrap gap-2 mb-3 items-end">
         <div className="space-y-1"><Label className="text-xs">Business Date</Label><Input type="date" className="w-[200px]" value={date} onChange={(e) => setDate(e.target.value)} /></div>
