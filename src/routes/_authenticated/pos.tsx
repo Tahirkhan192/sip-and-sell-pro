@@ -405,12 +405,13 @@ function POS() {
         }
       }
 
-      return { sale: saleData, status };
+      return { sale: saleData, status, movements: mmRows.map((r) => ({ ...r, katha_category: mmCategory })) };
       } finally {
         if (ownsLock) submittingRef.current = false;
       }
     },
-    onSuccess: async ({ sale, status, mmOnly }: any) => {
+    onSuccess: async ({ sale, status, mmOnly, movements }: any) => {
+      const lastMovements = movements ?? [];
       if (mmOnly) {
         toast.success("Money movement saved");
         resetForm();
@@ -423,7 +424,7 @@ function POS() {
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (status === "completed") {
-        setLastInvoice({ ...sale, items: cart });
+        setLastInvoice({ ...sale, items: cart, movements: lastMovements, movement_remark: mmRemark?.trim() || null });
         // Silent WhatsApp send (non-blocking)
         if (phone) {
           sendWhatsappInvoice({
@@ -898,6 +899,18 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
         {num(invoice.cash_paid) > 0 && <div className="flex justify-between"><span>Cash</span><span>{money(invoice.cash_paid)}</span></div>}
         {num(invoice.online_paid) > 0 && <div className="flex justify-between"><span>Online</span><span>{money(invoice.online_paid)}</span></div>}
       </div>
+      {Array.isArray(invoice.movements) && invoice.movements.length > 0 && (
+        <div className="border-t border-dashed mt-2 pt-2 text-xs space-y-1">
+          <div className="font-semibold">Money Movement</div>
+          {invoice.movements.map((m: any, i: number) => (
+            <div key={i} className="flex justify-between">
+              <span>{m.payment_source === "cash" ? "Cash" : "Online"} {m.type === "cash_in" ? "In" : "Out"}{m.katha_category && m.katha_category !== "transaction" ? ` (${kathaLabel(m.katha_category)})` : ""}</span>
+              <span>{money(m.amount)}</span>
+            </div>
+          ))}
+          {invoice.movement_remark && <div className="italic">{invoice.movement_remark}</div>}
+        </div>
+      )}
       <div className="text-center text-xs mt-3">Thank you — please come again</div>
     </div>
   );
