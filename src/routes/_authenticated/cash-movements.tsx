@@ -60,11 +60,19 @@ function Page() {
   const { data = [] } = useQuery({
     queryKey: ["cash_movements", date, typeFilter, sourceFilter],
     queryFn: async () => {
-      let q = supabase.from("cash_movements" as any).select("*").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
+      let q = supabase.from("cash_movements" as any).select("*, sale:sales!cash_movements_reference_id_fkey(id, invoice_no)").is("deleted_at", null).order("occurred_at", { ascending: false }).range(0, 99999);
       if (date) q = q.eq("business_date", date);
       if (typeFilter !== "all") q = q.eq("type", typeFilter);
       if (sourceFilter !== "all") q = q.eq("payment_source", sourceFilter);
-      return (await q).data ?? [];
+      let rows = (await q).data ?? [];
+      // Fallback: no FK — resolve invoice numbers manually for sale-linked rows
+      const needIds = (rows as any[]).filter((r) => r.reference_type === "sale" && r.reference_id && !r.sale).map((r) => r.reference_id);
+      if (needIds.length) {
+        const { data: sales } = await supabase.from("sales").select("id, invoice_no").in("id", needIds as any);
+        const map = new Map((sales ?? []).map((s: any) => [s.id, s.invoice_no]));
+        rows = (rows as any[]).map((r) => r.reference_type === "sale" && r.reference_id ? { ...r, sale: { id: r.reference_id, invoice_no: map.get(r.reference_id) } } : r);
+      }
+      return rows;
     },
   });
 
@@ -204,6 +212,7 @@ function Page() {
             <TableHead>Type</TableHead>
             <TableHead>Method</TableHead>
             <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Invoice / Source</TableHead>
             <TableHead>Notes</TableHead>
             <TableHead className="w-24"></TableHead>
           </TableRow></TableHeader>
@@ -219,6 +228,26 @@ function Page() {
                 </TableCell>
                 <TableCell className="capitalize">{r.payment_source ?? "cash"}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.amount)}</TableCell>
+                <TableCell className="text-xs">
+                  {r.reference_type === "sale" && r.sale?.invoice_no ? (
+                    <a
+                      href={`/sales?edit=${r.reference_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-primary underline"
+                    >
+                      {r.sale.invoice_no}
+                      <span className="text-muted-foreground ml-1">(POS Invoice)</span>
+                    </a>
+                  ) : r.reference_type === "purchase" ? (
+                    <span className="text-muted-foreground">Purchase</span>
+                  ) : r.reference_type === "expense" ? (
+                    <span className="text-muted-foreground">Expense</span>
+                  ) : r.reference_type === "delivery_expense" ? (
+                    <span className="text-muted-foreground">Delivery Expense</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="max-w-xs truncate">{r.notes ?? "—"}</TableCell>
                 <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
@@ -226,7 +255,7 @@ function Page() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No movements</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
