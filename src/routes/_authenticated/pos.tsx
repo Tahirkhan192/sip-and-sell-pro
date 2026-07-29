@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { money, num } from "@/lib/format";
 import { Trash2, Printer, Save, Clock, X, Search, User, Trash, AlertTriangle, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
+import { KATHA_CATEGORIES, kathaLabel, validateMovement, type KathaCategory } from "@/lib/money-movement";
 import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
@@ -78,6 +79,7 @@ function POS() {
   const [mmOnlineDir, setMmOnlineDir] = useState<"" | "in" | "out">("");
   const [mmOnlineAmt, setMmOnlineAmt] = useState<number | "">("");
   const [mmRemark, setMmRemark] = useState<string>("");
+  const [mmCategory, setMmCategory] = useState<KathaCategory>("transaction");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", "active"],
@@ -285,20 +287,25 @@ function POS() {
   const submittingRef = useRef(false);
   const saveMutation = useMutation({
     mutationFn: async ({ status, dateMode }: SaveArgs) => {
-      if (submittingRef.current) throw new Error("Save already in progress");
-      submittingRef.current = true;
-
-      // Build list of Money Movement rows to persist (if MM enabled)
-      const mmRows: Array<{ payment_source: "cash" | "online"; type: "cash_in" | "cash_out"; amount: number }> = [];
-      if (mmEnabled) {
-        const cAmt = num(mmCashAmt);
-        const oAmt = num(mmOnlineAmt);
-        if (mmCashDir && cAmt > 0) mmRows.push({ payment_source: "cash", type: mmCashDir === "in" ? "cash_in" : "cash_out", amount: cAmt });
-        if (mmOnlineDir && oAmt > 0) mmRows.push({ payment_source: "online", type: mmOnlineDir === "in" ? "cash_in" : "cash_out", amount: oAmt });
-        if (cAmt > 0 && !mmCashDir) throw new Error("Select Cash direction (In or Out)");
-        if (oAmt > 0 && !mmOnlineDir) throw new Error("Select Online direction (In or Out)");
-        if (mmRows.length === 0) throw new Error("Enter a Money Movement amount and direction");
+      let ownsLock = false;
+      try {
+      if (submittingRef.current) {
+        // A save is already running — ignore this click without touching the lock.
+        throw new SaveInProgress();
       }
+      submittingRef.current = true;
+      ownsLock = true;
+
+      // Build list of Money Movement rows to persist (if MM enabled) — shared rules with Money Movement page
+      const mmRows = mmEnabled
+        ? validateMovement({
+            cashDir: mmCashDir,
+            cashAmt: num(mmCashAmt),
+            onlineDir: mmOnlineDir,
+            onlineAmt: num(mmOnlineAmt),
+            category: mmCategory,
+          })
+        : [];
 
       // MM-only save (no products): create movements and skip the sale entirely.
       if (cart.length === 0) {
@@ -313,6 +320,7 @@ function POS() {
           business_date: bDate,
           occurred_at: nowIso,
           reference_type: "pos_manual",
+          katha_category: mmCategory,
         }));
         const { error } = await supabase.from("cash_movements" as any).insert(payload);
         if (error) throw error;
@@ -386,6 +394,7 @@ function POS() {
             occurred_at: nowIso,
             reference_type: "sale",
             reference_id: saleData.id ?? null,
+            katha_category: mmCategory,
           }));
           const { error: mmErr } = await supabase.from("cash_movements" as any).insert(payload);
           if (mmErr) throw mmErr;
@@ -393,6 +402,9 @@ function POS() {
       }
 
       return { sale: saleData, status };
+      } finally {
+        if (ownsLock) submittingRef.current = false;
+      }
     },
     onSuccess: async ({ sale, status, mmOnly }: any) => {
       if (mmOnly) {
@@ -435,8 +447,10 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["daily_closing"] });
       qc.invalidateQueries({ queryKey: ["report"] });
     },
-    onError: (e: any) => toast.error(e.message ?? "Failed to save"),
-    onSettled: () => { submittingRef.current = false; },
+    onError: (e: any) => {
+      if (e instanceof SaveInProgress) return;
+      toast.error(e?.message ?? "Failed to save");
+    },
   });
 
   return (
@@ -756,6 +770,17 @@ function POS() {
                     onChange={(e) => setMmOnlineAmt(e.target.value === "" ? "" : Number(e.target.value))} className="h-8" />
                   <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0" disabled={change <= 0}
                     onClick={() => { setMmOnlineAmt(change); if (!mmOnlineDir) setMmOnlineDir("out"); }}>Add Change</Button>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Category</label>
+                  <div className="flex gap-1">
+                    {KATHA_CATEGORIES.map((c) => (
+                      <Button key={c} type="button" size="sm" variant={mmCategory === c ? "default" : "outline"}
+                        className="h-8 flex-1 px-2 text-xs" onClick={() => setMmCategory(c)}>
+                        {kathaLabel(c)}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-medium text-muted-foreground">Remark (optional)</label>
