@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { money, num } from "@/lib/format";
 import { PageHeader } from "@/components/CrudHelpers";
+import { PrintButton } from "@/components/PrintButton";
 import { Pencil, Trash2, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
 import { useReportEngine } from "@/lib/report-engine";
@@ -90,7 +91,7 @@ function Page() {
   const summary = (data as any[]).reduce(
     (a, s) => {
       a.count += 1;
-      if (s.status === "pending") { a.pendingInvoices += 1; return a; }
+      if (s.status === "pending") { a.pendingInvoices += 1; a.pendingSales += num(s.grand_total); return a; }
       const rem = Math.max(0, num(s.grand_total) - num(s.cash_paid) - num(s.online_paid));
       const st = paymentStatus(s);
       a.sales += num(s.grand_total);
@@ -101,13 +102,13 @@ function Page() {
       else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
       return a;
     },
-    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0 },
+    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0, pendingSales: 0 },
   );
 
 
   return (
     <div>
-      <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" />
+      <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" action={<PrintButton title="Sales Report" />} />
 
       <div className="flex flex-wrap gap-1 mb-3 items-center">
         {(["date", "week", "month", "overall"] as const).map((q) => (
@@ -154,6 +155,7 @@ function Page() {
         <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
         <div><div className="text-xs text-muted-foreground">Katha KDFs</div><div className="font-semibold">{summary.kathaInvoices}</div></div>
         <div><div className="text-xs text-muted-foreground">Pending KDFs</div><div className="font-semibold">{summary.pendingInvoices}</div></div>
+        <div><div className="text-xs text-muted-foreground">Total Pending Sales</div><div className="font-semibold text-amber-600">{money(summary.pendingSales)}</div></div>
 
       </Card>
 
