@@ -20,6 +20,10 @@ import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate,
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
+class SaveInProgress extends Error {
+  constructor() { super("Save already in progress"); }
+}
+
 export const Route = createFileRoute("/_authenticated/pos")({
   component: POS,
   validateSearch: searchSchema,
