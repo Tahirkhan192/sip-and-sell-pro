@@ -188,7 +188,10 @@ function SettingsPage() {
       </Card>
 
       <StockPinCard />
+
+      <DuplicateInvoiceManager />
     </div>
+
   );
 }
 
