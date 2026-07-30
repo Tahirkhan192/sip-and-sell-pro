@@ -183,7 +183,9 @@ function CategoryReport() {
           <TableHead className="text-right">Opening</TableHead>
           <TableHead className="text-right">Product Purchases</TableHead>
           <TableHead className="text-right">Stock Item Purchases</TableHead>
+          <TableHead className="text-right">Received</TableHead>
           <TableHead className="text-right">Closing</TableHead>
+
           <TableHead className="text-right">COGS</TableHead>
           <TableHead className="text-right">Gross Profit</TableHead>
           <TableHead className="text-right">Delivery Profit</TableHead>
