@@ -187,7 +187,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     productPurchases: 0,
     stockPurchases: 0,
     purchases: 0,
+    received: 0,
     closing: 0,
+
     cogs: 0,
     grossProfit: 0,
     allocatedExp: 0,
