@@ -1,9 +1,9 @@
-export const KATHA_CATEGORIES = ["transaction", "katha", "loan_paid"] as const;
+export const KATHA_CATEGORIES = ["transaction", "katha", "loan_get", "loan_paid"] as const;
 export type KathaCategory = (typeof KATHA_CATEGORIES)[number];
 export type Dir = "" | "in" | "out";
 
 export function kathaLabel(c: KathaCategory): string {
-  return c === "transaction" ? "Transaction" : c === "katha" ? "Katha" : "Loan Paid";
+  return c === "transaction" ? "Transaction" : c === "katha" ? "Katha" : c === "loan_get" ? "Loan Get" : "Loan Paid";
 }
 
 export type MovementRow = {
@@ -15,8 +15,10 @@ export type MovementRow = {
 /**
  * Shared validation + row building for Money Movement (page and POS use the same rules).
  * - Cash and Online are treated independently.
- * - Loan Paid only allows OUT (paying back a previous loan).
- * - Katha OUT = Loan Given (increases Loan To Get), Katha IN = Loan Taken (increases Loan To Give).
+ * - Katha OUT = new loan given (increases Loan To Get); Katha IN = loan recovered (decreases Loan To Get).
+ * - Loan Get IN = money borrowed (increases Loan To Give).
+ * - Loan Paid OUT = repayment of borrowed money (decreases Loan To Give).
+ * - Transaction affects Money Movement / Daily Closing only.
  */
 export function validateMovement(input: {
   cashDir: Dir;
@@ -35,6 +37,9 @@ export function validateMovement(input: {
 
   if (category === "loan_paid") {
     if (cashDir === "in" || onlineDir === "in") throw new Error("Loan Paid allows Out only");
+  }
+  if (category === "loan_get") {
+    if (cashDir === "out" || onlineDir === "out") throw new Error("Loan Get allows In only");
   }
 
   if (cashDir && cashAmt > 0) rows.push({ payment_source: "cash", type: cashDir === "in" ? "cash_in" : "cash_out", amount: cashAmt });
