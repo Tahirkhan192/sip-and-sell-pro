@@ -469,6 +469,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     deliveryProfit,
     totalOpening,
     totalPurch,
+    totalReceived,
+
     totalClosing,
     totalCogs,
     grossProfit,
