@@ -52,6 +52,8 @@ export type ReportResult = {
   deliveryProfit: number;
   totalOpening: number;
   totalPurch: number;
+  totalReceived: number;
+
   totalClosing: number;
   totalCogs: number;
   grossProfit: number;
