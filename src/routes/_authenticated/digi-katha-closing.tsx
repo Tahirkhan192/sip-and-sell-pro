@@ -110,9 +110,11 @@ function Page() {
               </span>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              All figures follow the configured business date (8 AM to 8 AM). Money Movement category "Katha" Out = loan given,
-              "Katha" In = loan taken, "Loan Paid" Out = repayment. "Transaction" movements affect Daily Closing only.
+              All figures follow the configured business date. Money Movement rules: "Katha" Out = new loan given (increases Loan To Get),
+              "Katha" In = loan recovered (decreases Loan To Get), "Loan Get" In = money borrowed (increases Loan To Give),
+              "Loan Paid" Out = repayment (decreases Loan To Give). "Transaction" movements affect Daily Closing only.
             </p>
+
           </Card>
         </>
       )}
