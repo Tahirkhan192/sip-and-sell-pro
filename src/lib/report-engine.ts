@@ -127,6 +127,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       .from("sales")
       .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
       .is("deleted_at", null)
+      .eq("hidden", false)
+
       .order("sale_date", { ascending: false });
     if (hasRange) q = q.gte("sale_date", range.startUTC).lt("sale_date", range.endExclusiveUTC);
     return q;
