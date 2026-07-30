@@ -149,6 +149,28 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity, applies_to").is("deleted_at", null);
+  // Stock received into / sent out of a category by transfers, production and stock-to-expense moves.
+  const buildTransfers = () => {
+    let q = (supabase as any).from("stock_transfers").select("from_category, to_category, total_cost, created_at").is("deleted_at", null).order("created_at", { ascending: false });
+    if (range.startUTC && range.endExclusiveUTC) q = q.gte("created_at", range.startUTC).lt("created_at", range.endExclusiveUTC);
+    return q;
+  };
+  const buildProduction = () => {
+    let q = (supabase as any).from("production_batches").select("target_category, total_cost, batch_date, production_batch_items(source_category, total_cost)").is("deleted_at", null).order("batch_date", { ascending: false });
+    if (range.from && range.to) q = q.gte("batch_date", range.from).lte("batch_date", range.to);
+    return q;
+  };
+  const buildTransferExpenses = () => {
+    let q = (supabase as any)
+      .from("expenses")
+      .select("amount, source_product_id, source_stock_item_id")
+      .is("deleted_at", null)
+      .eq("is_stock_transfer", true)
+      .order("date", { ascending: false });
+    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
+    return q;
+  };
+
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
