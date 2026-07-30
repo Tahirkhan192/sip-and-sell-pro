@@ -122,7 +122,9 @@ function MonthlyReport() {
             <TableRow className="font-medium"><TableCell>= Sales (engine total)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
+            <TableRow><TableCell>+ Received Stock (transfers &amp; production, net)</TableCell><TableCell className="text-right">{money(data?.totalReceived)}</TableCell></TableRow>
             <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
+
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit (Charges − Delivery Expenses)</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
