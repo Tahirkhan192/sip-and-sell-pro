@@ -178,7 +178,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesQ] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -186,6 +186,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     fetchAllPaged<any>(buildProducts),
     fetchAllPaged<any>(buildStockItems),
     fetchAllPaged<any>(buildRecipes),
+    fetchAllPaged<any>(buildTransfers),
+    fetchAllPaged<any>(buildProduction),
+    fetchAllPaged<any>(buildTransferExpenses),
     overridesPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
@@ -197,6 +200,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const products = productsRows as any[];
   const stockItems = (stockItemsRows ?? []) as any[];
   const recipes = (recipesRows ?? []) as any[];
+  const transfers = (transferRows ?? []) as any[];
+  const production = (productionRows ?? []) as any[];
+  const transferExpenses = (transferExpenseRows ?? []) as any[];
+
 
   const overrides = (overridesQ.data ?? []) as any[];
 
