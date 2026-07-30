@@ -397,6 +397,26 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     if (override.closing !== undefined) cat.closing = override.closing;
   }
 
+  // Received Stock: value moved INTO a category (transfers in, production output) minus
+  // value moved OUT of it (transfers out, production consumption, stock-to-expense moves).
+  for (const t of transfers) {
+    const val = num(t.total_cost);
+    if (!val) continue;
+    if (t.to_category) ensureCat(t.to_category).received += val;
+    if (t.from_category) ensureCat(t.from_category).received -= val;
+  }
+  for (const b of production) {
+    if (b.target_category) ensureCat(b.target_category).received += num(b.total_cost);
+    for (const bi of ((b.production_batch_items ?? []) as any[])) {
+      if (bi?.source_category) ensureCat(bi.source_category).received -= num(bi.total_cost);
+    }
+  }
+  for (const e of transferExpenses) {
+    const src = e.source_product_id ? prodById[e.source_product_id] : e.source_stock_item_id ? stockById[e.source_stock_item_id] : null;
+    if (!src) continue;
+    ensureCat(src.category ?? "—").received -= num(e.amount);
+  }
+
   const generalExpenses = expenses.reduce((s, e) => s + num(e.amount), 0);
   const paidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "paid") ? num(e.amount) : 0), 0);
   const unpaidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "unpaid") ? num(e.amount) : 0), 0);
@@ -405,7 +425,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   const catRows = Object.values(catMap).map((c) => {
     c.purchases = c.productPurchases + c.stockPurchases;
-    c.cogs = c.opening + c.purchases - c.closing;
+    // COGS = Opening + Purchases + Received Stock − Closing
+    c.cogs = c.opening + c.purchases + c.received - c.closing;
     c.grossProfit = c.sales - c.cogs;
     c.allocatedExp = 0;
     c.deliveryProfit = 0;
@@ -416,8 +437,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const productRows = Object.values(productMap).map((p) => ({ ...p, grossProfit: p.rev - p.cogs })).sort((a, b) => b.rev - a.rev || a.name.localeCompare(b.name));
   const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
   const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
+  const totalReceived = catRows.reduce((s, c) => s + c.received, 0);
   const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-  const totalCogs = totalOpening + totalPurch - totalClosing;
+  const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
+
   const grossProfit = totalSales - totalCogs;
   const businessProfit = totalSales - totalCogs - generalExpenses;
   const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses;
