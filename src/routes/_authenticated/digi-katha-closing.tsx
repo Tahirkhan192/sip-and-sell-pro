@@ -84,8 +84,8 @@ function Page() {
               <h3 className="text-sm font-semibold mb-2">Loan To Get (receivable)</h3>
               <Row label="Previous Loan To Get" value={s.previous_loan_to_get} />
               <Row label="Today's Added Katha Sales" value={s.katha_sales} />
-              <Row label="Today's Cash Loan Given" value={s.loan_given} />
-              <Row label="Less: Loan Recovered Today" value={-s.loan_recovered} />
+              <Row label="Today's Loan Given (Katha Out)" value={s.loan_given} />
+              <Row label="Less: Loan Recovered Today (Katha In)" value={-s.loan_recovered} />
               <Row label="Expected Loan To Get" value={s.expected_loan_to_get} strong tone="get" />
             </Card>
 
@@ -94,9 +94,10 @@ function Page() {
               <Row label="Previous Loan To Give" value={s.previous_loan_to_give} />
               <Row label="Today's Purchase Katha" value={s.purchase_katha} />
               <Row label="Today's Expense Katha" value={s.expense_katha} />
-              <Row label="Today's Cash Loan Taken" value={s.loan_taken} />
-              <Row label="Less: Loan Paid Today" value={-s.loan_repaid} />
+              <Row label="Today's Loan Taken (Loan Get In)" value={s.loan_taken} />
+              <Row label="Less: Loan Paid Today (Loan Paid Out)" value={-s.loan_repaid} />
               <Row label="Expected Loan To Give" value={s.expected_loan_to_give} strong tone="give" />
+
             </Card>
           </div>
 
