@@ -923,6 +923,7 @@ export type Database = {
           discount_type: string
           discount_value: number
           grand_total: number
+          hidden: boolean
           id: string
           invoice_no: string
           katha: boolean
@@ -949,6 +950,7 @@ export type Database = {
           discount_type?: string
           discount_value?: number
           grand_total?: number
+          hidden?: boolean
           id?: string
           invoice_no?: string
           katha?: boolean
@@ -975,6 +977,7 @@ export type Database = {
           discount_type?: string
           discount_value?: number
           grand_total?: number
+          hidden?: boolean
           id?: string
           invoice_no?: string
           katha?: boolean
@@ -1435,6 +1438,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1480,6 +1484,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1527,6 +1532,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1577,6 +1583,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1669,6 +1676,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1715,6 +1723,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1763,6 +1772,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1814,6 +1824,7 @@ export type Database = {
               discount_type: string
               discount_value: number
               grand_total: number
+              hidden: boolean
               id: string
               invoice_no: string
               katha: boolean
@@ -1866,6 +1877,7 @@ export type Database = {
           discount_type: string
           discount_value: number
           grand_total: number
+          hidden: boolean
           id: string
           invoice_no: string
           katha: boolean
@@ -1908,6 +1920,7 @@ export type Database = {
           discount_type: string
           discount_value: number
           grand_total: number
+          hidden: boolean
           id: string
           invoice_no: string
           katha: boolean

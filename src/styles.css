@@ -134,8 +134,31 @@ body {
 }
 
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  /* Print exactly what is on screen: only hide chrome marked .no-print. */
   .no-print { display: none !important; }
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  aside, nav[data-sidebar], [data-sidebar="sidebar"] { display: none !important; }
+  main, .print-area {
+    position: static !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  * {
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+  table { page-break-inside: auto; width: 100%; }
+  tr, img, .card { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  @page { margin: 12mm; }
 }
+

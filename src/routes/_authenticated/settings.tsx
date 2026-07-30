@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
+import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
+
 import {
   businessToday,
   formatInTZ,
@@ -188,7 +190,10 @@ function SettingsPage() {
       </Card>
 
       <StockPinCard />
+
+      <DuplicateInvoiceManager />
     </div>
+
   );
 }
 

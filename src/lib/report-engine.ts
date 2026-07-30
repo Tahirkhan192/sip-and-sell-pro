@@ -13,7 +13,10 @@ export type ReportCategoryRow = {
   productPurchases: number;
   stockPurchases: number;
   purchases: number;
+  /** Net stock received from transfers / production (in − out), excluding purchases. */
+  received: number;
   closing: number;
+
   cogs: number;
   grossProfit: number;
   allocatedExp: number;
@@ -49,6 +52,8 @@ export type ReportResult = {
   deliveryProfit: number;
   totalOpening: number;
   totalPurch: number;
+  totalReceived: number;
+
   totalClosing: number;
   totalCogs: number;
   grossProfit: number;
@@ -124,6 +129,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       .from("sales")
       .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
       .is("deleted_at", null)
+      .eq("hidden", false)
+
       .order("sale_date", { ascending: false });
     if (hasRange) q = q.gte("sale_date", range.startUTC).lt("sale_date", range.endExclusiveUTC);
     return q;
@@ -146,12 +153,34 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const buildProducts = () => supabase.from("products").select("id, name, category, cost_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity, applies_to").is("deleted_at", null);
+  // Stock received into / sent out of a category by transfers, production and stock-to-expense moves.
+  const buildTransfers = () => {
+    let q = (supabase as any).from("stock_transfers").select("from_category, to_category, total_cost, created_at").is("deleted_at", null).order("created_at", { ascending: false });
+    if (range.startUTC && range.endExclusiveUTC) q = q.gte("created_at", range.startUTC).lt("created_at", range.endExclusiveUTC);
+    return q;
+  };
+  const buildProduction = () => {
+    let q = (supabase as any).from("production_batches").select("target_category, total_cost, batch_date, production_batch_items(source_category, total_cost)").is("deleted_at", null).order("batch_date", { ascending: false });
+    if (range.from && range.to) q = q.gte("batch_date", range.from).lte("batch_date", range.to);
+    return q;
+  };
+  const buildTransferExpenses = () => {
+    let q = (supabase as any)
+      .from("expenses")
+      .select("amount, source_product_id, source_stock_item_id")
+      .is("deleted_at", null)
+      .eq("is_stock_transfer", true)
+      .order("date", { ascending: false });
+    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
+    return q;
+  };
+
 
   const overridesPromise = range.from
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, overridesQ] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -159,6 +188,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     fetchAllPaged<any>(buildProducts),
     fetchAllPaged<any>(buildStockItems),
     fetchAllPaged<any>(buildRecipes),
+    fetchAllPaged<any>(buildTransfers),
+    fetchAllPaged<any>(buildProduction),
+    fetchAllPaged<any>(buildTransferExpenses),
     overridesPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
@@ -170,6 +202,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const products = productsRows as any[];
   const stockItems = (stockItemsRows ?? []) as any[];
   const recipes = (recipesRows ?? []) as any[];
+  const transfers = (transferRows ?? []) as any[];
+  const production = (productionRows ?? []) as any[];
+  const transferExpenses = (transferExpenseRows ?? []) as any[];
+
 
   const overrides = (overridesQ.data ?? []) as any[];
 
@@ -184,7 +220,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     productPurchases: 0,
     stockPurchases: 0,
     purchases: 0,
+    received: 0,
     closing: 0,
+
     cogs: 0,
     grossProfit: 0,
     allocatedExp: 0,
@@ -361,6 +399,26 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     if (override.closing !== undefined) cat.closing = override.closing;
   }
 
+  // Received Stock: value moved INTO a category (transfers in, production output) minus
+  // value moved OUT of it (transfers out, production consumption, stock-to-expense moves).
+  for (const t of transfers) {
+    const val = num(t.total_cost);
+    if (!val) continue;
+    if (t.to_category) ensureCat(t.to_category).received += val;
+    if (t.from_category) ensureCat(t.from_category).received -= val;
+  }
+  for (const b of production) {
+    if (b.target_category) ensureCat(b.target_category).received += num(b.total_cost);
+    for (const bi of ((b.production_batch_items ?? []) as any[])) {
+      if (bi?.source_category) ensureCat(bi.source_category).received -= num(bi.total_cost);
+    }
+  }
+  for (const e of transferExpenses) {
+    const src = e.source_product_id ? prodById[e.source_product_id] : e.source_stock_item_id ? stockById[e.source_stock_item_id] : null;
+    if (!src) continue;
+    ensureCat(src.category ?? "—").received -= num(e.amount);
+  }
+
   const generalExpenses = expenses.reduce((s, e) => s + num(e.amount), 0);
   const paidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "paid") ? num(e.amount) : 0), 0);
   const unpaidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "unpaid") ? num(e.amount) : 0), 0);
@@ -369,7 +427,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   const catRows = Object.values(catMap).map((c) => {
     c.purchases = c.productPurchases + c.stockPurchases;
-    c.cogs = c.opening + c.purchases - c.closing;
+    // COGS = Opening + Purchases + Received Stock − Closing
+    c.cogs = c.opening + c.purchases + c.received - c.closing;
     c.grossProfit = c.sales - c.cogs;
     c.allocatedExp = 0;
     c.deliveryProfit = 0;
@@ -380,8 +439,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const productRows = Object.values(productMap).map((p) => ({ ...p, grossProfit: p.rev - p.cogs })).sort((a, b) => b.rev - a.rev || a.name.localeCompare(b.name));
   const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
   const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
+  const totalReceived = catRows.reduce((s, c) => s + c.received, 0);
   const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-  const totalCogs = totalOpening + totalPurch - totalClosing;
+  const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
+
   const grossProfit = totalSales - totalCogs;
   const businessProfit = totalSales - totalCogs - generalExpenses;
   const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses;
@@ -408,6 +469,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     deliveryProfit,
     totalOpening,
     totalPurch,
+    totalReceived,
+
     totalClosing,
     totalCogs,
     grossProfit,

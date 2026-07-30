@@ -122,7 +122,9 @@ function MonthlyReport() {
             <TableRow className="font-medium"><TableCell>= Sales (engine total)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
+            <TableRow><TableCell>+ Received Stock (transfers &amp; production, net)</TableCell><TableCell className="text-right">{money(data?.totalReceived)}</TableCell></TableRow>
             <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
+
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit (Charges − Delivery Expenses)</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
@@ -181,7 +183,9 @@ function CategoryReport() {
           <TableHead className="text-right">Opening</TableHead>
           <TableHead className="text-right">Product Purchases</TableHead>
           <TableHead className="text-right">Stock Item Purchases</TableHead>
+          <TableHead className="text-right">Received</TableHead>
           <TableHead className="text-right">Closing</TableHead>
+
           <TableHead className="text-right">COGS</TableHead>
           <TableHead className="text-right">Gross Profit</TableHead>
           <TableHead className="text-right">Delivery Profit</TableHead>
@@ -197,7 +201,9 @@ function CategoryReport() {
               <TableCell className="text-right">{money(c.opening)}</TableCell>
               <TableCell className="text-right">{money(c.productPurchases)}</TableCell>
               <TableCell className="text-right">{money(c.stockPurchases)}</TableCell>
+              <TableCell className="text-right">{money(c.received)}</TableCell>
               <TableCell className="text-right">{money(c.closing)}</TableCell>
+
               <TableCell className="text-right">{money(c.cogs)}</TableCell>
               <TableCell className="text-right">{money(c.grossProfit)}</TableCell>
               <TableCell className="text-right">{money(c.deliveryProfit)}</TableCell>
