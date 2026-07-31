@@ -431,6 +431,36 @@ export type Database = {
           },
         ]
       }
+      katha_opening: {
+        Row: {
+          as_of_date: string
+          created_at: string
+          id: number
+          note: string | null
+          opening_loan_to_get: number
+          opening_loan_to_give: number
+          updated_at: string
+        }
+        Insert: {
+          as_of_date?: string
+          created_at?: string
+          id?: number
+          note?: string | null
+          opening_loan_to_get?: number
+          opening_loan_to_give?: number
+          updated_at?: string
+        }
+        Update: {
+          as_of_date?: string
+          created_at?: string
+          id?: number
+          note?: string | null
+          opening_loan_to_get?: number
+          opening_loan_to_give?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       money_movement_subcategories: {
         Row: {
           active: boolean
@@ -931,6 +961,7 @@ export type Database = {
           order_type: string
           payment_method: string
           sale_date: string
+          staff_id: string | null
           status: string
           whatsapp_sent_at: string | null
           whatsapp_status: string | null
@@ -958,6 +989,7 @@ export type Database = {
           order_type?: string
           payment_method?: string
           sale_date?: string
+          staff_id?: string | null
           status?: string
           whatsapp_sent_at?: string | null
           whatsapp_status?: string | null
@@ -985,6 +1017,7 @@ export type Database = {
           order_type?: string
           payment_method?: string
           sale_date?: string
+          staff_id?: string | null
           status?: string
           whatsapp_sent_at?: string | null
           whatsapp_status?: string | null
@@ -995,6 +1028,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -1040,6 +1080,139 @@ export type Database = {
           whatsapp_token?: string | null
         }
         Relationships: []
+      }
+      staff: {
+        Row: {
+          cnic: string | null
+          created_at: string
+          deleted_at: string | null
+          father_name: string | null
+          id: string
+          joining_date: string
+          katha_balance: number
+          monthly_salary: number
+          name: string
+          notes: string | null
+          opening_katha: number
+          phone: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cnic?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          father_name?: string | null
+          id?: string
+          joining_date?: string
+          katha_balance?: number
+          monthly_salary?: number
+          name: string
+          notes?: string | null
+          opening_katha?: number
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cnic?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          father_name?: string | null
+          id?: string
+          joining_date?: string
+          katha_balance?: number
+          monthly_salary?: number
+          name?: string
+          notes?: string | null
+          opening_katha?: number
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff_attendance: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          staff_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_attendance_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_payments: {
+        Row: {
+          amount: number
+          cash_movement_id: string | null
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          kind: string
+          payment_method: string
+          remark: string | null
+          staff_id: string
+        }
+        Insert: {
+          amount: number
+          cash_movement_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          kind: string
+          payment_method?: string
+          remark?: string | null
+          staff_id: string
+        }
+        Update: {
+          amount?: number
+          cash_movement_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          kind?: string
+          payment_method?: string
+          remark?: string | null
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_payments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stock_items: {
         Row: {
@@ -1446,6 +1619,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1492,6 +1666,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1540,6 +1715,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1591,6 +1767,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1639,6 +1816,37 @@ export type Database = {
         }
       }
       set_opening_stock_from_current: { Args: never; Returns: undefined }
+      staff_pay: {
+        Args: {
+          _amount: number
+          _date?: string
+          _kind: string
+          _method: string
+          _remark?: string
+          _staff_id: string
+        }
+        Returns: string
+      }
+      staff_payment_delete: {
+        Args: { _payment_id: string }
+        Returns: undefined
+      }
+      staff_salary_summary: {
+        Args: { _month: string }
+        Returns: {
+          absent_days: number
+          advance_taken: number
+          carry_in: number
+          deduction: number
+          katha_balance: number
+          monthly_salary: number
+          name: string
+          present_days: number
+          remaining_salary: number
+          salary_paid: number
+          staff_id: string
+        }[]
+      }
       stock_to_expense_transfer: {
         Args: {
           _date: string
@@ -1684,6 +1892,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1731,6 +1940,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1780,6 +1990,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1832,6 +2043,7 @@ export type Database = {
               order_type: string
               payment_method: string
               sale_date: string
+              staff_id: string | null
               status: string
               whatsapp_sent_at: string | null
               whatsapp_status: string | null
@@ -1885,6 +2097,7 @@ export type Database = {
           order_type: string
           payment_method: string
           sale_date: string
+          staff_id: string | null
           status: string
           whatsapp_sent_at: string | null
           whatsapp_status: string | null
@@ -1928,6 +2141,7 @@ export type Database = {
           order_type: string
           payment_method: string
           sale_date: string
+          staff_id: string | null
           status: string
           whatsapp_sent_at: string | null
           whatsapp_status: string | null
