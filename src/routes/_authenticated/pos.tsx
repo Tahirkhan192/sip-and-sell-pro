@@ -146,6 +146,16 @@ function POS() {
       .limit(6)).data ?? [],
   });
 
+  const { data: staffSuggestions = [] } = useQuery({
+    queryKey: ["staff", "search", customerSearch.trim().toLowerCase()],
+    enabled: customerSearch.trim().length >= 2,
+    queryFn: async () => (await supabase.from("staff" as any).select("id, name, phone, katha_balance")
+      .is("deleted_at", null)
+      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
+      .limit(6)).data ?? [],
+  });
+
+
   const { data: pendingInvoices = [] } = useQuery({
     queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
     enabled: invoiceSearch.trim().length >= 2,
