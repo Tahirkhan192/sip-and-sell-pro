@@ -59,7 +59,9 @@ function POS() {
   const [phone, setPhone] = useState("");
   const [katha, setKatha] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [staffId, setStaffId] = useState<string | null>(null);
   const [showCustomerResults, setShowCustomerResults] = useState(false);
+
   const [orderType, setOrderType] = useState<"walk_in" | "take_away" | "delivery">("walk_in");
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
