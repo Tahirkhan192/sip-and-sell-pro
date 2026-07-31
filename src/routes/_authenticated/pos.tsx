@@ -110,7 +110,9 @@ function POS() {
     hydratedEditIdRef.current = s.id;
     setCustomer(s.customer_name ?? "");
     setPhone(s.customer_phone ?? "");
+    setStaffId(s.staff_id ?? null);
     setKatha(!!s.katha);
+
     setOrderType((s.order_type ?? "walk_in") as any);
     setDelivery(num(s.delivery_charges) || "");
     setDeliveryBoy(s.delivery_boy ?? "");
