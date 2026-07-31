@@ -478,6 +478,8 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["staff"] });
+
       qc.invalidateQueries({ queryKey: ["cash_movements"] });
       qc.invalidateQueries({ queryKey: ["daily_closing"] });
       qc.invalidateQueries({ queryKey: ["report"] });
