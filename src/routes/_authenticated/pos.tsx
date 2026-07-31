@@ -59,7 +59,9 @@ function POS() {
   const [phone, setPhone] = useState("");
   const [katha, setKatha] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [staffId, setStaffId] = useState<string | null>(null);
   const [showCustomerResults, setShowCustomerResults] = useState(false);
+
   const [orderType, setOrderType] = useState<"walk_in" | "take_away" | "delivery">("walk_in");
   const [delivery, setDelivery] = useState<number | "">("");
   const [deliveryBoy, setDeliveryBoy] = useState("");
@@ -108,7 +110,9 @@ function POS() {
     hydratedEditIdRef.current = s.id;
     setCustomer(s.customer_name ?? "");
     setPhone(s.customer_phone ?? "");
+    setStaffId(s.staff_id ?? null);
     setKatha(!!s.katha);
+
     setOrderType((s.order_type ?? "walk_in") as any);
     setDelivery(num(s.delivery_charges) || "");
     setDeliveryBoy(s.delivery_boy ?? "");
@@ -141,6 +145,16 @@ function POS() {
       .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
       .limit(6)).data ?? [],
   });
+
+  const { data: staffSuggestions = [] } = useQuery({
+    queryKey: ["staff", "search", customerSearch.trim().toLowerCase()],
+    enabled: customerSearch.trim().length >= 2,
+    queryFn: async () => (await supabase.from("staff" as any).select("id, name, phone, katha_balance")
+      .is("deleted_at", null)
+      .or(`name.ilike.%${customerSearch.trim()}%,phone.ilike.%${customerSearch.trim()}%`)
+      .limit(6)).data ?? [],
+  });
+
 
   const { data: pendingInvoices = [] } = useQuery({
     queryKey: ["sales", "pending-search", invoiceSearch.trim().toLowerCase()],
@@ -219,7 +233,7 @@ function POS() {
     setCashPaid(""); setOnlinePaid(""); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
     setSaleDate(businessToday());
-    setCustomerSearch(""); setShowCustomerResults(false);
+    setCustomerSearch(""); setShowCustomerResults(false); setStaffId(null);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
     setMmEnabled(false); setMmCashDir(""); setMmCashAmt(""); setMmOnlineDir(""); setMmOnlineAmt(""); setMmRemark(""); setMmCategory("transaction");
@@ -405,6 +419,22 @@ function POS() {
         }
       }
 
+      // Staff katha sale: link the invoice to the staff member and add the unpaid
+      // amount to their katha balance. No money movement is created (goods sold on credit).
+      if (saleData && !editId && staffId) {
+        await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
+        if (katha && status === "completed") {
+          const owed = Math.max(0, round2(num(saleData.grand_total) - num(saleData.cash_paid) - num(saleData.online_paid)));
+          if (owed > 0) {
+            const { data: st } = await supabase.from("staff" as any).select("katha_balance").eq("id", staffId).maybeSingle();
+            await supabase.from("staff" as any)
+              .update({ katha_balance: round2(num((st as any)?.katha_balance) + owed) })
+              .eq("id", staffId);
+          }
+        }
+      }
+
+
       return { sale: saleData, status, movements: mmRows.map((r) => ({ ...r, katha_category: mmCategory })) };
       } finally {
         if (ownsLock) submittingRef.current = false;
@@ -448,6 +478,8 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["staff"] });
+
       qc.invalidateQueries({ queryKey: ["cash_movements"] });
       qc.invalidateQueries({ queryKey: ["daily_closing"] });
       qc.invalidateQueries({ queryKey: ["report"] });
@@ -538,9 +570,9 @@ function POS() {
 
           {/* Customer + phone with live suggestions */}
           <div className="relative grid grid-cols-2 gap-2">
-            <Input placeholder="Customer name"
+            <Input placeholder="Customer / staff name"
               value={customer}
-              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); setStaffId(null); }}
               onFocus={() => { setCustomerSearch(customer); setShowCustomerResults(true); }}
             />
             <Input placeholder="Mobile number"
@@ -548,17 +580,33 @@ function POS() {
               onChange={(e) => { setPhone(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
               onFocus={() => { setCustomerSearch(phone); setShowCustomerResults(true); }}
             />
-            {showCustomerResults && customerSearch.trim().length >= 2 && customerSuggestions.length > 0 && (
-              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
+            {showCustomerResults && customerSearch.trim().length >= 2 && (customerSuggestions.length > 0 || staffSuggestions.length > 0) && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-56 overflow-auto">
                 {(customerSuggestions as any[]).map((c) => (
                   <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
-                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setShowCustomerResults(false); }}>
+                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setStaffId(null); setShowCustomerResults(false); }}>
                     <span><User className="h-3 w-3 inline mr-1" />{c.name}{c.phone ? ` · ${c.phone}` : ""}</span>
                     {num(c.outstanding_balance) > 0 && <span className="text-xs text-destructive">{money(c.outstanding_balance)}</span>}
                   </button>
                 ))}
+                {(staffSuggestions as any[]).map((s) => (
+                  <button key={`staff-${s.id}`} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
+                    onClick={() => { setCustomer(s.name); setPhone(s.phone ?? ""); setStaffId(s.id); setShowCustomerResults(false); }}>
+                    <span>
+                      <User className="h-3 w-3 inline mr-1" />{s.name}{s.phone ? ` · ${s.phone}` : ""}
+                      <span className="ml-2 text-[10px] uppercase rounded bg-muted px-1 py-0.5">Staff</span>
+                    </span>
+                    {num(s.katha_balance) > 0 && <span className="text-xs text-destructive">{money(s.katha_balance)}</span>}
+                  </button>
+                ))}
               </div>
             )}
+            {staffId && (
+              <p className="col-span-2 text-[11px] text-muted-foreground">
+                Staff selected — enabling “Added to Katha” will add the unpaid amount to this staff member’s katha balance.
+              </p>
+            )}
+
           </div>
 
           {/* Order type */}
