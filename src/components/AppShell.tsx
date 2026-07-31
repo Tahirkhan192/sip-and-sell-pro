@@ -54,6 +54,8 @@ const NAV: NavItem[] = [
   { to: "/stock-transfer", label: "Stock Transfer", icon: ArrowLeftRight },
   { to: "/purchases", label: "Purchases", icon: Truck },
   { to: "/customers", label: "Customers", icon: Users },
+  { to: "/staff", label: "Staff Management", icon: Users },
+
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/cash-movements", label: "Money Movements", icon: Banknote },
   { to: "/daily-closing", label: "Daily Closing", icon: BookOpen },
