@@ -419,6 +419,22 @@ function POS() {
         }
       }
 
+      // Staff katha sale: link the invoice to the staff member and add the unpaid
+      // amount to their katha balance. No money movement is created (goods sold on credit).
+      if (saleData && !editId && staffId) {
+        await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
+        if (katha && status === "completed") {
+          const owed = Math.max(0, round2(num(saleData.grand_total) - num(saleData.cash_paid) - num(saleData.online_paid)));
+          if (owed > 0) {
+            const { data: st } = await supabase.from("staff" as any).select("katha_balance").eq("id", staffId).maybeSingle();
+            await supabase.from("staff" as any)
+              .update({ katha_balance: round2(num((st as any)?.katha_balance) + owed) })
+              .eq("id", staffId);
+          }
+        }
+      }
+
+
       return { sale: saleData, status, movements: mmRows.map((r) => ({ ...r, katha_category: mmCategory })) };
       } finally {
         if (ownsLock) submittingRef.current = false;
