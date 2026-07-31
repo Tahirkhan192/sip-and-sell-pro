@@ -233,7 +233,7 @@ function POS() {
     setCashPaid(""); setOnlinePaid(""); setOrderType("walk_in");
     setDiscountType("amount"); setDiscountValue("");
     setSaleDate(businessToday());
-    setCustomerSearch(""); setShowCustomerResults(false);
+    setCustomerSearch(""); setShowCustomerResults(false); setStaffId(null);
     setSearch(""); setInvoiceSearch(""); setShowInvoiceResults(false);
     setHighlightIdx(0); setPriorityBump({});
     setMmEnabled(false); setMmCashDir(""); setMmCashAmt(""); setMmOnlineDir(""); setMmOnlineAmt(""); setMmRemark(""); setMmCategory("transaction");
