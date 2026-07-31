@@ -552,9 +552,9 @@ function POS() {
 
           {/* Customer + phone with live suggestions */}
           <div className="relative grid grid-cols-2 gap-2">
-            <Input placeholder="Customer name"
+            <Input placeholder="Customer / staff name"
               value={customer}
-              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+              onChange={(e) => { setCustomer(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); setStaffId(null); }}
               onFocus={() => { setCustomerSearch(customer); setShowCustomerResults(true); }}
             />
             <Input placeholder="Mobile number"
@@ -562,17 +562,33 @@ function POS() {
               onChange={(e) => { setPhone(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
               onFocus={() => { setCustomerSearch(phone); setShowCustomerResults(true); }}
             />
-            {showCustomerResults && customerSearch.trim().length >= 2 && customerSuggestions.length > 0 && (
-              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
+            {showCustomerResults && customerSearch.trim().length >= 2 && (customerSuggestions.length > 0 || staffSuggestions.length > 0) && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-md border bg-popover shadow-md max-h-56 overflow-auto">
                 {(customerSuggestions as any[]).map((c) => (
                   <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
-                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setShowCustomerResults(false); }}>
+                    onClick={() => { setCustomer(c.name); setPhone(c.phone ?? ""); setStaffId(null); setShowCustomerResults(false); }}>
                     <span><User className="h-3 w-3 inline mr-1" />{c.name}{c.phone ? ` · ${c.phone}` : ""}</span>
                     {num(c.outstanding_balance) > 0 && <span className="text-xs text-destructive">{money(c.outstanding_balance)}</span>}
                   </button>
                 ))}
+                {(staffSuggestions as any[]).map((s) => (
+                  <button key={`staff-${s.id}`} className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between"
+                    onClick={() => { setCustomer(s.name); setPhone(s.phone ?? ""); setStaffId(s.id); setShowCustomerResults(false); }}>
+                    <span>
+                      <User className="h-3 w-3 inline mr-1" />{s.name}{s.phone ? ` · ${s.phone}` : ""}
+                      <span className="ml-2 text-[10px] uppercase rounded bg-muted px-1 py-0.5">Staff</span>
+                    </span>
+                    {num(s.katha_balance) > 0 && <span className="text-xs text-destructive">{money(s.katha_balance)}</span>}
+                  </button>
+                ))}
               </div>
             )}
+            {staffId && (
+              <p className="col-span-2 text-[11px] text-muted-foreground">
+                Staff selected — enabling “Added to Katha” will add the unpaid amount to this staff member’s katha balance.
+              </p>
+            )}
+
           </div>
 
           {/* Order type */}
