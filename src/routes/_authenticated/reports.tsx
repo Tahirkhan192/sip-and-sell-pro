@@ -137,6 +137,9 @@ function MonthlyReport() {
 
     <ReportAudit data={data} />
 
+    <div className="mb-4"><StockAvailability /></div>
+
+
     <Card className="mb-3">
       <CardHeader className="pb-2"><CardTitle className="text-sm">Profit by Category</CardTitle></CardHeader>
       <CardContent className="p-0">
