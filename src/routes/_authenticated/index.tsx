@@ -155,6 +155,8 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <StockAvailability compact />
     </div>
   );
 }
