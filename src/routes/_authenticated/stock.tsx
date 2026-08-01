@@ -90,6 +90,8 @@ function CurrentStock() {
 
   return (
     <div className="space-y-6">
+      <StockAvailability />
+
       <div className="flex gap-2 flex-wrap">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
