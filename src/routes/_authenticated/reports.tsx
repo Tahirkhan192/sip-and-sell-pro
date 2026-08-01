@@ -229,6 +229,8 @@ function StockReport() {
   });
   const totalValue = (data as any[]).reduce((s, p) => s + num(p.current_stock) * num(p.cost_price), 0);
   return (
+    <div className="space-y-4">
+    <StockAvailability />
     <Card>
       <Table>
         <TableHeader><TableRow>
