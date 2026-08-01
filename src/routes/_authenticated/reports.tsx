@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
 import { PrintButton } from "@/components/PrintButton";
+import { StockAvailability } from "@/components/StockAvailability";
 import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { useDateRangeFilter } from "@/components/DateRangeFilter";
