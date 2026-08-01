@@ -345,6 +345,14 @@ function POS() {
         return { sale: null, status, mmOnly: true };
       }
 
+      // Completed invoices must be fully covered by Cash + Online + Added to Katha.
+      if (status === "completed") {
+        const covered = round2(num(cashPaid) + num(onlinePaid) + (katha ? remaining : 0));
+        if (covered + 0.009 < grandTotal) {
+          throw new Error("Invoice cannot be completed. The invoice is not fully paid or the remaining amount has not been marked as Added to Katha.");
+        }
+      }
+
       const items = cart.map((i) => ({
         product_id: i.product_id,
         quantity: i.quantity,

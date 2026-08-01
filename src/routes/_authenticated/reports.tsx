@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
 import { PrintButton } from "@/components/PrintButton";
+import { StockAvailability } from "@/components/StockAvailability";
 import { money, num } from "@/lib/format";
 import { useCategories } from "@/lib/use-categories";
 import { useDateRangeFilter } from "@/components/DateRangeFilter";
@@ -137,6 +138,9 @@ function MonthlyReport() {
 
     <ReportAudit data={data} />
 
+    <div className="mb-4"><StockAvailability /></div>
+
+
     <Card className="mb-3">
       <CardHeader className="pb-2"><CardTitle className="text-sm">Profit by Category</CardTitle></CardHeader>
       <CardContent className="p-0">
@@ -225,6 +229,8 @@ function StockReport() {
   });
   const totalValue = (data as any[]).reduce((s, p) => s + num(p.current_stock) * num(p.cost_price), 0);
   return (
+    <div className="space-y-4">
+    <StockAvailability />
     <Card>
       <Table>
         <TableHeader><TableRow>
@@ -251,6 +257,7 @@ function StockReport() {
       </Table>
       <div className="flex justify-end border-t px-4 py-2 text-sm font-semibold">Total stock value: {money(totalValue)}</div>
     </Card>
+    </div>
   );
 }
 

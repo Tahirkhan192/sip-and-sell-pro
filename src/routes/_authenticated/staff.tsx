@@ -41,7 +41,7 @@ type Staff = {
 
 type SalaryRow = {
   staff_id: string; name: string; monthly_salary: number; present_days: number; absent_days: number;
-  deduction: number; advance_taken: number; salary_paid: number; carry_in: number;
+  deduction: number; advance_taken: number; salary_paid: number; katha_purchases: number; carry_in: number;
   remaining_salary: number; katha_balance: number;
 };
 
@@ -234,13 +234,14 @@ function StaffPage() {
               <th className="text-right p-2">Deduction</th>
               <th className="text-right p-2">Advance</th>
               <th className="text-right p-2">Paid</th>
+              <th className="text-right p-2">Katha Purchases</th>
               <th className="text-right p-2">Remaining</th>
               <th className="text-right p-2">Katha</th>
               <th className="text-right p-2 no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {staff.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
+            {staff.length === 0 && <tr><td colSpan={13} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
             {staff.map((s) => {
               const r = salaryMap[s.id];
               const a = attMap[s.id];
@@ -267,6 +268,7 @@ function StaffPage() {
                   <td className="p-2 text-right">{money(r?.deduction ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.salary_paid ?? 0)}</td>
+                  <td className="p-2 text-right">{money(r?.katha_purchases ?? 0)}</td>
                   <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
                   <td className="p-2 text-right">{money(s.katha_balance)}</td>
                   <td className="p-2 no-print">

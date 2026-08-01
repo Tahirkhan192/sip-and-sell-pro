@@ -669,6 +669,7 @@ export type Database = {
         Row: {
           active: boolean
           allow_negative_stock: boolean
+          avg_price_override: number | null
           category: string
           cost_price: number
           created_at: string
@@ -687,6 +688,7 @@ export type Database = {
         Insert: {
           active?: boolean
           allow_negative_stock?: boolean
+          avg_price_override?: number | null
           category: string
           cost_price?: number
           created_at?: string
@@ -705,6 +707,7 @@ export type Database = {
         Update: {
           active?: boolean
           allow_negative_stock?: boolean
+          avg_price_override?: number | null
           category?: string
           cost_price?: number
           created_at?: string
@@ -1216,6 +1219,7 @@ export type Database = {
       }
       stock_items: {
         Row: {
+          avg_price_override: number | null
           category: string
           created_at: string
           current_stock: number
@@ -1232,6 +1236,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avg_price_override?: number | null
           category: string
           created_at?: string
           current_stock?: number
@@ -1248,6 +1253,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avg_price_override?: number | null
           category?: string
           created_at?: string
           current_stock?: number
@@ -1839,6 +1845,7 @@ export type Database = {
           carry_in: number
           deduction: number
           katha_balance: number
+          katha_purchases: number
           monthly_salary: number
           name: string
           present_days: number

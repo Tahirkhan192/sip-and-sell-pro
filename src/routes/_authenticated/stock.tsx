@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
+import { StockAvailability } from "@/components/StockAvailability";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
 import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
@@ -90,6 +91,8 @@ function CurrentStock() {
 
   return (
     <div className="space-y-6">
+      <StockAvailability />
+
       <div className="flex gap-2 flex-wrap">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
