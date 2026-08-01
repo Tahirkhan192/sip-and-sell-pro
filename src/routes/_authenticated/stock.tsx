@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
+import { StockAvailability } from "@/components/StockAvailability";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
 import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";

@@ -9,6 +9,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { buildRange, businessToday } from "@/lib/business-date";
 import { useCategories } from "@/lib/use-categories";
 import { fetchReportEngine } from "@/lib/report-engine";
+import { StockAvailability } from "@/components/StockAvailability";
 
 export const Route = createFileRoute("/_authenticated/")({ component: Dashboard });
 
