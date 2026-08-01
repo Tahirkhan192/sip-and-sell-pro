@@ -381,7 +381,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   for (const p of products) {
     const cat = ensureCat(p.category ?? "—");
-    const costPrice = num(p.cost_price);
+    // Owner override of the average purchase price is used for valuation only.
+    const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
     cat.opening += prodOverride[p.id]?.opening ?? num(p.opening_stock) * costPrice;
     cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
@@ -389,7 +390,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   // Include stock items in opening/closing valuation so Monthly Report reflects them.
   for (const si of stockItems) {
     const cat = ensureCat(si.category ?? "—");
-    const price = num(si.purchase_price);
+    const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
     cat.opening += num(si.opening_stock) * price;
     cat.closing += num(si.current_stock) * price;
   }
