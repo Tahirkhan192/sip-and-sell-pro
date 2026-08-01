@@ -241,7 +241,7 @@ function StaffPage() {
             </tr>
           </thead>
           <tbody>
-            {staff.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
+            {staff.length === 0 && <tr><td colSpan={13} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
             {staff.map((s) => {
               const r = salaryMap[s.id];
               const a = attMap[s.id];
