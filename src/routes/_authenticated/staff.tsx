@@ -234,6 +234,7 @@ function StaffPage() {
               <th className="text-right p-2">Deduction</th>
               <th className="text-right p-2">Advance</th>
               <th className="text-right p-2">Paid</th>
+              <th className="text-right p-2">Katha Purchases</th>
               <th className="text-right p-2">Remaining</th>
               <th className="text-right p-2">Katha</th>
               <th className="text-right p-2 no-print">Actions</th>
