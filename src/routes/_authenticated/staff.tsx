@@ -41,7 +41,7 @@ type Staff = {
 
 type SalaryRow = {
   staff_id: string; name: string; monthly_salary: number; present_days: number; absent_days: number;
-  deduction: number; advance_taken: number; salary_paid: number; carry_in: number;
+  deduction: number; advance_taken: number; salary_paid: number; katha_purchases: number; carry_in: number;
   remaining_salary: number; katha_balance: number;
 };
 
