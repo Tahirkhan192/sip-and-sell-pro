@@ -1048,6 +1048,8 @@ export type Database = {
           business_day_start_time: string
           business_month_start_day: number
           id: number
+          pin_locks: Json
+          staff_invoice_color: string
           timezone: string
           updated_at: string
           whatsapp_auto_send: boolean | null
@@ -1061,6 +1063,8 @@ export type Database = {
           business_day_start_time?: string
           business_month_start_day?: number
           id?: number
+          pin_locks?: Json
+          staff_invoice_color?: string
           timezone?: string
           updated_at?: string
           whatsapp_auto_send?: boolean | null
@@ -1074,6 +1078,8 @@ export type Database = {
           business_day_start_time?: string
           business_month_start_day?: number
           id?: number
+          pin_locks?: Json
+          staff_invoice_color?: string
           timezone?: string
           updated_at?: string
           whatsapp_auto_send?: boolean | null
@@ -1163,6 +1169,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "staff_attendance_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_month_carry: {
+        Row: {
+          created_at: string
+          id: string
+          month: number
+          prev_advance: number
+          prev_remaining: number
+          staff_id: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: number
+          prev_advance?: number
+          prev_remaining?: number
+          staff_id: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: number
+          prev_advance?: number
+          prev_remaining?: number
+          staff_id?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_month_carry_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
@@ -1268,6 +1315,42 @@ export type Database = {
           supplier_id?: string | null
           unit?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      stock_opening_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          month: number
+          quantity: number
+          scope: string
+          unit_value: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          month: number
+          quantity?: number
+          scope: string
+          unit_value?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          month?: number
+          quantity?: number
+          scope?: string
+          unit_value?: number
+          updated_at?: string
+          year?: number
         }
         Relationships: []
       }
@@ -1569,6 +1652,7 @@ export type Database = {
         Args: { _product_id: string }
         Returns: undefined
       }
+      recompute_staff_katha: { Args: { _staff_id: string }; Returns: undefined }
       recompute_stock_item_wac: { Args: { _id: string }; Returns: undefined }
       restore_sale_stock: { Args: { _sale_id: string }; Returns: undefined }
       save_production: {
@@ -1821,6 +1905,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_opening_stock_for_period: {
+        Args: { _month: number; _year: number }
+        Returns: undefined
+      }
       set_opening_stock_from_current: { Args: never; Returns: undefined }
       staff_pay: {
         Args: {
@@ -1846,9 +1934,13 @@ export type Database = {
           deduction: number
           katha_balance: number
           katha_purchases: number
+          katha_this_month: number
           monthly_salary: number
           name: string
+          payment_this_month: number
           present_days: number
+          prev_advance: number
+          prev_remaining: number
           remaining_salary: number
           salary_paid: number
           staff_id: string
