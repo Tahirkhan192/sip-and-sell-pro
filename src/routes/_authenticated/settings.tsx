@@ -191,8 +191,11 @@ function SettingsPage() {
 
       <StockPinCard />
 
+      <PinLockCard />
+
       <DuplicateInvoiceManager />
     </div>
+
 
   );
 }
