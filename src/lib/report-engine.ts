@@ -501,6 +501,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     unpaidExpenses,
     deliveryExpenses: deliveryExpenseTotal,
     deliveryProfit,
+    staffSalaryCost,
+
     totalOpening,
     totalPurch,
     totalReceived,
