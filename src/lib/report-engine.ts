@@ -477,8 +477,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
 
   const grossProfit = totalSales - totalCogs;
-  const businessProfit = totalSales - totalCogs - generalExpenses;
-  const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses;
+  const businessProfit = totalSales - totalCogs - generalExpenses - staffSalaryCost;
+  const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses - staffSalaryCost;
+
   const categorySalesTotal = catRows.reduce((s, c) => s + c.sales, 0);
   const productSalesTotal = productRows.reduce((s, p) => s + p.rev, 0);
   const businessDates = invoices.map((s) => businessDateOf(s.sale_date)).sort();
