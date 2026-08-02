@@ -50,6 +50,9 @@ export type ReportResult = {
   unpaidExpenses: number;
   deliveryExpenses: number;
   deliveryProfit: number;
+  /** Daily staff salary (monthly ÷ 30) accrued for every present day in the range. */
+  staffSalaryCost: number;
+
   totalOpening: number;
   totalPurch: number;
   totalReceived: number;
@@ -180,7 +183,18 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ] = await Promise.all([
+  // Locked opening-stock snapshot for the reported period (historical months never change).
+  const snapshotPromise = range.from
+    ? (supabase as any).from("stock_opening_snapshots").select("scope,item_id,quantity,unit_value")
+        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
+    : Promise.resolve({ data: [], error: null });
+
+  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
+  const attendancePromise = range.from && range.to
+    ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
+    : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
+
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -192,8 +206,23 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     fetchAllPaged<any>(buildProduction),
     fetchAllPaged<any>(buildTransferExpenses),
     overridesPromise,
+    snapshotPromise,
+    staffPromise,
+    attendancePromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
+
+  // Opening quantities locked to this period, keyed "<scope>:<id>".
+  const openingSnapshot: Record<string, number> = {};
+  for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
+
+  // Part 3 — present staff accrue one daily salary (monthly ÷ 30) per present day.
+  const salaryById: Record<string, number> = {};
+  for (const s of (((staffQ as any).data ?? []) as any[])) salaryById[s.id] = num(s.monthly_salary) / 30;
+  let staffSalaryCost = 0;
+  for (const a of (((attendanceQ as any).data ?? []) as any[])) staffSalaryCost += salaryById[a.staff_id] ?? 0;
+  staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
+
 
   const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
   const expenses = expensesRows as any[];
