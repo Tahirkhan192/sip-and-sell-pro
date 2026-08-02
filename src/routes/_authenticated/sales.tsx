@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePinGate } from "@/lib/pin-locks";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -104,11 +106,19 @@ function Page() {
     },
     { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0, pendingSales: 0 },
   );
-
+  const { guard, dialog } = usePinGate();
+  const { data: staffColorSetting } = useQuery({
+    queryKey: ["settings", "staff-invoice-color"],
+    queryFn: async () => ((await (supabase as any).from("settings").select("staff_invoice_color").eq("id", 1).maybeSingle()).data?.staff_invoice_color ?? "#DBEAFE") as string,
+    staleTime: 60_000,
+  });
+  const staffColor = staffColorSetting ?? "#DBEAFE";
 
   return (
     <div>
+      {dialog}
       <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" action={<PrintButton title="Sales Report" />} />
+
 
       <div className="flex flex-wrap gap-1 mb-3 items-center">
         {(["date", "week", "month", "overall"] as const).map((q) => (
