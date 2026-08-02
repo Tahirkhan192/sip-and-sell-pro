@@ -412,7 +412,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const cat = ensureCat(p.category ?? "—");
     // Owner override of the average purchase price is used for valuation only.
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
-    cat.opening += prodOverride[p.id]?.opening ?? num(p.opening_stock) * costPrice;
+    const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
+    cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
     cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
@@ -420,9 +421,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   for (const si of stockItems) {
     const cat = ensureCat(si.category ?? "—");
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
-    cat.opening += num(si.opening_stock) * price;
+    const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
+    cat.opening += openQty * price;
     cat.closing += num(si.current_stock) * price;
   }
+
   for (const [category, override] of Object.entries(catOverride)) {
     const cat = ensureCat(category);
     if (override.opening !== undefined) cat.opening = override.opening;
