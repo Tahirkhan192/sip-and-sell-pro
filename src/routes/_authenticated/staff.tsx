@@ -271,7 +271,9 @@ function StaffPage() {
                   <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.salary_paid ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.katha_purchases ?? 0)}</td>
+                  <td className="p-2 text-right">{money(r?.carry_in ?? 0)}</td>
                   <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
+
                   <td className="p-2 text-right">{money(s.katha_balance)}</td>
                   <td className="p-2 no-print">
                     <div className="flex justify-end gap-1">
