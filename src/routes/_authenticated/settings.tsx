@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
+import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
+
 
 import {
   businessToday,
@@ -191,8 +193,11 @@ function SettingsPage() {
 
       <StockPinCard />
 
+      <PinLockCard />
+
       <DuplicateInvoiceManager />
     </div>
+
 
   );
 }
@@ -228,6 +233,75 @@ function StockPinCard() {
         </div>
         <div className="flex justify-end">
           <Button onClick={submit} disabled={busy || !current || !next || !confirmPin}>Update PIN</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Owner chooses exactly which modules require the PIN, plus the staff invoice colour. */
+function PinLockCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["settings", "pin-locks-card"],
+    queryFn: async () => (await supabase.from("settings" as any).select("pin_locks, staff_invoice_color").eq("id", 1).maybeSingle()).data as any,
+  });
+
+  const [locks, setLocks] = useState<Record<string, boolean>>(DEFAULT_PIN_LOCKS);
+  const [color, setColor] = useState("#DBEAFE");
+
+  useEffect(() => {
+    if (!data) return;
+    const raw = (data.pin_locks ?? null) as Record<string, boolean> | null;
+    setLocks(raw && Object.keys(raw).length > 0 ? raw : { ...DEFAULT_PIN_LOCKS });
+    setColor(data.staff_invoice_color || "#DBEAFE");
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("settings" as any).upsert({
+        id: 1,
+        pin_locks: locks,
+        staff_invoice_color: color,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("PIN protection settings saved");
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div>
+          <Label className="text-base">PIN Protected Modules</Label>
+          <p className="text-xs text-muted-foreground mt-1">Tick each module that must ask for the PIN. Unticked modules are not protected.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {PIN_MODULES.map((m) => (
+            <label key={m.key} className="flex items-center justify-between gap-2 rounded border px-3 py-2 text-sm">
+              <span>{m.label}</span>
+              <Switch checked={!!locks[m.key]} onCheckedChange={(v) => setLocks((s) => ({ ...s, [m.key]: v }))} />
+            </label>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          <Label>Staff Invoice Colour</Label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-16 rounded border bg-transparent" />
+            <Input className="max-w-[160px]" value={color} onChange={(e) => setColor(e.target.value)} />
+            <span className="rounded border px-3 py-1 text-xs" style={{ backgroundColor: color }}>Staff invoice preview</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">All invoices linked to a staff member are highlighted with this colour. Customer invoices are unchanged.</p>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>Save PIN Settings</Button>
         </div>
       </CardContent>
     </Card>

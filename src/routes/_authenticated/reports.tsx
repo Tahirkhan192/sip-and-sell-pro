@@ -130,6 +130,8 @@ function MonthlyReport() {
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit (Charges − Delivery Expenses)</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
             <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.generalExpenses)}</TableCell></TableRow>
+            <TableRow><TableCell>− Staff Salary (present days × monthly ÷ 30)</TableCell><TableCell className="text-right">{money(data?.staffSalaryCost)}</TableCell></TableRow>
+
             <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.netProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.netProfit)}</TableCell></TableRow>
           </TableBody>
         </Table>

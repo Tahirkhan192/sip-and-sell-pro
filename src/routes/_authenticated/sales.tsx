@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePinGate } from "@/lib/pin-locks";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -104,11 +106,19 @@ function Page() {
     },
     { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0, pendingSales: 0 },
   );
-
+  const { guard, dialog } = usePinGate();
+  const { data: staffColorSetting } = useQuery({
+    queryKey: ["settings", "staff-invoice-color"],
+    queryFn: async () => ((await (supabase as any).from("settings").select("staff_invoice_color").eq("id", 1).maybeSingle()).data?.staff_invoice_color ?? "#DBEAFE") as string,
+    staleTime: 60_000,
+  });
+  const staffColor = staffColorSetting ?? "#DBEAFE";
 
   return (
     <div>
+      {dialog}
       <PageHeader title="Sales & KDFs" subtitle="Quick filters, payment summary and edit/delete" action={<PrintButton title="Sales Report" />} />
+
 
       <div className="flex flex-wrap gap-1 mb-3 items-center">
         {(["date", "week", "month", "overall"] as const).map((q) => (
@@ -161,14 +171,21 @@ function Page() {
 
 
       <div className="space-y-3">
-        {data.map((s: any) => (
-          <Card key={s.id} className="p-4">
+        {data.map((s: any) => {
+          const cash = num(s.cash_paid);
+          const online = num(s.online_paid);
+          const remaining = Math.max(0, num(s.grand_total) - cash - online);
+          const kathaAmt = s.katha ? remaining : 0;
+          const isStaff = !!s.staff_id;
+          return (
+          <Card key={s.id} className="p-4" style={isStaff ? { backgroundColor: staffColor } : undefined}>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="font-semibold">{s.invoice_no}</div>
                   <Badge variant={s.status === "pending" ? "secondary" : "default"} className="capitalize">{s.status}</Badge>
                   <StatusBadge s={s} />
+                  {isStaff && <Badge variant="outline">Staff</Badge>}
                   {s.order_type && <Badge variant="outline" className="capitalize">{String(s.order_type).replace("_", " ")}</Badge>}
                   {num(s.delivery_charges) > 0 && <Badge variant="outline">Delivery {money(s.delivery_charges)}</Badge>}
                 </div>
@@ -187,11 +204,21 @@ function Page() {
                 <Button size="sm" variant="outline" asChild>
                   <Link to="/pos" search={{ edit: s.id }}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
                 </Button>
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete KDF ${s.invoice_no}? ${s.status === "completed" ? "Stock will be restored." : ""}`)) deleteMutation.mutate(s); }}>
+                <Button size="icon" variant="ghost" onClick={() => guard("delete_invoice", () => { if (confirm(`Delete KDF ${s.invoice_no}? ${s.status === "completed" ? "Stock will be restored." : ""}`)) deleteMutation.mutate(s); })}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
+
+            {/* Payment breakdown is permanently visible on every invoice. */}
+            <div className="mb-2 grid grid-cols-2 sm:grid-cols-5 gap-2 rounded border bg-background/60 p-2 text-xs">
+              <div><div className="text-muted-foreground">Grand Total</div><div className="font-semibold">{money(s.grand_total)}</div></div>
+              <div><div className="text-muted-foreground">Cash Paid</div><div className="font-semibold">{money(cash)}</div></div>
+              <div><div className="text-muted-foreground">Online Paid</div><div className="font-semibold">{money(online)}</div></div>
+              <div><div className="text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(kathaAmt)}</div></div>
+              <div><div className="text-muted-foreground">Remaining</div><div className={"font-semibold " + (remaining - kathaAmt > 0 ? "text-destructive" : "")}>{money(remaining - kathaAmt)}</div></div>
+            </div>
+
             <Table>
               <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
               <TableBody>
@@ -206,7 +233,9 @@ function Page() {
               </TableBody>
             </Table>
           </Card>
-        ))}
+          );
+        })}
+
         {data.length === 0 && <p className="text-sm text-muted-foreground">No sales for these filters.</p>}
       </div>
     </div>

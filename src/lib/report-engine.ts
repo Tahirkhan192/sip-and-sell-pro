@@ -50,6 +50,9 @@ export type ReportResult = {
   unpaidExpenses: number;
   deliveryExpenses: number;
   deliveryProfit: number;
+  /** Daily staff salary (monthly ÷ 30) accrued for every present day in the range. */
+  staffSalaryCost: number;
+
   totalOpening: number;
   totalPurch: number;
   totalReceived: number;
@@ -127,7 +130,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const buildSales = () => {
     let q = (supabase as any)
       .from("sales")
-      .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
+      .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, staff_id, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
       .is("deleted_at", null)
       .eq("hidden", false)
 
@@ -180,7 +183,18 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ? (supabase as any).from("monthly_stock_overrides").select("*").eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ] = await Promise.all([
+  // Locked opening-stock snapshot for the reported period (historical months never change).
+  const snapshotPromise = range.from
+    ? (supabase as any).from("stock_opening_snapshots").select("scope,item_id,quantity,unit_value")
+        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
+    : Promise.resolve({ data: [], error: null });
+
+  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
+  const attendancePromise = range.from && range.to
+    ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
+    : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
+
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -192,8 +206,23 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     fetchAllPaged<any>(buildProduction),
     fetchAllPaged<any>(buildTransferExpenses),
     overridesPromise,
+    snapshotPromise,
+    staffPromise,
+    attendancePromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
+
+  // Opening quantities locked to this period, keyed "<scope>:<id>".
+  const openingSnapshot: Record<string, number> = {};
+  for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
+
+  // Part 3 — present staff accrue one daily salary (monthly ÷ 30) per present day.
+  const salaryById: Record<string, number> = {};
+  for (const s of (((staffQ as any).data ?? []) as any[])) salaryById[s.id] = num(s.monthly_salary) / 30;
+  let staffSalaryCost = 0;
+  for (const a of (((attendanceQ as any).data ?? []) as any[])) staffSalaryCost += salaryById[a.staff_id] ?? 0;
+  staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
+
 
   const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
   const expenses = expensesRows as any[];
@@ -383,7 +412,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const cat = ensureCat(p.category ?? "—");
     // Owner override of the average purchase price is used for valuation only.
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
-    cat.opening += prodOverride[p.id]?.opening ?? num(p.opening_stock) * costPrice;
+    const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
+    cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
     cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
@@ -391,9 +421,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   for (const si of stockItems) {
     const cat = ensureCat(si.category ?? "—");
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
-    cat.opening += num(si.opening_stock) * price;
+    const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
+    cat.opening += openQty * price;
     cat.closing += num(si.current_stock) * price;
   }
+
   for (const [category, override] of Object.entries(catOverride)) {
     const cat = ensureCat(category);
     if (override.opening !== undefined) cat.opening = override.opening;
@@ -445,8 +477,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
 
   const grossProfit = totalSales - totalCogs;
-  const businessProfit = totalSales - totalCogs - generalExpenses;
-  const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses;
+  const businessProfit = totalSales - totalCogs - generalExpenses - staffSalaryCost;
+  const netProfit = totalSales - totalCogs + deliveryProfit - generalExpenses - staffSalaryCost;
+
   const categorySalesTotal = catRows.reduce((s, c) => s + c.sales, 0);
   const productSalesTotal = productRows.reduce((s, p) => s + p.rev, 0);
   const businessDates = invoices.map((s) => businessDateOf(s.sale_date)).sort();
@@ -468,6 +501,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     unpaidExpenses,
     deliveryExpenses: deliveryExpenseTotal,
     deliveryProfit,
+    staffSalaryCost,
+
     totalOpening,
     totalPurch,
     totalReceived,
