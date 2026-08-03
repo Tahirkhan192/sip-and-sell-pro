@@ -1,3 +1,4 @@
+import { changeReturnedOf } from "@/lib/report-engine";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -925,6 +926,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
   const name = customer ?? invoice.customer_name;
   const items = invoice.items ?? invoice.sale_items ?? [];
   const subtotal = items.reduce((s: number, i: any) => s + num(i.total ?? (num(i.price ?? i.rate ?? 0) * num(i.quantity))), 0);
+  const printChange = changeReturnedOf(invoice);
   return (
     <div className="p-8 text-black bg-white max-w-md mx-auto font-mono text-sm">
       <div className="text-center border-b border-dashed pb-2 mb-2">
@@ -954,6 +956,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
         <div className="flex justify-between font-bold pt-1 border-t border-dashed"><span>TOTAL</span><span>{money(invoice.grand_total)}</span></div>
         {num(invoice.cash_paid) > 0 && <div className="flex justify-between"><span>Cash</span><span>{money(invoice.cash_paid)}</span></div>}
         {num(invoice.online_paid) > 0 && <div className="flex justify-between"><span>Online</span><span>{money(invoice.online_paid)}</span></div>}
+        {printChange > 0 && <div className="flex justify-between font-semibold"><span>Change Returned</span><span>{money(printChange)}</span></div>}
       </div>
       {Array.isArray(invoice.movements) && invoice.movements.length > 0 && (
         <div className="border-t border-dashed mt-2 pt-2 text-xs space-y-1">

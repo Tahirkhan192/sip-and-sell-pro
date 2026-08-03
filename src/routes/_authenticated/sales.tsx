@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { PrintButton } from "@/components/PrintButton";
 import { Pencil, Trash2, Check, AlertCircle, BookMarked } from "lucide-react";
 import { toast } from "sonner";
-import { useReportEngine } from "@/lib/report-engine";
+import { useReportEngine, changeReturnedOf } from "@/lib/report-engine";
 
 export const Route = createFileRoute("/_authenticated/sales")({ component: Page });
 
@@ -96,6 +96,7 @@ function Page() {
       if (s.status === "pending") { a.pendingInvoices += 1; a.pendingSales += num(s.grand_total); return a; }
       const rem = Math.max(0, num(s.grand_total) - num(s.cash_paid) - num(s.online_paid));
       const st = paymentStatus(s);
+      a.change += changeReturnedOf(s);
       a.sales += num(s.grand_total);
       a.paid += num(s.cash_paid) + num(s.online_paid);
       a.remaining += rem;
@@ -104,7 +105,7 @@ function Page() {
       else { a.unpaidInvoices += 1; a.unpaidAmt += rem; }
       return a;
     },
-    { count: 0, sales: 0, paid: 0, remaining: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0, pendingSales: 0 },
+    { count: 0, sales: 0, paid: 0, remaining: 0, change: 0, kathaAmt: 0, unpaidAmt: 0, paidInvoices: 0, unpaidInvoices: 0, kathaInvoices: 0, pendingInvoices: 0, pendingSales: 0 },
   );
   const { guard, dialog } = usePinGate();
   const { data: staffColorSetting } = useQuery({
@@ -160,6 +161,7 @@ function Page() {
         <div><div className="text-xs text-muted-foreground">Total Sales</div><div className="font-semibold">{money(summary.sales)}</div></div>
         <div><div className="text-xs text-muted-foreground">Total Paid</div><div className="font-semibold text-emerald-600">{money(summary.paid)}</div></div>
         <div><div className="text-xs text-muted-foreground">Remaining Balance</div><div className="font-semibold text-destructive">{money(summary.remaining)}</div></div>
+        <div><div className="text-xs text-muted-foreground">Total Change Returned</div><div className="font-semibold text-emerald-600">{money(summary.change)}</div></div>
         <div><div className="text-xs text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(summary.kathaAmt)} <span className="text-xs text-muted-foreground">({summary.kathaInvoices} KDFs)</span></div></div>
         <div><div className="text-xs text-muted-foreground">Not Paid Fully</div><div className="font-semibold">{money(summary.unpaidAmt)} <span className="text-xs text-muted-foreground">({summary.unpaidInvoices} KDFs)</span></div></div>
         <div><div className="text-xs text-muted-foreground">Fully Paid KDFs</div><div className="font-semibold text-emerald-600">{summary.paidInvoices}</div></div>
@@ -176,6 +178,7 @@ function Page() {
           const online = num(s.online_paid);
           const remaining = Math.max(0, num(s.grand_total) - cash - online);
           const kathaAmt = s.katha ? remaining : 0;
+          const change = changeReturnedOf(s);
           const isStaff = !!s.staff_id;
           return (
           <Card key={s.id} className="p-4" style={isStaff ? { backgroundColor: staffColor } : undefined}>
@@ -211,12 +214,13 @@ function Page() {
             </div>
 
             {/* Payment breakdown is permanently visible on every invoice. */}
-            <div className="mb-2 grid grid-cols-2 sm:grid-cols-5 gap-2 rounded border bg-background/60 p-2 text-xs">
+            <div className="mb-2 grid grid-cols-2 sm:grid-cols-6 gap-2 rounded border bg-background/60 p-2 text-xs">
               <div><div className="text-muted-foreground">Grand Total</div><div className="font-semibold">{money(s.grand_total)}</div></div>
               <div><div className="text-muted-foreground">Cash Paid</div><div className="font-semibold">{money(cash)}</div></div>
               <div><div className="text-muted-foreground">Online Paid</div><div className="font-semibold">{money(online)}</div></div>
               <div><div className="text-muted-foreground">Added To Katha</div><div className="font-semibold">{money(kathaAmt)}</div></div>
-              <div><div className="text-muted-foreground">Remaining</div><div className={"font-semibold " + (remaining - kathaAmt > 0 ? "text-destructive" : "")}>{money(remaining - kathaAmt)}</div></div>
+              <div><div className="text-muted-foreground">Change</div><div className={"font-semibold " + (change > 0 ? "text-emerald-600" : "")}>{money(change)}</div></div>
+              <div><div className="text-muted-foreground">Remaining</div><div className={"font-semibold " + (change > 0 ? "" : remaining - kathaAmt > 0 ? "text-destructive" : "")}>{money(change > 0 ? 0 : remaining - kathaAmt)}</div></div>
             </div>
 
             <Table>

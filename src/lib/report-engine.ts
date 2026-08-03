@@ -45,6 +45,8 @@ export type ReportResult = {
   totalCashPaid: number;
   totalOnlinePaid: number;
   kathaAmount: number;
+  /** Sum of cash returned to customers: (Cash + Online) − Grand Total − Katha, when positive. */
+  totalChangeReturned: number;
   generalExpenses: number;
   paidExpenses: number;
   unpaidExpenses: number;
@@ -64,7 +66,7 @@ export type ReportResult = {
   netProfit: number;
   catRows: ReportCategoryRow[];
   productRows: ReportProductRow[];
-  salesByBusinessDate: Record<string, { date: string; count: number; totalSales: number; totalQtySold: number; delivery: number; cash: number; online: number; katha: number }>;
+  salesByBusinessDate: Record<string, { date: string; count: number; totalSales: number; totalQtySold: number; delivery: number; cash: number; online: number; katha: number; change: number }>;
   audit: {
     totalInvoices: number;
     firstBusinessDate: string | null;
@@ -297,6 +299,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   let totalCashPaid = 0;
   let totalOnlinePaid = 0;
   let kathaAmount = 0;
+  let totalChangeReturned = 0;
 
   for (const sale of invoices) {
     const isPending = sale.status === "pending";
@@ -312,6 +315,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       if (sale.payment_method === "card") online = grand;
     }
     const remaining = Math.max(0, grand - cash - online);
+    const kathaAmt = sale.katha ? remaining : 0;
+    // Change = (Cash + Online) − Grand Total − Added To Katha, only when positive.
+    const saleChange = Math.max(0, cash + online - grand - kathaAmt);
     const orderType: string = sale.order_type ?? "walk_in";
 
     // Financial totals only for completed sales — pending is inventory-only.
@@ -321,9 +327,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       totalCashPaid += cash;
       totalOnlinePaid += online;
       if (sale.katha) kathaAmount += remaining;
+      totalChangeReturned += saleChange;
     }
 
-    const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0 });
+    const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0, change: 0 });
     day.count += 1;
     if (!isPending) {
       day.totalSales += grand;
@@ -331,6 +338,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       day.cash += cash;
       day.online += online;
       if (sale.katha) day.katha += remaining;
+      day.change += saleChange;
     }
 
     if (items.length === 0) {
@@ -496,6 +504,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     totalCashPaid,
     totalOnlinePaid,
     kathaAmount,
+    totalChangeReturned,
     generalExpenses,
     paidExpenses,
     unpaidExpenses,
@@ -535,6 +544,16 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     monthDelExp: deliveryExpenseTotal,
     overall: netProfit,
   };
+}
+
+/** Change returned to the customer for one sale row. */
+export function changeReturnedOf(sale: any): number {
+  const grand = num(sale.grand_total);
+  const cash = num(sale.cash_paid);
+  const online = num(sale.online_paid);
+  const remaining = Math.max(0, grand - cash - online);
+  const kathaAmt = sale.katha ? remaining : 0;
+  return Math.max(0, cash + online - grand - kathaAmt);
 }
 
 export function useReportEngine(range: ReportRangeInput, categories: string[] = []) {

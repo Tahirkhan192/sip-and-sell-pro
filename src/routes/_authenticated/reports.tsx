@@ -67,7 +67,8 @@ function DailyReport() {
     cash: a.cash + d.cash,
     card: a.card + d.online,
     delivery: a.delivery + d.delivery,
-  }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0 });
+    change: a.change + d.change,
+  }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0, change: 0 });
   return (<>
     {r.el}
     <Card>
@@ -78,6 +79,7 @@ function DailyReport() {
           <TableHead className="text-right">Cash</TableHead>
           <TableHead className="text-right">Card</TableHead>
           <TableHead className="text-right">Delivery</TableHead>
+          <TableHead className="text-right">Change Returned</TableHead>
           <TableHead className="text-right">Grand Total</TableHead>
         </TableRow></TableHeader>
         <TableBody>
@@ -88,16 +90,17 @@ function DailyReport() {
               <TableCell className="text-right">{money(d.cash)}</TableCell>
               <TableCell className="text-right">{money(d.online)}</TableCell>
               <TableCell className="text-right">{money(d.delivery)}</TableCell>
+              <TableCell className="text-right text-emerald-600">{money(d.change)}</TableCell>
               <TableCell className="text-right font-semibold">{money(d.totalSales)}</TableCell>
             </TableRow>
           ))}
-          {rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
+          {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
         </TableBody>
       </Table>
       {rows.length > 0 && (
-        <div className="border-t px-4 py-2 grid grid-cols-6 text-sm font-medium text-right">
+        <div className="border-t px-4 py-2 grid grid-cols-7 text-sm font-medium text-right">
           <div className="text-left">Totals</div>
-          <div>{total.count}</div><div>{money(total.cash)}</div><div>{money(total.card)}</div><div>{money(total.delivery)}</div><div>{money(total.sales)}</div>
+          <div>{total.count}</div><div>{money(total.cash)}</div><div>{money(total.card)}</div><div>{money(total.delivery)}</div><div className="text-emerald-600">{money(total.change)}</div><div>{money(total.sales)}</div>
         </div>
       )}
     </Card>
@@ -132,6 +135,7 @@ function MonthlyReport() {
             <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.generalExpenses)}</TableCell></TableRow>
             <TableRow><TableCell>− Staff Salary (present days × monthly ÷ 30)</TableCell><TableCell className="text-right">{money(data?.staffSalaryCost)}</TableCell></TableRow>
 
+            <TableRow><TableCell>Total Change Returned (informational)</TableCell><TableCell className="text-right text-emerald-600">{money(data?.totalChangeReturned)}</TableCell></TableRow>
             <TableRow className="font-bold"><TableCell>Net Business Profit</TableCell><TableCell className={"text-right " + ((data?.netProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.netProfit)}</TableCell></TableRow>
           </TableBody>
         </Table>
@@ -399,6 +403,7 @@ function SalesReport() {
       </Table>
       <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-semibold">
         <span>Qty: {totals.qty.toFixed(2)}</span>
+        <span className="text-emerald-600">Change Returned: {money(data?.totalChangeReturned)}</span>
         <span>Total: {money(totals.rev)}</span>
       </div>
     </Card>
@@ -416,6 +421,7 @@ function ReportAudit({ data }: { data?: ReportResult }) {
         <Stat label="First Business Date" value={data.audit.firstBusinessDate ?? "—"} />
         <Stat label="Last Business Date" value={data.audit.lastBusinessDate ?? "—"} />
         <Stat label="Total Sales" value={money(data.audit.totalSales)} />
+        <Stat label="Total Change Returned" value={money(data.totalChangeReturned)} />
         <Stat label="Total COGS" value={money(data.audit.totalCogs)} />
         <Stat label="Total Expenses" value={money(data.audit.totalExpenses)} />
         <Stat label="Total Delivery Profit" value={money(data.audit.totalDeliveryProfit)} />
