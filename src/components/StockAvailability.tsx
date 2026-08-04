@@ -136,20 +136,21 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground">Products only · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">Products only · {period.from} → {period.to}</p>
         </div>
-        <Input className="h-8 max-w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
-      <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-auto"}>
+      <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-x-auto"}>
         <Table>
           <TableHeader><TableRow>
             <TableHead>Product</TableHead>
             <TableHead>Category</TableHead>
             <TableHead className="text-right">Opening Qty</TableHead>
             <TableHead className="text-right">Produced</TableHead>
+            <TableHead className="text-right">Purchased</TableHead>
             <TableHead className="text-right">Sold Qty</TableHead>
             <TableHead className="text-right">Remaining Qty</TableHead>
             <TableHead className="text-right">Selling Price</TableHead>
@@ -162,6 +163,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell>{r.category}</TableCell>
                 <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.produced.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.purchased.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.sold.toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(r.salePrice)}</TableCell>
@@ -169,11 +171,12 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Product Quantity</span>
         <span>{totalQty.toFixed(2)}</span>
