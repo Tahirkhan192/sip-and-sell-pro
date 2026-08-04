@@ -65,6 +65,7 @@ export type ProductStockRow = {
   category: string;
   opening: number;
   produced: number;
+  purchased: number;
   sold: number;
   remaining: number;
   salePrice: number;
@@ -76,32 +77,44 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
   return useQuery({
     queryKey: ["stock-availability", "products", period.from, period.to, Object.keys(openings).length],
     queryFn: async (): Promise<ProductStockRow[]> => {
-      const [p, prod, sold] = await Promise.all([
+      const [p, prod, pur, sold] = await Promise.all([
         (supabase as any).from("products").select("id,name,category,opening_stock,current_stock,sale_price").is("deleted_at", null).order("name"),
         (supabase as any).from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to),
+        (supabase as any).from("stock_purchases").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null).gte("date", period.from).lte("date", period.to),
+        // Sold quantity is always rebuilt from COMPLETED invoices only —
+        // deleted and hidden (duplicate) invoices are ignored.
         (supabase as any).from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden)")
           .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC),
       ]);
       if (p.error) throw p.error;
       const producedBy: Record<string, number> = {};
       for (const b of ((prod.data ?? []) as any[])) producedBy[b.product_id] = (producedBy[b.product_id] ?? 0) + num(b.quantity);
+      const purchasedBy: Record<string, number> = {};
+      for (const b of ((pur.data ?? []) as any[])) purchasedBy[b.product_id] = (purchasedBy[b.product_id] ?? 0) + num(b.quantity);
       const soldBy: Record<string, number> = {};
       for (const it of ((sold.data ?? []) as any[])) {
         const s = it.sales;
         if (!s || s.deleted_at || s.hidden) continue;
+        if (s.status !== "completed") continue;
         soldBy[it.product_id] = (soldBy[it.product_id] ?? 0) + num(it.quantity);
       }
       return ((p.data ?? []) as any[]).map((r) => {
         const opening = openings[`product:${r.id}`] ?? num(r.opening_stock);
-        const remaining = num(r.current_stock);
+        const produced = producedBy[r.id] ?? 0;
+        const purchased = purchasedBy[r.id] ?? 0;
+        const soldQty = soldBy[r.id] ?? 0;
+        // Remaining is ALWAYS rebuilt from transaction history — stored
+        // current_stock is never reused here.
+        const remaining = opening + produced + purchased - soldQty;
         const salePrice = num(r.sale_price);
         return {
           id: r.id,
           name: r.name,
           category: r.category ?? "—",
           opening,
-          produced: producedBy[r.id] ?? 0,
-          sold: soldBy[r.id] ?? 0,
+          produced,
+          purchased,
+          sold: soldQty,
           remaining,
           salePrice,
           value: remaining * salePrice,
@@ -111,6 +124,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
     staleTime: 0,
   });
 }
+
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
   const period = currentPeriod();
