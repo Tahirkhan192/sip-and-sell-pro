@@ -221,60 +221,56 @@ function StaffPage() {
       </div>
 
       {/* Staff + salary table */}
-      <Card className="overflow-auto">
-        <table className="w-full text-sm">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-muted/50 text-xs">
             <tr>
-              <th className="text-left p-2">Staff</th>
-              <th className="text-left p-2">Mobile</th>
-              <th className="text-right p-2">Monthly</th>
+              <th className="text-left p-2">Staff Name</th>
               <th className="text-center p-2">Attendance ({date})</th>
               <th className="text-right p-2">Present</th>
               <th className="text-right p-2">Absent</th>
-              <th className="text-right p-2">Deduction</th>
+              <th className="text-right p-2">Salary</th>
+              <th className="text-right p-2">Payment This Month</th>
+              <th className="text-right p-2">Staff Katha</th>
+              <th className="text-right p-2">Remaining Salary</th>
               <th className="text-right p-2">Advance</th>
-              <th className="text-right p-2">Paid</th>
-              <th className="text-right p-2">Katha Purchases</th>
-              <th className="text-right p-2">Prev Month Carry</th>
-              <th className="text-right p-2">Remaining</th>
-
-              <th className="text-right p-2">Katha</th>
+              <th className="text-left p-2">Status</th>
               <th className="text-right p-2 no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {staff.length === 0 && <tr><td colSpan={14} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
+            {staff.length === 0 && <tr><td colSpan={11} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
             {staff.map((s) => {
               const r = salaryMap[s.id];
-              const a = attMap[s.id];
+              const a = attMap[s.id] ?? "present"; // present by default each business day
               return (
-                <tr key={s.id} className="border-t">
+                <tr key={s.id} className="border-t hover:bg-accent/30">
                   <td className="p-2">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {s.father_name ? `s/o ${s.father_name} · ` : ""}Joined {s.joining_date}
-                      {s.status !== "active" && <Badge variant="outline" className="ml-2">Inactive</Badge>}
-                    </div>
+                    <Link to="/staff/$staffId" params={{ staffId: s.id }} className="block">
+                      <div className="font-medium underline-offset-2 hover:underline">{s.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {s.phone ?? "No mobile"} · Joined {s.joining_date}
+                      </div>
+                    </Link>
                   </td>
-                  <td className="p-2">{s.phone ?? "—"}</td>
-                  <td className="p-2 text-right">{money(s.monthly_salary)}</td>
                   <td className="p-2">
                     <div className="flex justify-center gap-1 no-print">
                       <Button size="sm" variant={a === "present" ? "default" : "outline"} onClick={() => mark.mutate([{ staff_id: s.id, status: "present" }])}><Check className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant={a === "absent" ? "destructive" : "outline"} onClick={() => mark.mutate([{ staff_id: s.id, status: "absent" }])}><X className="h-3.5 w-3.5" /></Button>
                     </div>
-                    <div className="hidden print:block text-center">{a ?? "—"}</div>
+                    <div className="hidden print:block text-center capitalize">{a}</div>
                   </td>
                   <td className="p-2 text-right">{r?.present_days ?? 0}</td>
                   <td className="p-2 text-right">{r?.absent_days ?? 0}</td>
-                  <td className="p-2 text-right">{money(r?.deduction ?? 0)}</td>
-                  <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
-                  <td className="p-2 text-right">{money(r?.salary_paid ?? 0)}</td>
-                  <td className="p-2 text-right">{money(r?.katha_purchases ?? 0)}</td>
-                  <td className="p-2 text-right">{money(r?.carry_in ?? 0)}</td>
-                  <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
-
+                  <td className="p-2 text-right">{money(s.monthly_salary)}</td>
+                  <td className="p-2 text-right">{money(n(r?.salary_paid) + n(r?.advance_taken))}</td>
                   <td className="p-2 text-right">{money(s.katha_balance)}</td>
+                  <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
+                  <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
+                  <td className="p-2">
+                    <Badge variant={s.status === "active" ? "secondary" : "outline"} className="capitalize">{s.status}</Badge>
+                  </td>
                   <td className="p-2 no-print">
                     <div className="flex justify-end gap-1">
                       <Button size="sm" variant="outline" title="Pay Salary" onClick={() => setPayDialog({ staff: s, kind: "salary" })}><Banknote className="h-3.5 w-3.5" /></Button>
@@ -292,7 +288,9 @@ function StaffPage() {
             })}
           </tbody>
         </table>
+        </div>
       </Card>
+
 
       {/* Staff Katha report */}
       <Card className="mt-4 overflow-auto">
