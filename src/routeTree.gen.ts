@@ -36,6 +36,7 @@ import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authen
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
+import { Route as AuthenticatedStaffStaffIdRouteImport } from './routes/_authenticated/staff_.$staffId'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 
@@ -182,6 +183,12 @@ const ApiPublicWhatsappInvoiceRoute =
     path: '/api/public/whatsapp-invoice',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedStaffStaffIdRoute =
+  AuthenticatedStaffStaffIdRouteImport.update({
+    id: '/staff_/$staffId',
+    path: '/staff/$staffId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -222,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/stock-transfer': typeof AuthenticatedStockTransferRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/staff/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRoutesByTo {
@@ -252,6 +260,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/staff/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRoutesById {
@@ -284,6 +293,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/_authenticated/staff_/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
 }
 export interface FileRouteTypes {
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/stock-transfer'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/staff/$staffId'
     | '/api/public/whatsapp-invoice'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/staff/$staffId'
     | '/api/public/whatsapp-invoice'
   id:
     | '__root__'
@@ -377,6 +389,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/_authenticated/staff_/$staffId'
     | '/api/public/whatsapp-invoice'
   fileRoutesById: FileRoutesById
 }
@@ -582,6 +595,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWhatsappInvoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/staff_/$staffId': {
+      id: '/_authenticated/staff_/$staffId'
+      path: '/staff/$staffId'
+      fullPath: '/staff/$staffId'
+      preLoaderRoute: typeof AuthenticatedStaffStaffIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -621,6 +641,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedStockItemsRoute: typeof AuthenticatedStockItemsRoute
   AuthenticatedStockTransferRoute: typeof AuthenticatedStockTransferRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedStaffStaffIdRoute: typeof AuthenticatedStaffStaffIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -645,6 +666,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedStockItemsRoute: AuthenticatedStockItemsRoute,
   AuthenticatedStockTransferRoute: AuthenticatedStockTransferRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedStaffStaffIdRoute: AuthenticatedStaffStaffIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
