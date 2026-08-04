@@ -73,6 +73,7 @@ function POS() {
   const [discountValue, setDiscountValue] = useState<number | "">("");
   const [saleDate, setSaleDate] = useState<string>(() => businessToday());
   const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [printMode, setPrintMode] = useState<"last" | "current">("last");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
@@ -870,18 +871,42 @@ function POS() {
               <Save className="h-4 w-4 mr-1" /> {editId ? "Complete" : "Save"}
             </Button>
           </div>
-          <Button variant="ghost" className="w-full" onClick={() => window.print()} disabled={!lastInvoice}>
-            <Printer className="h-4 w-4 mr-1" /> Print Last
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="ghost" onClick={() => { setPrintMode("current"); setTimeout(() => { window.print(); setPrintMode("last"); }, 50); }} disabled={cart.length === 0}>
+              <Printer className="h-4 w-4 mr-1" /> Print Current
+            </Button>
+            <Button variant="ghost" onClick={() => { setPrintMode("last"); setTimeout(() => window.print(), 50); }} disabled={!lastInvoice}>
+              <Printer className="h-4 w-4 mr-1" /> Print Last
+            </Button>
+          </div>
           {lastInvoice && <p className="text-xs text-muted-foreground text-center">Last: {lastInvoice.invoice_no}</p>}
         </CardContent>
       </Card>
 
-      {lastInvoice && (
+      {printMode === "last" && lastInvoice && (
         <div className="print-area hidden print:block">
           <InvoicePrint invoice={lastInvoice} customer={customer} />
         </div>
       )}
+
+      {printMode === "current" && cart.length > 0 && (
+        <div className="print-area hidden print:block">
+          <InvoicePrint
+            invoice={{
+              invoice_no: editId ? (editingSale as any)?.invoice_no ?? "DRAFT" : "DRAFT",
+              sale_date: new Date().toISOString(),
+              items: cart.map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, total: i.total })),
+              delivery_charges: effectiveDelivery,
+              grand_total: grandTotal,
+              cash_paid: num(cashPaid),
+              online_paid: num(onlinePaid),
+              katha,
+            }}
+            customer={customer}
+          />
+        </div>
+      )}
+
 
       <Dialog open={backdateDialog} onOpenChange={setBackdateDialog}>
         <DialogContent className="sm:max-w-md">
