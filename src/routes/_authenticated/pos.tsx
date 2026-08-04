@@ -73,6 +73,7 @@ function POS() {
   const [discountValue, setDiscountValue] = useState<number | "">("");
   const [saleDate, setSaleDate] = useState<string>(() => businessToday());
   const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [printMode, setPrintMode] = useState<"last" | "current">("last");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [showInvoiceResults, setShowInvoiceResults] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
