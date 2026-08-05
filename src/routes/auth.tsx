@@ -112,7 +112,7 @@ function AuthPage() {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Coffee className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl">Café Manager</CardTitle>
+          <CardTitle className="text-2xl">Khyber Delicious Food</CardTitle>
           <CardDescription>Sign in to manage your café</CardDescription>
         </CardHeader>
         <CardContent>

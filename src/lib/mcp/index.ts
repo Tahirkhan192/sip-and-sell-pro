@@ -9,7 +9,7 @@ const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "project-ref-unse
 
 export default defineMcp({
   name: "cafe-manager-mcp",
-  title: "Café Manager MCP",
+  title: "Khyber Delicious Food MCP",
   version: "0.1.0",
   instructions:
     "Read-only tools for a café POS. All results are scoped to the signed-in user via RLS. Dates use Business Date (YYYY-MM-DD) as configured in Business Settings.",

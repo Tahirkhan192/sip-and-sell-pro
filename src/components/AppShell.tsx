@@ -89,7 +89,7 @@ function AppSidebar() {
             <Coffee className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-base font-semibold leading-tight text-sidebar-foreground">Café Manager</div>
+            <div className="text-base font-semibold leading-tight text-sidebar-foreground">Khyber Delicious Food</div>
             <div className="text-xs text-sidebar-foreground/60">Single café edition</div>
           </div>
         </div>

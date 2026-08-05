@@ -78,7 +78,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
     queryKey: ["stock-availability", "products", period.from, period.to, Object.keys(openings).length],
     queryFn: async (): Promise<ProductStockRow[]> => {
       const [p, prod, pur, sold] = await Promise.all([
-        (supabase as any).from("products").select("id,name,category,opening_stock,current_stock,sale_price").is("deleted_at", null).order("name"),
+        (supabase as any).from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name"),
         (supabase as any).from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to),
         (supabase as any).from("stock_purchases").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null).gte("date", period.from).lte("date", period.to),
         // Sold quantity is always rebuilt from COMPLETED invoices only —
@@ -103,9 +103,9 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
         const produced = producedBy[r.id] ?? 0;
         const purchased = purchasedBy[r.id] ?? 0;
         const soldQty = soldBy[r.id] ?? 0;
-        // Remaining is ALWAYS rebuilt from transaction history — stored
-        // current_stock is never reused here.
-        const remaining = opening + produced + purchased - soldQty;
+        // Auto Calculation ON → rebuild Remaining from transaction history.
+        // Auto Calculation OFF → keep the manually maintained Remaining.
+        const remaining = r.auto_calc === true ? opening + produced + purchased - soldQty : num(r.current_stock);
         const salePrice = num(r.sale_price);
         return {
           id: r.id,
@@ -213,17 +213,25 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
   return useQuery({
     queryKey: ["stock-availability", "stock-items", period.from, period.to, Object.keys(openings).length],
     queryFn: async (): Promise<StockItemRow[]> => {
-      const [s, pur, tr] = await Promise.all([
-        (supabase as any).from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override").is("deleted_at", null).order("name"),
+      const [s, pur, tr, cons] = await Promise.all([
+        (supabase as any).from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name"),
         (supabase as any).from("stock_purchases").select("stock_item_id,quantity").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", period.from).lte("date", period.to),
         (supabase as any).from("stock_transfers").select("stock_item_id,quantity,from_category,to_category").is("deleted_at", null).not("stock_item_id", "is", null)
           .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC),
+        (supabase as any).from("production_batch_items").select("component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
+          .not("component_stock_item_id", "is", null)
+          .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to),
       ]);
       if (s.error) throw s.error;
       const purchaseBy: Record<string, number> = {};
       for (const r of ((pur.data ?? []) as any[])) purchaseBy[r.stock_item_id] = (purchaseBy[r.stock_item_id] ?? 0) + num(r.quantity);
       const outBy: Record<string, number> = {};
       for (const r of ((tr.data ?? []) as any[])) outBy[r.stock_item_id] = (outBy[r.stock_item_id] ?? 0) + num(r.quantity);
+      const consumedBy: Record<string, number> = {};
+      for (const r of ((cons?.data ?? []) as any[])) {
+        if (r.production_batches?.deleted_at) continue;
+        consumedBy[r.component_stock_item_id] = (consumedBy[r.component_stock_item_id] ?? 0) + num(r.quantity);
+      }
 
       return ((s.data ?? []) as any[]).map((r) => {
         const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
@@ -232,9 +240,13 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
         const purchases = purchaseBy[r.id] ?? 0;
         const received = 0; // stock received without a purchase record
         const transferred = outBy[r.id] ?? 0;
-        const closing = num(r.current_stock);
-        // Opening + Purchases + Received − Consumed − Transferred = Closing
-        const consumed = Math.max(0, opening + purchases + received - transferred - closing);
+        // Auto Calculation ON → Closing is rebuilt from history.
+        // Auto Calculation OFF → the manual current stock is preserved.
+        const auto = r.auto_calc === true;
+        const consumed = auto
+          ? (consumedBy[r.id] ?? 0)
+          : Math.max(0, opening + purchases + received - transferred - num(r.current_stock));
+        const closing = auto ? opening + purchases + received - consumed - transferred : num(r.current_stock);
         return { id: r.id, name: r.name, unit: r.unit ?? "pcs", opening, purchases, received, consumed, transferred, closing, avgPrice, manual, value: closing * avgPrice };
       });
     },

@@ -78,7 +78,7 @@ function Consent() {
         <CardHeader>
           <CardTitle>Connect {clientName}</CardTitle>
           <CardDescription>
-            {clientName} is requesting access to Café Manager as you.
+            {clientName} is requesting access to Khyber Delicious Food as you.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
