@@ -89,7 +89,7 @@ function AppSidebar() {
             <Coffee className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-base font-semibold leading-tight text-sidebar-foreground">Café Manager</div>
+            <div className="text-base font-semibold leading-tight text-sidebar-foreground">Khyber Delicious Food</div>
             <div className="text-xs text-sidebar-foreground/60">Single café edition</div>
           </div>
         </div>
@@ -135,7 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
           <header className="no-print sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur md:px-6">
             <SidebarTrigger>
               <Menu className="h-5 w-5" />
@@ -148,7 +148,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <LogOut className="h-4 w-4" />
             </Button>
           </header>
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="min-w-0 flex-1 p-3 sm:p-4 md:p-6">{children}</main>
           <Toaster richColors position="top-right" />
         </div>
       </div>

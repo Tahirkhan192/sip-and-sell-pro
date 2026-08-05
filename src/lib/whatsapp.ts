@@ -16,7 +16,7 @@ export type WhatsAppPayload = {
 
 export function buildInvoiceMessage(p: WhatsAppPayload): string {
   const lines: string[] = [];
-  lines.push(`*Café Manager — ${p.invoice_no}*`);
+  lines.push(`*Khyber Delicious Food — ${p.invoice_no}*`);
   if (p.customer_name) lines.push(`Customer: ${p.customer_name}`);
   lines.push("");
   for (const it of p.items) {

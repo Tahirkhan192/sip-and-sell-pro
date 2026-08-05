@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/whatsapp-invoice")({
         try {
           const items = (body.items ?? []) as any[];
           const lines: string[] = [];
-          lines.push(`*Café Manager — ${body.invoice_no}*`);
+          lines.push(`*Khyber Delicious Food — ${body.invoice_no}*`);
           if (body.customer_name) lines.push(`Customer: ${body.customer_name}`);
           lines.push("");
           for (const it of items) {

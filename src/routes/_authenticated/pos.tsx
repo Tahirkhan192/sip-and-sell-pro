@@ -955,7 +955,7 @@ export function InvoicePrint({ invoice, customer }: { invoice: any; customer?: s
   return (
     <div className="p-8 text-black bg-white max-w-md mx-auto font-mono text-sm">
       <div className="text-center border-b border-dashed pb-2 mb-2">
-        <div className="text-lg font-bold">Café Manager</div>
+        <div className="text-lg font-bold">Khyber Delicious Food</div>
         <div className="text-xs">KDF</div>
       </div>
       <div className="flex justify-between text-xs mb-1">

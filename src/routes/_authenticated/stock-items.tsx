@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +32,12 @@ type S = {
   supplier_id: string | null;
   purchase_date: string | null;
   notes: string;
+  auto_calc: boolean;
 };
 const empty: S = {
   name: "", category: "", unit: "pcs",
   opening_stock: null, current_stock: null, minimum_stock: null, purchase_price: null,
-  supplier_id: null, purchase_date: today(), notes: "",
+  supplier_id: null, purchase_date: today(), notes: "", auto_calc: false,
 };
 
 function Page() {
@@ -71,12 +73,22 @@ function Page() {
         supplier_id: p.supplier_id || null,
         purchase_date: p.purchase_date || null,
         notes: p.notes || null,
+        auto_calc: p.auto_calc,
       };
-      const res = p.id ? await supabase.from("stock_items").update(payload).eq("id", p.id) : await supabase.from("stock_items").insert(payload);
+      const res = p.id
+        ? await supabase.from("stock_items").update(payload).eq("id", p.id).select("id").maybeSingle()
+        : await supabase.from("stock_items").insert(payload).select("id").maybeSingle();
       if (res.error) throw res.error;
+      // Auto Calculation ON → rebuild Remaining from full transaction history.
+      const savedId = p.id ?? (res.data as any)?.id;
+      if (p.auto_calc && savedId) {
+        const r = await (supabase as any).rpc("rebuild_item_remaining", { _scope: "stock_item", _id: savedId });
+        if (r.error) throw r.error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_items"] });
+      qc.invalidateQueries({ queryKey: ["stock-availability"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["report"] });
       toast.success("Saved");
@@ -163,7 +175,7 @@ function Page() {
                     opening_stock: num(p.opening_stock), current_stock: num(p.current_stock),
                     minimum_stock: num(p.minimum_stock), purchase_price: num(p.purchase_price),
                     supplier_id: p.supplier_id ?? null, purchase_date: p.purchase_date ?? null,
-                    notes: p.notes ?? "",
+                    notes: p.notes ?? "", auto_calc: p.auto_calc === true,
                   }); setOriginalCurrent(num(p.current_stock)); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
@@ -211,6 +223,13 @@ function Page() {
             </Select>
           </div>
           <div className="space-y-2"><Label>Purchase Date</Label><Input type="date" value={form.purchase_date ?? ""} onChange={(e) => setForm({ ...form, purchase_date: e.target.value || null })} /></div>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
+          <div className="min-w-0">
+            <Label>Auto Calculation</Label>
+            <p className="text-xs text-muted-foreground">On = Remaining is rebuilt from history (Opening + Purchases + Received − Consumed − Transferred). Off = keep the manual Remaining.</p>
+          </div>
+          <Switch className="shrink-0" checked={form.auto_calc} onCheckedChange={(v) => setForm({ ...form, auto_calc: v })} />
         </div>
         <div className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </CrudDialog>

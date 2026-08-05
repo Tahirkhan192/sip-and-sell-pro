@@ -133,6 +133,32 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---- Global responsive rules (no visual redesign) ------------------- */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  overflow-x: hidden;
+}
+img, svg, video, canvas {
+  max-width: 100%;
+}
+/* Tables never break the page width: they scroll inside their own card. */
+[data-slot="table-container"],
+.overflow-x-auto,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 640px) {
+  /* Slightly tighter type + cell padding on small screens so nothing clips. */
+  table { font-size: 0.8125rem; }
+  th, td { white-space: nowrap; }
+  [role="dialog"] { font-size: 0.9375rem; }
+}
+@media print {
+  body { overflow-x: visible; }
+}
+
 @media print {
   /* Print exactly what is on screen: only hide chrome marked .no-print. */
   .no-print { display: none !important; }
