@@ -669,6 +669,7 @@ export type Database = {
         Row: {
           active: boolean
           allow_negative_stock: boolean
+          auto_calc: boolean
           avg_price_override: number | null
           category: string
           cost_price: number
@@ -688,6 +689,7 @@ export type Database = {
         Insert: {
           active?: boolean
           allow_negative_stock?: boolean
+          auto_calc?: boolean
           avg_price_override?: number | null
           category: string
           cost_price?: number
@@ -707,6 +709,7 @@ export type Database = {
         Update: {
           active?: boolean
           allow_negative_stock?: boolean
+          auto_calc?: boolean
           avg_price_override?: number | null
           category?: string
           cost_price?: number
@@ -1266,6 +1269,7 @@ export type Database = {
       }
       stock_items: {
         Row: {
+          auto_calc: boolean
           avg_price_override: number | null
           category: string
           created_at: string
@@ -1283,6 +1287,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_calc?: boolean
           avg_price_override?: number | null
           category: string
           created_at?: string
@@ -1300,6 +1305,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_calc?: boolean
           avg_price_override?: number | null
           category?: string
           created_at?: string
@@ -1647,6 +1653,10 @@ export type Database = {
       monthly_financial_summary: {
         Args: { _month_start: string }
         Returns: Json
+      }
+      rebuild_item_remaining: {
+        Args: { _id: string; _scope: string }
+        Returns: number
       }
       recompute_product_wac: {
         Args: { _product_id: string }
