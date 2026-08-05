@@ -32,8 +32,9 @@ type P = {
   unit: string;
   selling_method: "fixed" | "weight";
   track_stock: boolean;
+  auto_calc: boolean;
 };
-const empty: P = { name: "", category: "", sale_price: "", cost_price: "", opening_stock: "", current_stock: "", minimum_stock: "", active: true, unit: "pcs", selling_method: "fixed", track_stock: true };
+const empty: P = { name: "", category: "", sale_price: "", cost_price: "", opening_stock: "", current_stock: "", minimum_stock: "", active: true, unit: "pcs", selling_method: "fixed", track_stock: true, auto_calc: false };
 
 type SortKey = "name" | "category" | "sale_price" | "current_stock";
 
@@ -68,13 +69,20 @@ function ProductsPage() {
         unit: p.unit,
         selling_method: p.selling_method,
         track_stock: p.track_stock,
-      };
+        auto_calc: p.auto_calc,
+      } as any;
       const res = p.id
-        ? await supabase.from("products").update(payload).eq("id", p.id)
-        : await supabase.from("products").insert(payload);
+        ? await supabase.from("products").update(payload).eq("id", p.id).select("id").maybeSingle()
+        : await supabase.from("products").insert(payload).select("id").maybeSingle();
       if (res.error) throw res.error;
+      // Auto Calculation ON → rebuild Remaining from full transaction history.
+      const savedId = p.id ?? (res.data as any)?.id;
+      if (p.auto_calc && savedId) {
+        const r = await (supabase as any).rpc("rebuild_item_remaining", { _scope: "product", _id: savedId });
+        if (r.error) throw r.error;
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Saved"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); qc.invalidateQueries({ queryKey: ["stock-availability"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -172,8 +180,8 @@ function ProductsPage() {
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOriginalCurrent(num(p.current_stock)); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false }); setOriginalCurrent(null); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, name: p.name, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false, auto_calc: p.auto_calc === true }); setOriginalCurrent(num(p.current_stock)); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" onClick={() => { setForm({ name: `${p.name} (copy)`, category: p.category ?? "", sale_price: num(p.sale_price), cost_price: num(p.cost_price), opening_stock: num(p.opening_stock), current_stock: num(p.current_stock), minimum_stock: num(p.minimum_stock), active: p.active, unit: p.unit ?? "pcs", selling_method: (p.selling_method ?? "fixed") as "fixed" | "weight", track_stock: p.track_stock !== false, auto_calc: p.auto_calc === true }); setOriginalCurrent(null); setOpen(true); }}><Copy className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Delete ${p.name}?`)) del.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -235,6 +243,13 @@ function ProductsPage() {
             <p className="text-xs text-muted-foreground">Off = don't reduce this product's own stock (e.g. Tea, Samosa). Recipe ingredients still reduce.</p>
           </div>
           <Switch checked={form.track_stock} onCheckedChange={(v) => setForm({ ...form, track_stock: v })} />
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
+          <div className="min-w-0">
+            <Label>Auto Calculation</Label>
+            <p className="text-xs text-muted-foreground">On = Remaining is rebuilt from history (Opening + Purchases + Produced + Received − Sold − Transferred − Wasted). Off = keep the manual Remaining.</p>
+          </div>
+          <Switch className="shrink-0" checked={form.auto_calc} onCheckedChange={(v) => setForm({ ...form, auto_calc: v })} />
         </div>
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
