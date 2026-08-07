@@ -172,8 +172,8 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(recipeItem, r.component_stock_item_id, used);
   }
 
-  // ---- Transfers: category → category moves of the same item.
-  // Only the outgoing side is reported/counted (Transfer In is not used).
+  // ---- Transfers OUT: category → category moves AND stock moved to Expenses
+  // (wastage, staff food, testing…). Both are reported as Transfer Out.
   const transferOutProd: Record<string, number> = {};
   const transferOutItem: Record<string, number> = {};
   for (const r of (transferRes.data ?? []) as any[]) {
@@ -181,14 +181,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(transferOutProd, r.product_id, q);
     add(transferOutItem, r.stock_item_id, q);
   }
-
-  // ---- Manual consumption (waste, staff meal, testing, owner use…)
-  const consProd: Record<string, number> = {};
-  const consItem: Record<string, number> = {};
   for (const e of (consumptionRes.data ?? []) as any[]) {
     const q = num(e.source_quantity);
-    add(consProd, e.source_product_id, q);
-    add(consItem, e.source_stock_item_id, q);
+    add(transferOutProd, e.source_product_id, q);
+    add(transferOutItem, e.source_stock_item_id, q);
   }
 
   // ---- Manual stock adjustments (signed: +increase / −decrease)
@@ -212,11 +208,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const sold = soldByProduct[r.id] ?? 0;
     const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
     const transferOut = transferOutProd[r.id] ?? 0;
-    const manualConsumption = consProd[r.id] ?? 0;
     const manualAdjustment = adjProd[r.id] ?? 0;
     const auto = r.auto_calc === true;
     const remaining = round(auto
-      ? opening + purchases + production - recipeUsage - directSales - transferOut - manualConsumption + manualAdjustment
+      ? opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment
       : num(r.current_stock));
     const salePrice = num(r.sale_price);
     return {
@@ -224,7 +219,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       name: r.name,
       category: r.category ?? "—",
       opening, purchases, transferIn: 0, production,
-      recipeUsage, directSales, transferOut, manualConsumption, manualAdjustment,
+      recipeUsage, directSales, transferOut, manualAdjustment,
       remaining, auto, salePrice, value: remaining * salePrice,
     };
   });
@@ -236,11 +231,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const recipeUsage = round(recipeItem[r.id] ?? 0);
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
-    const manualConsumption = consItem[r.id] ?? 0;
     const manualAdjustment = adjItem[r.id] ?? 0;
     const auto = r.auto_calc === true;
     const remaining = round(auto
-      ? opening + purchases + production - recipeUsage - directSales - transferOut - manualConsumption + manualAdjustment
+      ? opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment
       : num(r.current_stock));
     const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
     const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
@@ -249,10 +243,11 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       name: r.name,
       unit: r.unit ?? "pcs",
       opening, purchases, transferIn: 0, production,
-      recipeUsage, directSales, transferOut, manualConsumption, manualAdjustment,
+      recipeUsage, directSales, transferOut, manualAdjustment,
       remaining, auto, avgPrice, manual, value: remaining * avgPrice,
     };
   });
+
 
 
   return { products, stockItems };
