@@ -89,12 +89,22 @@ function POS() {
   const [mmRemark, setMmRemark] = useState<string>("");
   const [mmCategory, setMmCategory] = useState<KathaCategory>("transaction");
 
-  const { data: products = [] } = useQuery({
+  const { data: rawProducts = [] } = useQuery({
     queryKey: ["products", "active"],
     queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
       .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
       .order("name")).data ?? [],
   });
+
+  // Available stock must come from the single inventory engine so POS,
+  // Products and Reports always show the exact same quantity.
+  const { data: calcRows = [] } = useProductStockAvailable();
+  const products = useMemo(() => {
+    const calc: Record<string, number> = {};
+    for (const r of calcRows) calc[r.id] = r.remaining;
+    return (rawProducts as any[]).map((p) => (calc[p.id] === undefined ? p : { ...p, current_stock: calc[p.id] }));
+  }, [rawProducts, calcRows]);
+
 
   const { data: editingSale } = useQuery({
     queryKey: ["sales", "edit", editId],
