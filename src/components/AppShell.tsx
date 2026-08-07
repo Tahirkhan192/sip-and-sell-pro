@@ -81,7 +81,9 @@ function useTheme() {
 
 function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  return (
+  const { data: visibility } = useMenuVisibility();
+  const nav = NAV.filter((item) => isModuleVisible(visibility, item.to));
+
     <Sidebar className="no-print">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
