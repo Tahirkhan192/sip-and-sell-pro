@@ -285,7 +285,7 @@ function ProductsPage() {
               <Label>Manual Stock Adjustment</Label>
               <p className="text-xs text-muted-foreground">
                 Enter +5 to increase or -1 to decrease. Applies immediately to Current Stock, Remaining and reports.
-                Calculated Remaining: <span className="font-medium">{(calcStock[form.id] ?? num(form.current_stock)).toFixed(2)}</span>
+                Current Stock: <span className="font-medium">{(calcStock[form.id] ?? 0).toFixed(2)}</span>
               </p>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] gap-2">
