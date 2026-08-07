@@ -96,7 +96,7 @@ function ProductsPage() {
         sale_price: num(p.sale_price),
         cost_price: num(p.cost_price),
         opening_stock: num(p.opening_stock),
-        current_stock: num(p.current_stock),
+        // current_stock is never written from the form — Current Stock is calculated.
         minimum_stock: num(p.minimum_stock),
         active: p.active,
         unit: p.unit,
@@ -108,14 +108,13 @@ function ProductsPage() {
         ? await supabase.from("products").update(payload).eq("id", p.id).select("id").maybeSingle()
         : await supabase.from("products").insert(payload).select("id").maybeSingle();
       if (res.error) throw res.error;
-      // Auto Calculation ON → rebuild Remaining from full transaction history.
-      const savedId = p.id ?? (res.data as any)?.id;
-      if (p.auto_calc && savedId) {
-        const r = await (supabase as any).rpc("rebuild_item_remaining", { _scope: "product", _id: savedId });
-        if (r.error) throw r.error;
-      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); qc.invalidateQueries({ queryKey: ["stock-availability"] }); toast.success("Saved"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock-availability"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
+      toast.success("Saved");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
