@@ -86,7 +86,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     expCatRows,
     adjustRows,
   ] = await Promise.all([
-    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).order("item_id")),
     fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
