@@ -75,19 +75,13 @@ function ProductsPage() {
         reason: reason || null, date: businessToday(),
       });
       if (ins.error) throw ins.error;
-      const cur = (data as any[]).find((p) => p.id === productId);
-      const next = num(cur?.current_stock) + qty;
-      const upd = await supabase.from("products").update({ current_stock: next }).eq("id", productId);
-      if (upd.error) throw upd.error;
-      return next;
     },
-    onSuccess: (next) => {
-      setForm((f) => ({ ...f, current_stock: next }));
-      setOriginalCurrent(next);
+    onSuccess: () => {
       setAdjustQty(""); setAdjustReason("");
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock-availability"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
       toast.success("Stock adjusted");
     },
     onError: (e: any) => toast.error(e.message),
@@ -102,7 +96,7 @@ function ProductsPage() {
         sale_price: num(p.sale_price),
         cost_price: num(p.cost_price),
         opening_stock: num(p.opening_stock),
-        current_stock: num(p.current_stock),
+        // current_stock is never written from the form — Current Stock is calculated.
         minimum_stock: num(p.minimum_stock),
         active: p.active,
         unit: p.unit,
@@ -114,14 +108,13 @@ function ProductsPage() {
         ? await supabase.from("products").update(payload).eq("id", p.id).select("id").maybeSingle()
         : await supabase.from("products").insert(payload).select("id").maybeSingle();
       if (res.error) throw res.error;
-      // Auto Calculation ON → rebuild Remaining from full transaction history.
-      const savedId = p.id ?? (res.data as any)?.id;
-      if (p.auto_calc && savedId) {
-        const r = await (supabase as any).rpc("rebuild_item_remaining", { _scope: "product", _id: savedId });
-        if (r.error) throw r.error;
-      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); qc.invalidateQueries({ queryKey: ["stock-availability"] }); toast.success("Saved"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock-availability"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
+      toast.success("Saved");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -215,7 +208,7 @@ function ProductsPage() {
                 <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell className="text-right">{money(p.sale_price)}</TableCell>
                 <TableCell className="text-right">{money(p.cost_price)}</TableCell>
-                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? num(p.current_stock)).toFixed(2)}</TableCell>
+                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? 0) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? 0).toFixed(2)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
@@ -233,10 +226,6 @@ function ProductsPage() {
       <CrudDialog title={form.id ? "Edit Product" : "Add Product"} open={open} onOpenChange={setOpen} onSubmit={async () => {
         if (!form.name.trim()) { toast.error("Name required"); return false; }
         if (!form.category) { toast.error("Category required"); return false; }
-        if (form.id && originalCurrent !== null && num(form.current_stock) !== originalCurrent) {
-          setPinOpen(true);
-          return false;
-        }
         await save.mutateAsync(form); return true;
       }}>
         <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -273,7 +262,7 @@ function ProductsPage() {
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" placeholder="" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" placeholder="" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Current Stock <span className="text-xs text-muted-foreground">(auto)</span></Label><Input readOnly disabled value={form.id ? (calcStock[form.id] ?? 0).toFixed(2) : "0.00"} /></div>
           <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" placeholder="" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
         <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
@@ -296,7 +285,7 @@ function ProductsPage() {
               <Label>Manual Stock Adjustment</Label>
               <p className="text-xs text-muted-foreground">
                 Enter +5 to increase or -1 to decrease. Applies immediately to Current Stock, Remaining and reports.
-                Calculated Remaining: <span className="font-medium">{(calcStock[form.id] ?? num(form.current_stock)).toFixed(2)}</span>
+                Current Stock: <span className="font-medium">{(calcStock[form.id] ?? 0).toFixed(2)}</span>
               </p>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] gap-2">

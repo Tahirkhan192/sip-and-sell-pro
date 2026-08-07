@@ -11,6 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
 import { money, num } from "@/lib/format";
+import { buildRange } from "@/lib/business-date";
+import { useInventoryEngine, type Period } from "@/lib/inventory-engine";
+
+function prodPeriod(): Period {
+  const r = buildRange("month");
+  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
+}
 import { toast } from "sonner";
 import { Trash2, ChefHat, Plus } from "lucide-react";
 
@@ -34,6 +41,14 @@ function ProductionPage() {
       return (prodQ.data ?? []).filter((p: any) => ids.has(p.id));
     },
   });
+
+  // Current Stock always comes from the inventory engine.
+  const { data: engine } = useInventoryEngine(prodPeriod());
+  const calcStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of engine?.products ?? []) m[r.id] = r.remaining;
+    return m;
+  }, [engine]);
 
   const selectedProduct = useMemo(
     () => (recipeProducts as any[]).find((p) => p.id === productId),
@@ -138,7 +153,7 @@ function ProductionPage() {
               </div>
               <div className="space-y-1">
                 <Label>Current stock</Label>
-                <Input readOnly value={selectedProduct ? num(selectedProduct.current_stock).toFixed(2) : ""} className="bg-muted" />
+                <Input readOnly value={selectedProduct ? num(calcStock[selectedProduct.id] ?? 0).toFixed(2) : ""} className="bg-muted" />
               </div>
             </div>
             <div className="space-y-1">
