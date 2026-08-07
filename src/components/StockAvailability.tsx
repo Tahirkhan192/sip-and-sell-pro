@@ -166,14 +166,15 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
   const t = filtered.reduce((a, r) => ({
     opening: a.opening + r.opening,
     purchases: a.purchases + r.purchases,
-    transferIn: a.transferIn + r.transferIn,
     recipeUsage: a.recipeUsage + r.recipeUsage,
     transferOut: a.transferOut + r.transferOut,
     manualConsumption: a.manualConsumption + r.manualConsumption,
+    manualAdjustment: a.manualAdjustment + r.manualAdjustment,
     remaining: a.remaining + r.remaining,
     value: a.value + r.value,
-  }), { opening: 0, purchases: 0, transferIn: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, remaining: 0, value: 0 });
-  const colCount = editable ? 10 : 9;
+  }), { opening: 0, purchases: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, manualAdjustment: 0, remaining: 0, value: 0 });
+  const colCount = editable ? 11 : 10;
+
 
   return (
     <Card className="overflow-hidden">
