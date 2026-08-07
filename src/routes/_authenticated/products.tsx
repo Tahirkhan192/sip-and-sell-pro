@@ -290,6 +290,26 @@ function ProductsPage() {
           </div>
           <Switch className="shrink-0" checked={form.auto_calc} onCheckedChange={(v) => setForm({ ...form, auto_calc: v })} />
         </div>
+        {form.id && (
+          <div className="space-y-2 rounded border px-3 py-2">
+            <div>
+              <Label>Manual Stock Adjustment</Label>
+              <p className="text-xs text-muted-foreground">
+                Enter +5 to increase or -1 to decrease. Applies immediately to Current Stock, Remaining and reports.
+                Calculated Remaining: <span className="font-medium">{(calcStock[form.id] ?? num(form.current_stock)).toFixed(2)}</span>
+              </p>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] gap-2">
+              <Input type="number" step="0.01" placeholder="+5 / -1" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} />
+              <Input placeholder="Reason (optional)" value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} />
+              <Button type="button" variant="secondary" disabled={adjust.isPending || adjustQty.trim() === "" || Number(adjustQty) === 0}
+                onClick={() => adjust.mutate({ productId: form.id!, qty: Number(adjustQty), reason: adjustReason.trim() })}>
+                Apply
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
       <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
