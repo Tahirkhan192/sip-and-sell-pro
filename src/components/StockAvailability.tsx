@@ -210,6 +210,8 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.manualAdjustment.toFixed(2)}</TableCell>
+
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   {editId === r.id ? (
