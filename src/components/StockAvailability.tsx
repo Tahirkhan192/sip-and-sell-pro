@@ -52,15 +52,15 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
   const t = filtered.reduce((a, r) => ({
     opening: a.opening + r.opening,
     purchases: a.purchases + r.purchases,
-    transferIn: a.transferIn + r.transferIn,
     production: a.production + r.production,
     recipeUsage: a.recipeUsage + r.recipeUsage,
     directSales: a.directSales + r.directSales,
     transferOut: a.transferOut + r.transferOut,
     manualConsumption: a.manualConsumption + r.manualConsumption,
+    manualAdjustment: a.manualAdjustment + r.manualAdjustment,
     remaining: a.remaining + r.remaining,
     value: a.value + r.value,
-  }), { opening: 0, purchases: 0, transferIn: 0, production: 0, recipeUsage: 0, directSales: 0, transferOut: 0, manualConsumption: 0, remaining: 0, value: 0 });
+  }), { opening: 0, purchases: 0, production: 0, recipeUsage: 0, directSales: 0, transferOut: 0, manualConsumption: 0, manualAdjustment: 0, remaining: 0, value: 0 });
 
   return (
     <Card className="overflow-hidden">
@@ -83,6 +83,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
             <TableHead className="text-right">Direct Sales</TableHead>
             <TableHead className="text-right">Transfer Out</TableHead>
             <TableHead className="text-right">Manual Consumption</TableHead>
+            <TableHead className="text-right">Manual Adjustment</TableHead>
             <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Selling Price</TableHead>
             <TableHead className="text-right">Current Product Value</TableHead>
@@ -99,13 +100,14 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="text-right">{r.directSales.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.manualAdjustment.toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(r.salePrice)}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.value)}</TableCell>
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
             )}
             {filtered.length > 0 && (
               <TableRow className="font-semibold bg-muted/50">
@@ -117,6 +119,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="text-right">{t.directSales.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.manualAdjustment.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>
                 <TableCell />
                 <TableCell className="text-right">{money(t.value)}</TableCell>
@@ -125,6 +128,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
           </TableBody>
         </Table>
       </div>
+
 
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Product Quantity</span>
@@ -162,14 +166,15 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
   const t = filtered.reduce((a, r) => ({
     opening: a.opening + r.opening,
     purchases: a.purchases + r.purchases,
-    transferIn: a.transferIn + r.transferIn,
     recipeUsage: a.recipeUsage + r.recipeUsage,
     transferOut: a.transferOut + r.transferOut,
     manualConsumption: a.manualConsumption + r.manualConsumption,
+    manualAdjustment: a.manualAdjustment + r.manualAdjustment,
     remaining: a.remaining + r.remaining,
     value: a.value + r.value,
-  }), { opening: 0, purchases: 0, transferIn: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, remaining: 0, value: 0 });
-  const colCount = editable ? 10 : 9;
+  }), { opening: 0, purchases: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, manualAdjustment: 0, remaining: 0, value: 0 });
+  const colCount = editable ? 11 : 10;
+
 
   return (
     <Card className="overflow-hidden">
@@ -189,6 +194,8 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
             <TableHead className="text-right">Recipe Usage</TableHead>
             <TableHead className="text-right">Transfer Out</TableHead>
             <TableHead className="text-right">Manual Consumption</TableHead>
+            <TableHead className="text-right">Manual Adjustment</TableHead>
+
             <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Avg Purchase Price</TableHead>
             <TableHead className="text-right">Current Stock Value</TableHead>
@@ -203,6 +210,8 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.manualAdjustment.toFixed(2)}</TableCell>
+
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   {editId === r.id ? (
@@ -240,6 +249,8 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.manualAdjustment.toFixed(2)}</TableCell>
+
                 <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>
                 <TableCell />
                 <TableCell className="text-right">{money(t.value)}</TableCell>

@@ -25,9 +25,11 @@ export type InventoryRow = {
   directSales: number;
   transferOut: number;
   manualConsumption: number;
+  manualAdjustment: number;
   remaining: number;
   auto: boolean;
 };
+
 
 export type ProductInventoryRow = InventoryRow & { category: string; salePrice: number; value: number };
 export type StockItemInventoryRow = InventoryRow & {
@@ -77,6 +79,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     saleItemRows,
     recipeRows,
     expCatRows,
+    adjustRows,
   ] = await Promise.all([
     fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
@@ -93,8 +96,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC).order("id")),
     fetchAllPaged(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
     fetchAllPaged(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
+    fetchAllPaged(() => sb.from("stock_adjustments").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
   ]);
   const prodsRes = { data: prods };
+
   const itemsRes = { data: items };
   const openRes = { data: openRows };
   const purRes = { data: purRows };
@@ -105,6 +110,8 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   const saleItemRes = { data: saleItemRows };
   const recipeRes = { data: recipeRows };
   const expCatRes = { data: expCatRows };
+  const adjustRes = { data: adjustRows };
+
 
 
   // ---- Opening (locked monthly snapshot wins over live opening_stock)
@@ -132,12 +139,13 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(recipeItem, r.component_stock_item_id, num(r.quantity));
   }
 
-  // ---- Sales (completed, non-deleted, non-hidden only)
+  // ---- Sales (non-deleted, non-hidden; completed AND pending both reduce stock)
   const soldByProduct: Record<string, number> = {};
   const soldByProductAndType: Record<string, Record<string, number>> = {};
   for (const it of (saleItemRes.data ?? []) as any[]) {
     const s = it.sales;
-    if (!s || s.deleted_at || s.hidden || s.status !== "completed") continue;
+    if (!s || s.deleted_at || s.hidden) continue;
+    if (s.status !== "completed" && s.status !== "pending") continue;
     const q = num(it.quantity);
     add(soldByProduct, it.product_id, q);
     const t = (s.order_type ?? "walk_in") as string;
@@ -163,23 +171,13 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   }
 
   // ---- Transfers: category → category moves of the same item.
-  // Moving into an expense-style category leaves inventory (out only).
-  const expenseCats = new Set(
-    ((expCatRes.data ?? []) as any[]).map((c) => String(c.name).trim().toLowerCase()),
-  );
-  const transferInProd: Record<string, number> = {};
+  // Only the outgoing side is reported/counted (Transfer In is not used).
   const transferOutProd: Record<string, number> = {};
-  const transferInItem: Record<string, number> = {};
   const transferOutItem: Record<string, number> = {};
   for (const r of (transferRes.data ?? []) as any[]) {
     const q = num(r.quantity);
-    const leavesInventory = expenseCats.has(String(r.to_category ?? "").trim().toLowerCase());
     add(transferOutProd, r.product_id, q);
     add(transferOutItem, r.stock_item_id, q);
-    if (!leavesInventory) {
-      add(transferInProd, r.product_id, q);
-      add(transferInItem, r.stock_item_id, q);
-    }
   }
 
   // ---- Manual consumption (waste, staff meal, testing, owner use…)
@@ -191,57 +189,69 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(consItem, e.source_stock_item_id, q);
   }
 
+  // ---- Manual stock adjustments (signed: +increase / −decrease)
+  const adjProd: Record<string, number> = {};
+  const adjItem: Record<string, number> = {};
+  for (const a of (adjustRes.data ?? []) as any[]) {
+    const q = num(a.quantity);
+    add(adjProd, a.product_id, q);
+    add(adjItem, a.stock_item_id, q);
+  }
+
+  const round = (n: number) => Math.round(n * 1e6) / 1e6;
+
   const products: ProductInventoryRow[] = ((prodsRes.data ?? []) as any[]).map((r) => {
-    const opening = openings[`product:${r.id}`] ?? num(r.opening_stock);
+    const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
-    const transferIn = transferInProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
-    const recipeUsage = recipeProd[r.id] ?? 0;
+    const recipeUsage = round(recipeProd[r.id] ?? 0);
     // A product built from a recipe is consumed through its ingredients;
     // only products without a recipe are deducted directly on sale.
     const sold = soldByProduct[r.id] ?? 0;
     const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
     const transferOut = transferOutProd[r.id] ?? 0;
     const manualConsumption = consProd[r.id] ?? 0;
+    const manualAdjustment = adjProd[r.id] ?? 0;
     const auto = r.auto_calc === true;
-    const remaining = auto
-      ? opening + purchases + transferIn + production - recipeUsage - directSales - transferOut - manualConsumption
-      : num(r.current_stock);
+    const remaining = round(auto
+      ? opening + purchases + production - recipeUsage - directSales - transferOut - manualConsumption + manualAdjustment
+      : num(r.current_stock));
     const salePrice = num(r.sale_price);
     return {
       id: r.id,
       name: r.name,
       category: r.category ?? "—",
-      opening, purchases, transferIn, production,
-      recipeUsage, directSales, transferOut, manualConsumption,
+      opening, purchases, transferIn: 0, production,
+      recipeUsage, directSales, transferOut, manualConsumption, manualAdjustment,
       remaining, auto, salePrice, value: remaining * salePrice,
     };
   });
 
   const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
-    const opening = openings[`stock_item:${r.id}`] ?? num(r.opening_stock);
+    const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;
-    const transferIn = transferInItem[r.id] ?? 0;
     const production = 0; // stock items are not produced by batches
-    const recipeUsage = recipeItem[r.id] ?? 0;
+    const recipeUsage = round(recipeItem[r.id] ?? 0);
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
     const manualConsumption = consItem[r.id] ?? 0;
+    const manualAdjustment = adjItem[r.id] ?? 0;
     const auto = r.auto_calc === true;
-    const remaining = auto
-      ? opening + purchases + transferIn + production - recipeUsage - directSales - transferOut - manualConsumption
-      : num(r.current_stock);
+    const remaining = round(auto
+      ? opening + purchases + production - recipeUsage - directSales - transferOut - manualConsumption + manualAdjustment
+      : num(r.current_stock));
     const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
     const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
     return {
       id: r.id,
       name: r.name,
       unit: r.unit ?? "pcs",
-      opening, purchases, transferIn, production,
-      recipeUsage, directSales, transferOut, manualConsumption,
+      opening, purchases, transferIn: 0, production,
+      recipeUsage, directSales, transferOut, manualConsumption, manualAdjustment,
       remaining, auto, avgPrice, manual, value: remaining * avgPrice,
     };
   });
+
 
   return { products, stockItems };
 }

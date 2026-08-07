@@ -16,6 +16,9 @@ import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { StockPinDialog } from "@/components/StockPinDialog";
+import { useProductStockAvailable } from "@/components/StockAvailability";
+import { businessToday } from "@/lib/business-date";
+
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
@@ -49,13 +52,49 @@ function ProductsPage() {
   const [form, setForm] = useState<P>(empty);
   const [originalCurrent, setOriginalCurrent] = useState<number | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
 
   const { data = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
+  // Calculated Remaining from the inventory engine — the Stock column must match it.
+  const { data: calcRows = [] } = useProductStockAvailable();
+  const calcStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcRows) m[r.id] = r.remaining;
+    return m;
+  }, [calcRows]);
+
+  const adjust = useMutation({
+    mutationFn: async ({ productId, qty, reason }: { productId: string; qty: number; reason: string }) => {
+      const ins = await (supabase as any).from("stock_adjustments").insert({
+        scope: "product", product_id: productId, quantity: qty,
+        reason: reason || null, date: businessToday(),
+      });
+      if (ins.error) throw ins.error;
+      const cur = (data as any[]).find((p) => p.id === productId);
+      const next = num(cur?.current_stock) + qty;
+      const upd = await supabase.from("products").update({ current_stock: next }).eq("id", productId);
+      if (upd.error) throw upd.error;
+      return next;
+    },
+    onSuccess: (next) => {
+      setForm((f) => ({ ...f, current_stock: next }));
+      setOriginalCurrent(next);
+      setAdjustQty(""); setAdjustReason("");
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
+      qc.invalidateQueries({ queryKey: ["stock-availability"] });
+      toast.success("Stock adjusted");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const save = useMutation({
+
     mutationFn: async (p: P) => {
       const payload = {
         name: p.name,
@@ -176,7 +215,7 @@ function ProductsPage() {
                 <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell className="text-right">{money(p.sale_price)}</TableCell>
                 <TableCell className="text-right">{money(p.cost_price)}</TableCell>
-                <TableCell className={"text-right font-medium " + (num(p.current_stock) < num(p.minimum_stock) ? "text-destructive" : "")}>{num(p.current_stock).toFixed(2)}</TableCell>
+                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? num(p.current_stock)).toFixed(2)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
@@ -251,6 +290,26 @@ function ProductsPage() {
           </div>
           <Switch className="shrink-0" checked={form.auto_calc} onCheckedChange={(v) => setForm({ ...form, auto_calc: v })} />
         </div>
+        {form.id && (
+          <div className="space-y-2 rounded border px-3 py-2">
+            <div>
+              <Label>Manual Stock Adjustment</Label>
+              <p className="text-xs text-muted-foreground">
+                Enter +5 to increase or -1 to decrease. Applies immediately to Current Stock, Remaining and reports.
+                Calculated Remaining: <span className="font-medium">{(calcStock[form.id] ?? num(form.current_stock)).toFixed(2)}</span>
+              </p>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] gap-2">
+              <Input type="number" step="0.01" placeholder="+5 / -1" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} />
+              <Input placeholder="Reason (optional)" value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} />
+              <Button type="button" variant="secondary" disabled={adjust.isPending || adjustQty.trim() === "" || Number(adjustQty) === 0}
+                onClick={() => adjust.mutate({ productId: form.id!, qty: Number(adjustQty), reason: adjustReason.trim() })}>
+                Apply
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /><Label>Active</Label></div>
       </CrudDialog>
       <StockPinDialog open={pinOpen} onOpenChange={setPinOpen} onConfirm={async () => {
