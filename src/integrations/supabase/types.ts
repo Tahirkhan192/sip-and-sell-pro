@@ -1267,6 +1267,63 @@ export type Database = {
           },
         ]
       }
+      stock_adjustments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          product_id: string | null
+          quantity: number
+          reason: string | null
+          scope: string
+          stock_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity: number
+          reason?: string | null
+          scope: string
+          stock_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number
+          reason?: string | null
+          scope?: string
+          stock_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_adjustments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_items: {
         Row: {
           auto_calc: boolean
