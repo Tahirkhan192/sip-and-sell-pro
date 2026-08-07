@@ -371,7 +371,9 @@ function POS() {
         _online_paid: num(onlinePaid),
         _order_type: orderType,
         _delivery_boy: deliveryBoy,
-        _customer_phone: phone,
+        // Staff sales never touch the Customer database: no phone is sent so no
+        // customer record is created or matched. The invoice links to staff_id only.
+        _customer_phone: staffId ? "" : phone,
         _katha: katha,
         _discount_type: discountType,
         _discount_value: num(discountValue),

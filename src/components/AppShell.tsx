@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { isModuleVisible, useMenuVisibility } from "@/lib/menu-visibility";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const NAV: NavItem[] = [
@@ -81,8 +82,11 @@ function useTheme() {
 
 function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: visibility } = useMenuVisibility();
+  const nav = NAV.filter((item) => isModuleVisible(visibility, item.to));
   return (
     <Sidebar className="no-print">
+
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
@@ -98,7 +102,7 @@ function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV.map((item) => {
+              {nav.map((item) => {
                 const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
                 return (
                   <SidebarMenuItem key={item.to}>
