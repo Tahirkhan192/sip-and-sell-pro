@@ -110,6 +110,8 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   const saleItemRes = { data: saleItemRows };
   const recipeRes = { data: recipeRows };
   const expCatRes = { data: expCatRows };
+  const adjustRes = { data: adjustRows };
+
 
 
   // ---- Opening (locked monthly snapshot wins over live opening_stock)
