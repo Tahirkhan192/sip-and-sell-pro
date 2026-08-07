@@ -208,7 +208,7 @@ function ProductsPage() {
                 <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell className="text-right">{money(p.sale_price)}</TableCell>
                 <TableCell className="text-right">{money(p.cost_price)}</TableCell>
-                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? num(p.current_stock)).toFixed(2)}</TableCell>
+                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? 0) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? 0).toFixed(2)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell>{p.active ? <Badge>Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
