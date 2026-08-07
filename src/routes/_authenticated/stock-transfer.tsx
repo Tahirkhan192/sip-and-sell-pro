@@ -16,6 +16,13 @@ import { PageHeader, CrudDialog } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { useExpenseCategories } from "@/lib/use-expense-categories";
 import { money, num, today } from "@/lib/format";
+import { buildRange } from "@/lib/business-date";
+import { useInventoryEngine, type Period } from "@/lib/inventory-engine";
+
+function transferPeriod(): Period {
+  const r = buildRange("month");
+  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
+}
 
 export const Route = createFileRoute("/_authenticated/stock-transfer")({ component: Page });
 
