@@ -18,6 +18,8 @@ import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
+import { useProductStockAvailable } from "@/components/StockAvailability";
+
 
 const searchSchema = z.object({ edit: z.string().optional() });
 
@@ -89,12 +91,22 @@ function POS() {
   const [mmRemark, setMmRemark] = useState<string>("");
   const [mmCategory, setMmCategory] = useState<KathaCategory>("transaction");
 
-  const { data: products = [] } = useQuery({
+  const { data: rawProducts = [] } = useQuery({
     queryKey: ["products", "active"],
     queryFn: async () => (await supabase.from("products").select("*").eq("active", true).is("deleted_at", null)
       .order("last_sold_at" as any, { ascending: false, nullsFirst: false })
       .order("name")).data ?? [],
   });
+
+  // Available stock must come from the single inventory engine so POS,
+  // Products and Reports always show the exact same quantity.
+  const { data: calcRows = [] } = useProductStockAvailable();
+  const products = useMemo(() => {
+    const calc: Record<string, number> = {};
+    for (const r of calcRows) calc[r.id] = r.remaining;
+    return (rawProducts as any[]).map((p) => (calc[p.id] === undefined ? p : { ...p, current_stock: calc[p.id] }));
+  }, [rawProducts, calcRows]);
+
 
   const { data: editingSale } = useQuery({
     queryKey: ["sales", "edit", editId],
@@ -297,6 +309,7 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["report"] });
     },
@@ -488,6 +501,7 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
       qc.invalidateQueries({ queryKey: ["staff"] });

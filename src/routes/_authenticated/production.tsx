@@ -88,6 +88,7 @@ function ProductionPage() {
       setProductId(""); setQuantity(""); setNotes("");
       qc.invalidateQueries({ queryKey: ["production"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["report"] });
@@ -104,6 +105,7 @@ function ProductionPage() {
       toast.success("Batch deleted, stock restored");
       qc.invalidateQueries({ queryKey: ["production"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed"),

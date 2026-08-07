@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { money, num, today } from "@/lib/format";
+import { useStockItemAvailable } from "@/components/StockAvailability";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { toast } from "sonner";
@@ -55,6 +56,14 @@ function Page() {
     queryFn: async () => (await supabase.from("stock_items").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
+  // Calculated Remaining from the inventory engine — the Current column must match it.
+  const { data: calcRows = [] } = useStockItemAvailable();
+  const calcStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcRows) m[r.id] = r.remaining;
+    return m;
+  }, [calcRows]);
+
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
     queryFn: async () => (await supabase.from("suppliers").select("id, name").is("deleted_at", null).order("name")).data ?? [],
@@ -88,6 +97,7 @@ function Page() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_items"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock-availability"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["report"] });
@@ -123,6 +133,7 @@ function Page() {
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["stock_items"] });
+            qc.invalidateQueries({ queryKey: ["inventory-engine"] });
             qc.invalidateQueries({ queryKey: ["report"] });
             toast.success("Opening Stock updated for all stock items");
           }}>Set Current as Opening</Button>
@@ -165,10 +176,10 @@ function Page() {
                 <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell>{p.unit}</TableCell>
                 <TableCell className="text-right">{num(p.opening_stock).toFixed(2)}</TableCell>
-                <TableCell className={"text-right font-medium " + (num(p.current_stock) < num(p.minimum_stock) ? "text-destructive" : "")}>{num(p.current_stock).toFixed(2)}</TableCell>
+                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? num(p.current_stock)).toFixed(2)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(p.purchase_price)}</TableCell>
-                <TableCell>{num(p.current_stock) < num(p.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
+                <TableCell>{(calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm({
                     id: p.id, name: p.name, category: p.category ?? "", unit: p.unit,

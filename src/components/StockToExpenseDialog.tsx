@@ -45,6 +45,7 @@ export function StockToExpenseDialog({ target, open, onOpenChange }: { target: T
       toast.success("Transferred to expense");
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock-monthly"] });
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });

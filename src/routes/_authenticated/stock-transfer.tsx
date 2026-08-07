@@ -78,7 +78,9 @@ function Page() {
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     qc.invalidateQueries({ queryKey: ["report"] });
     qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["inventory-engine"] });
     qc.invalidateQueries({ queryKey: ["stock_items"] });
+    qc.invalidateQueries({ queryKey: ["inventory-engine"] });
     qc.invalidateQueries({ queryKey: ["stock"] });
     qc.invalidateQueries({ queryKey: ["stock-monthly"] });
     qc.invalidateQueries({ queryKey: ["expenses"] });

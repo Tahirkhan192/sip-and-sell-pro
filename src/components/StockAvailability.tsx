@@ -56,11 +56,10 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
     recipeUsage: a.recipeUsage + r.recipeUsage,
     directSales: a.directSales + r.directSales,
     transferOut: a.transferOut + r.transferOut,
-    manualConsumption: a.manualConsumption + r.manualConsumption,
     manualAdjustment: a.manualAdjustment + r.manualAdjustment,
     remaining: a.remaining + r.remaining,
     value: a.value + r.value,
-  }), { opening: 0, purchases: 0, production: 0, recipeUsage: 0, directSales: 0, transferOut: 0, manualConsumption: 0, manualAdjustment: 0, remaining: 0, value: 0 });
+  }), { opening: 0, purchases: 0, production: 0, recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0, remaining: 0, value: 0 });
 
   return (
     <Card className="overflow-hidden">
@@ -82,7 +81,6 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
             <TableHead className="text-right">Recipe Usage</TableHead>
             <TableHead className="text-right">Direct Sales</TableHead>
             <TableHead className="text-right">Transfer Out</TableHead>
-            <TableHead className="text-right">Manual Consumption</TableHead>
             <TableHead className="text-right">Manual Adjustment</TableHead>
             <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Selling Price</TableHead>
@@ -99,7 +97,6 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.directSales.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.manualAdjustment.toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(r.salePrice)}</TableCell>
@@ -107,7 +104,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
             )}
             {filtered.length > 0 && (
               <TableRow className="font-semibold bg-muted/50">
@@ -118,7 +115,6 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.directSales.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.manualAdjustment.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>
                 <TableCell />
@@ -168,12 +164,11 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
     purchases: a.purchases + r.purchases,
     recipeUsage: a.recipeUsage + r.recipeUsage,
     transferOut: a.transferOut + r.transferOut,
-    manualConsumption: a.manualConsumption + r.manualConsumption,
     manualAdjustment: a.manualAdjustment + r.manualAdjustment,
     remaining: a.remaining + r.remaining,
     value: a.value + r.value,
-  }), { opening: 0, purchases: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, manualAdjustment: 0, remaining: 0, value: 0 });
-  const colCount = editable ? 11 : 10;
+  }), { opening: 0, purchases: 0, recipeUsage: 0, transferOut: 0, manualAdjustment: 0, remaining: 0, value: 0 });
+  const colCount = editable ? 10 : 9;
 
 
   return (
@@ -193,7 +188,6 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
             <TableHead className="text-right">Purchases</TableHead>
             <TableHead className="text-right">Recipe Usage</TableHead>
             <TableHead className="text-right">Transfer Out</TableHead>
-            <TableHead className="text-right">Manual Consumption</TableHead>
             <TableHead className="text-right">Manual Adjustment</TableHead>
 
             <TableHead className="text-right">Closing (Remaining)</TableHead>
@@ -209,7 +203,6 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="text-right">{r.purchases.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.manualAdjustment.toFixed(2)}</TableCell>
 
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
@@ -248,7 +241,6 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="text-right">{t.purchases.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.manualAdjustment.toFixed(2)}</TableCell>
 
                 <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>

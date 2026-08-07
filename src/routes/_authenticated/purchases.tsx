@@ -86,7 +86,9 @@ function Page() {
     qc.invalidateQueries({ queryKey: ["purchases_v2"] });
     qc.invalidateQueries({ queryKey: ["purchases"] });
     qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["inventory-engine"] });
     qc.invalidateQueries({ queryKey: ["stock_items"] });
+    qc.invalidateQueries({ queryKey: ["inventory-engine"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     qc.invalidateQueries({ queryKey: ["report"] });
     qc.invalidateQueries({ queryKey: ["cash_movements"] });
