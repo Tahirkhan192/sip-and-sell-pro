@@ -101,11 +101,33 @@ function POS() {
   // Available stock must come from the single inventory engine so POS,
   // Products and Reports always show the exact same quantity.
   const { data: calcRows = [] } = useProductStockAvailable();
+  const { data: calcItemRows = [] } = useStockItemAvailable();
+  /** product id → latest calculated Current Stock (tracked products only). */
+  const productStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcRows) if (r.tracked) m[r.id] = r.remaining;
+    return m;
+  }, [calcRows]);
+  const itemStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcItemRows) m[r.id] = r.remaining;
+    return m;
+  }, [calcItemRows]);
   const products = useMemo(() => {
-    const calc: Record<string, number> = {};
-    for (const r of calcRows) calc[r.id] = r.remaining;
-    return (rawProducts as any[]).map((p) => (calc[p.id] === undefined ? p : { ...p, current_stock: calc[p.id] }));
-  }, [rawProducts, calcRows]);
+    return (rawProducts as any[]).map((p) =>
+      productStock[p.id] === undefined ? p : { ...p, current_stock: productStock[p.id] },
+    );
+  }, [rawProducts, productStock]);
+
+  // Recipe definitions — a recipe product is validated against its ingredients.
+  const { data: recipeRows = [] } = useQuery({
+    queryKey: ["recipes", "pos"],
+    queryFn: async () =>
+      (await (supabase as any).from("recipes")
+        .select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to")
+        .is("deleted_at", null)).data ?? [],
+  });
+
 
 
   const { data: editingSale } = useQuery({
