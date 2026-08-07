@@ -19,6 +19,7 @@ export const Route = createFileRoute("/auth")({
     const { data } = await supabase.auth.getSession();
     if (data.session) {
       const dest = search.next && search.next.startsWith("/") && !search.next.startsWith("//") ? search.next : "/";
+
       throw redirect({ href: dest });
     }
   },
