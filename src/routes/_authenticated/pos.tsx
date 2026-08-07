@@ -730,7 +730,7 @@ function POS() {
                 </TableHeader>
                 <TableBody>
                   {cart.map((it, idx) => {
-                    const low = it.selling_method === "fixed" && it.quantity > it.current_stock;
+                    const low = shortLines.has(it.product_id);
                     return (
                       <TableRow key={it.product_id}>
                         <TableCell className="py-1">
