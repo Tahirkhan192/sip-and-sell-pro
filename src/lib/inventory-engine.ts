@@ -47,42 +47,65 @@ const add = (m: Record<string, number>, k: string | null | undefined, v: number)
   m[k] = (m[k] ?? 0) + v;
 };
 
+/** PostgREST caps a request at 1000 rows — page through everything. */
+async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await build().range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
 export async function fetchInventoryEngine(period: Period): Promise<InventorySnapshot> {
   const year = Number(period.from.slice(0, 4));
   const month = Number(period.from.slice(5, 7));
   const sb = supabase as any;
 
   const [
-    prodsRes,
-    itemsRes,
-    openRes,
-    purRes,
-    batchRes,
-    batchItemRes,
-    transferRes,
-    consumptionRes,
-    saleItemRes,
-    recipeRes,
-    expCatRes,
+    prods,
+    items,
+    openRows,
+    purRows,
+    batchRows,
+    batchItemRows,
+    transferRows,
+    consumptionRows,
+    saleItemRows,
+    recipeRows,
+    expCatRows,
   ] = await Promise.all([
-    sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name"),
-    sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name"),
-    sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month),
-    sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to),
-    sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to),
-    sb.from("production_batch_items").select("component_product_id,component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
-      .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to),
-    sb.from("stock_transfers").select("product_id,stock_item_id,quantity,from_category,to_category").is("deleted_at", null)
-      .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC),
-    sb.from("expenses").select("source_product_id,source_stock_item_id,source_quantity").is("deleted_at", null).eq("is_stock_transfer", true)
-      .gte("date", period.from).lte("date", period.to),
-    sb.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden,order_type)")
-      .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC),
-    sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null),
-    sb.from("expense_categories").select("name").is("deleted_at", null),
+    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).order("item_id")),
+    fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
+    fetchAllPaged(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
+    fetchAllPaged(() => sb.from("production_batch_items").select("component_product_id,component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
+      .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to).order("id")),
+    fetchAllPaged(() => sb.from("stock_transfers").select("product_id,stock_item_id,quantity,from_category,to_category").is("deleted_at", null)
+      .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC).order("id")),
+    fetchAllPaged(() => sb.from("expenses").select("source_product_id,source_stock_item_id,source_quantity").is("deleted_at", null).eq("is_stock_transfer", true)
+      .gte("date", period.from).lte("date", period.to).order("id")),
+    fetchAllPaged(() => sb.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden,order_type)")
+      .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC).order("id")),
+    fetchAllPaged(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
+    fetchAllPaged(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
   ]);
-  if (prodsRes.error) throw prodsRes.error;
-  if (itemsRes.error) throw itemsRes.error;
+  const prodsRes = { data: prods };
+  const itemsRes = { data: items };
+  const openRes = { data: openRows };
+  const purRes = { data: purRows };
+  const batchRes = { data: batchRows };
+  const batchItemRes = { data: batchItemRows };
+  const transferRes = { data: transferRows };
+  const consumptionRes = { data: consumptionRows };
+  const saleItemRes = { data: saleItemRows };
+  const recipeRes = { data: recipeRows };
+  const expCatRes = { data: expCatRows };
+
 
   // ---- Opening (locked monthly snapshot wins over live opening_stock)
   const openings: Record<string, number> = {};
