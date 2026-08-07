@@ -194,6 +194,8 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
             <TableHead className="text-right">Recipe Usage</TableHead>
             <TableHead className="text-right">Transfer Out</TableHead>
             <TableHead className="text-right">Manual Consumption</TableHead>
+            <TableHead className="text-right">Manual Adjustment</TableHead>
+
             <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Avg Purchase Price</TableHead>
             <TableHead className="text-right">Current Stock Value</TableHead>
