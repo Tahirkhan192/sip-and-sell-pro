@@ -75,19 +75,13 @@ function ProductsPage() {
         reason: reason || null, date: businessToday(),
       });
       if (ins.error) throw ins.error;
-      const cur = (data as any[]).find((p) => p.id === productId);
-      const next = num(cur?.current_stock) + qty;
-      const upd = await supabase.from("products").update({ current_stock: next }).eq("id", productId);
-      if (upd.error) throw upd.error;
-      return next;
     },
-    onSuccess: (next) => {
-      setForm((f) => ({ ...f, current_stock: next }));
-      setOriginalCurrent(next);
+    onSuccess: () => {
       setAdjustQty(""); setAdjustReason("");
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock-availability"] });
+      qc.invalidateQueries({ queryKey: ["stock"] });
       toast.success("Stock adjusted");
     },
     onError: (e: any) => toast.error(e.message),
