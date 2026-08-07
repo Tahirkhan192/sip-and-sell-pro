@@ -55,14 +55,26 @@ function Page() {
   const { data: categoryList = [] } = useCategories();
   const { data: expenseCategories = [] } = useExpenseCategories({ activeOnly: true });
 
-  const { data: products = [] } = useQuery({
+  const { data: rawProducts = [] } = useQuery({
     queryKey: ["products", "all-for-transfer"],
     queryFn: async () => (await supabase.from("products").select("id, name, category, unit, cost_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
-  const { data: stockItems = [] } = useQuery({
+  const { data: rawStockItems = [] } = useQuery({
     queryKey: ["stock_items", "all-for-transfer"],
     queryFn: async () => (await supabase.from("stock_items").select("id, name, category, unit, purchase_price, current_stock").is("deleted_at", null).order("name")).data ?? [],
   });
+  // Single source of truth for Current Stock — the inventory engine.
+  const { data: engine } = useInventoryEngine(transferPeriod());
+  const products = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of engine?.products ?? []) m[r.id] = r.remaining;
+    return (rawProducts as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+  }, [rawProducts, engine]);
+  const stockItems = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of engine?.stockItems ?? []) m[r.id] = r.remaining;
+    return (rawStockItems as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+  }, [rawStockItems, engine]);
   const { data: transfers = [] } = useQuery({
     queryKey: ["stock_transfers"],
     queryFn: async () => (await (supabase as any).from("stock_transfers").select("*").is("deleted_at", null).order("created_at", { ascending: false }).range(0, 99999)).data ?? [],
