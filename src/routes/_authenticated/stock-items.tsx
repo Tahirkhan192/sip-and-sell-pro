@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { money, num, today } from "@/lib/format";
+import { useStockItemAvailable } from "@/components/StockAvailability";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { toast } from "sonner";
