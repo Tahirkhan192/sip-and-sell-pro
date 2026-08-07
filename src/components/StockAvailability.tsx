@@ -66,6 +66,8 @@ export type ProductStockRow = {
   opening: number;
   produced: number;
   purchased: number;
+  transferred: number;
+  consumed: number;
   sold: number;
   remaining: number;
   salePrice: number;
@@ -77,7 +79,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
   return useQuery({
     queryKey: ["stock-availability", "products", period.from, period.to, Object.keys(openings).length],
     queryFn: async (): Promise<ProductStockRow[]> => {
-      const [p, prod, pur, sold] = await Promise.all([
+      const [p, prod, pur, sold, tr, cons] = await Promise.all([
         (supabase as any).from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name"),
         (supabase as any).from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to),
         (supabase as any).from("stock_purchases").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null).gte("date", period.from).lte("date", period.to),
@@ -85,12 +87,26 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
         // deleted and hidden (duplicate) invoices are ignored.
         (supabase as any).from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden)")
           .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC),
+        // Transfers out (category moves, wastage / staff food to expenses)
+        (supabase as any).from("stock_transfers").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null)
+          .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC),
+        // Recipe usage — product consumed as a component of another production batch
+        (supabase as any).from("production_batch_items").select("component_product_id,quantity,production_batches!inner(batch_date,deleted_at)")
+          .not("component_product_id", "is", null)
+          .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to),
       ]);
       if (p.error) throw p.error;
       const producedBy: Record<string, number> = {};
       for (const b of ((prod.data ?? []) as any[])) producedBy[b.product_id] = (producedBy[b.product_id] ?? 0) + num(b.quantity);
       const purchasedBy: Record<string, number> = {};
       for (const b of ((pur.data ?? []) as any[])) purchasedBy[b.product_id] = (purchasedBy[b.product_id] ?? 0) + num(b.quantity);
+      const transferredBy: Record<string, number> = {};
+      for (const r of ((tr?.data ?? []) as any[])) transferredBy[r.product_id] = (transferredBy[r.product_id] ?? 0) + num(r.quantity);
+      const consumedBy: Record<string, number> = {};
+      for (const r of ((cons?.data ?? []) as any[])) {
+        if (r.production_batches?.deleted_at) continue;
+        consumedBy[r.component_product_id] = (consumedBy[r.component_product_id] ?? 0) + num(r.quantity);
+      }
       const soldBy: Record<string, number> = {};
       for (const it of ((sold.data ?? []) as any[])) {
         const s = it.sales;
@@ -103,9 +119,14 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
         const produced = producedBy[r.id] ?? 0;
         const purchased = purchasedBy[r.id] ?? 0;
         const soldQty = soldBy[r.id] ?? 0;
-        // Auto Calculation ON → rebuild Remaining from transaction history.
+        const transferred = transferredBy[r.id] ?? 0;
+        const consumed = consumedBy[r.id] ?? 0;
+        // Auto Calculation ON → rebuild Remaining from full transaction history:
+        // Opening + Purchases + Produced (Transfers In) − Transfers Out − Recipe Usage − Sold.
         // Auto Calculation OFF → keep the manually maintained Remaining.
-        const remaining = r.auto_calc === true ? opening + produced + purchased - soldQty : num(r.current_stock);
+        const remaining = r.auto_calc === true
+          ? opening + produced + purchased - transferred - consumed - soldQty
+          : num(r.current_stock);
         const salePrice = num(r.sale_price);
         return {
           id: r.id,
@@ -114,6 +135,8 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
           opening,
           produced,
           purchased,
+          transferred,
+          consumed,
           sold: soldQty,
           remaining,
           salePrice,
@@ -124,6 +147,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
     staleTime: 0,
   });
 }
+
 
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
