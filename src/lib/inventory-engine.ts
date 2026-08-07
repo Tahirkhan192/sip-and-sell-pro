@@ -25,9 +25,11 @@ export type InventoryRow = {
   directSales: number;
   transferOut: number;
   manualConsumption: number;
+  manualAdjustment: number;
   remaining: number;
   auto: boolean;
 };
+
 
 export type ProductInventoryRow = InventoryRow & { category: string; salePrice: number; value: number };
 export type StockItemInventoryRow = InventoryRow & {
