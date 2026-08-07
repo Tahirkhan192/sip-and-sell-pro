@@ -209,10 +209,9 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
     const transferOut = transferOutProd[r.id] ?? 0;
     const manualAdjustment = adjProd[r.id] ?? 0;
-    const auto = r.auto_calc === true;
-    const remaining = round(auto
-      ? opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment
-      : num(r.current_stock));
+    // Current Stock is ALWAYS calculated — stored current_stock is never trusted.
+    const auto = true;
+    const remaining = round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment);
     const salePrice = num(r.sale_price);
     return {
       id: r.id,
