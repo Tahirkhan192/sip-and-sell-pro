@@ -29,7 +29,10 @@ export type InventoryRow = {
   manualAdjustment: number;
   remaining: number;
   auto: boolean;
+  /** Stock Tracking switch — false means unlimited stock, never validated. */
+  tracked: boolean;
 };
+
 
 
 
@@ -83,7 +86,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     expCatRows,
     adjustRows,
   ] = await Promise.all([
-    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).order("item_id")),
     fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
@@ -199,6 +202,26 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   const round = (n: number) => Math.round(n * 1e6) / 1e6;
 
   const products: ProductInventoryRow[] = ((prodsRes.data ?? []) as any[]).map((r) => {
+    const tracked = r.track_stock !== false;
+    const auto = r.auto_calc === true;
+    const salePrice = num(r.sale_price);
+    const base = {
+      id: r.id as string,
+      name: r.name as string,
+      category: (r.category ?? "—") as string,
+      tracked,
+      auto,
+      salePrice,
+    };
+    // Stock Tracking OFF → unlimited stock, excluded from every calculation.
+    if (!tracked) {
+      return {
+        ...base,
+        opening: 0, purchases: 0, transferIn: 0, production: 0,
+        recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
+        remaining: 0, value: 0,
+      };
+    }
     const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
@@ -209,21 +232,20 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
     const transferOut = transferOutProd[r.id] ?? 0;
     const manualAdjustment = adjProd[r.id] ?? 0;
-    // Current Stock is ALWAYS calculated — stored current_stock is never trusted.
-    const auto = true;
-    const remaining = round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment);
-    const salePrice = num(r.sale_price);
+    // Auto Calculation OFF → keep the manually maintained Current Stock.
+    const remaining = auto
+      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
+      : num(r.current_stock);
     return {
-      id: r.id,
-      name: r.name,
-      category: r.category ?? "—",
+      ...base,
       opening, purchases, transferIn: 0, production,
       recipeUsage, directSales, transferOut, manualAdjustment,
-      remaining, auto, salePrice, value: remaining * salePrice,
+      remaining, value: remaining * salePrice,
     };
   });
 
   const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
+    const auto = r.auto_calc === true;
     const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;
     const production = 0; // stock items are not produced by batches
@@ -231,20 +253,23 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
     const manualAdjustment = adjItem[r.id] ?? 0;
-    // Current Stock is ALWAYS calculated — stored current_stock is never trusted.
-    const auto = true;
-    const remaining = round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment);
+    // Auto Calculation OFF → keep the manually maintained Current Stock.
+    const remaining = auto
+      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
+      : num(r.current_stock);
     const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
     const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
     return {
       id: r.id,
       name: r.name,
       unit: r.unit ?? "pcs",
+      tracked: true,
       opening, purchases, transferIn: 0, production,
       recipeUsage, directSales, transferOut, manualAdjustment,
       remaining, auto, avgPrice, manual, value: remaining * avgPrice,
     };
   });
+
 
 
 

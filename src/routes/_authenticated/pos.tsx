@@ -18,7 +18,7 @@ import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
-import { useProductStockAvailable } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
 
 
 const searchSchema = z.object({ edit: z.string().optional() });
@@ -101,11 +101,33 @@ function POS() {
   // Available stock must come from the single inventory engine so POS,
   // Products and Reports always show the exact same quantity.
   const { data: calcRows = [] } = useProductStockAvailable();
+  const { data: calcItemRows = [] } = useStockItemAvailable();
+  /** product id → latest calculated Current Stock (tracked products only). */
+  const productStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcRows) if (r.tracked) m[r.id] = r.remaining;
+    return m;
+  }, [calcRows]);
+  const itemStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcItemRows) m[r.id] = r.remaining;
+    return m;
+  }, [calcItemRows]);
   const products = useMemo(() => {
-    const calc: Record<string, number> = {};
-    for (const r of calcRows) calc[r.id] = r.remaining;
-    return (rawProducts as any[]).map((p) => (calc[p.id] === undefined ? p : { ...p, current_stock: calc[p.id] }));
-  }, [rawProducts, calcRows]);
+    return (rawProducts as any[]).map((p) =>
+      productStock[p.id] === undefined ? p : { ...p, current_stock: productStock[p.id] },
+    );
+  }, [rawProducts, productStock]);
+
+  // Recipe definitions — a recipe product is validated against its ingredients.
+  const { data: recipeRows = [] } = useQuery({
+    queryKey: ["recipes", "pos"],
+    queryFn: async () =>
+      (await (supabase as any).from("recipes")
+        .select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to")
+        .is("deleted_at", null)).data ?? [],
+  });
+
 
 
   const { data: editingSale } = useQuery({
@@ -270,7 +292,56 @@ function POS() {
   const paidNum = round2(num(cashPaid) + num(onlinePaid));
   const remaining = Math.max(0, round2(grandTotal - paidNum));
   const change = Math.max(0, round2(paidNum - grandTotal));
-  const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
+  /**
+   * Stock validation always runs against the latest engine values.
+   * - Stock Tracking OFF → never validated (unlimited).
+   * - Recipe products → validated against their ingredients, not themselves.
+   */
+  const shortLines = useMemo(() => {
+    const recipesByParent: Record<string, any[]> = {};
+    for (const r of recipeRows as any[]) (recipesByParent[r.parent_product_id] ??= []).push(r);
+    const short = new Set<string>();
+    // Aggregate ingredient demand across the whole cart first.
+    const needProd: Record<string, number> = {};
+    const needItem: Record<string, number> = {};
+    const linesOfProd: Record<string, string[]> = {};
+    const linesOfItem: Record<string, string[]> = {};
+    for (const it of cart) {
+      const recipe = recipesByParent[it.product_id];
+      if (recipe && recipe.length) {
+        for (const c of recipe) {
+          const applies: string[] = Array.isArray(c.applies_to) ? c.applies_to : [];
+          if (applies.length > 0 && !applies.includes(orderType)) continue;
+          const need = num(c.quantity) * it.quantity;
+          if (c.component_product_id) {
+            needProd[c.component_product_id] = (needProd[c.component_product_id] ?? 0) + need;
+            (linesOfProd[c.component_product_id] ??= []).push(it.product_id);
+          }
+          if (c.component_stock_item_id) {
+            needItem[c.component_stock_item_id] = (needItem[c.component_stock_item_id] ?? 0) + need;
+            (linesOfItem[c.component_stock_item_id] ??= []).push(it.product_id);
+          }
+        }
+        continue;
+      }
+      // Direct product: only validate tracked products.
+      const avail = productStock[it.product_id];
+      if (avail === undefined) continue; // untracked → unlimited
+      if (it.quantity > avail) short.add(it.product_id);
+    }
+    for (const [pid, need] of Object.entries(needProd)) {
+      const avail = productStock[pid];
+      if (avail === undefined) continue;
+      if (need > avail) for (const l of linesOfProd[pid] ?? []) short.add(l);
+    }
+    for (const [iid, need] of Object.entries(needItem)) {
+      const avail = itemStock[iid];
+      if (avail === undefined) continue;
+      if (need > avail) for (const l of linesOfItem[iid] ?? []) short.add(l);
+    }
+    return short;
+  }, [cart, recipeRows, productStock, itemStock, orderType]);
+  const lowStock = useMemo(() => cart.filter((i) => shortLines.has(i.product_id)), [cart, shortLines]);
   useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
   // Keyboard: '/' focus search, arrows navigate grid, Enter adds, Esc closes
@@ -659,7 +730,7 @@ function POS() {
                 </TableHeader>
                 <TableBody>
                   {cart.map((it, idx) => {
-                    const low = it.selling_method === "fixed" && it.quantity > it.current_stock;
+                    const low = shortLines.has(it.product_id);
                     return (
                       <TableRow key={it.product_id}>
                         <TableCell className="py-1">
