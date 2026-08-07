@@ -75,20 +75,35 @@ function CurrentStock() {
   const [catFilter, setCatFilter] = useState("all");
   const [transferTarget, setTransferTarget] = useState<any>(null);
 
-  const { data: products = [] } = useQuery({
+  const { data: rawProducts = [] } = useQuery({
     queryKey: ["stock", "products"],
     queryFn: async () => (await supabase.from("products").select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
   });
-  const { data: items = [] } = useQuery({
+  const { data: rawItems = [] } = useQuery({
     queryKey: ["stock", "items"],
     queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
   });
+
+  // Single source of truth — same calculated Remaining as Reports and POS.
+  const { data: calcProducts = [] } = useProductStockAvailable();
+  const { data: calcItems = [] } = useStockItemAvailable();
+  const products = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcProducts) m[r.id] = r.remaining;
+    return (rawProducts as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+  }, [rawProducts, calcProducts]);
+  const items = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcItems) m[r.id] = r.remaining;
+    return (rawItems as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+  }, [rawItems, calcItems]);
 
   const filtered = useMemo(() => {
     let rows = (products as any[]).filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
     return rows;
   }, [products, search, catFilter]);
+
 
   return (
     <div className="space-y-6">
