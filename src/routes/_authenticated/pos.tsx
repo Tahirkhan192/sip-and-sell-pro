@@ -18,7 +18,7 @@ import { z } from "zod";
 import { sendWhatsappInvoice } from "@/lib/whatsapp";
 import { useCategories } from "@/lib/use-categories";
 import { businessToday, businessDateOf, businessDayStartUTC, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
-import { useProductStockAvailable } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
 
 
 const searchSchema = z.object({ edit: z.string().optional() });
