@@ -1,9 +1,11 @@
 /**
  * Inventory Engine — single source of truth for Remaining quantity.
  *
- * Remaining = Opening
- *           + Purchases + Transfer Received + Production
- *           − Recipe Usage − Direct Sales − Transfer Out − Manual Consumption
+ * Remaining = Opening + Purchases + Production
+ *           − Recipe Usage − Direct Sales − Transfer Out + Manual Adjustment
+ *
+ * Transfers to another category AND transfers to Expenses (wastage, staff
+ * food, testing…) are both reported as Transfer Out.
  *
  * Every movement is rebuilt from transaction history; stored `current_stock`
  * is only used when Auto Calculation is OFF for that item.
@@ -24,11 +26,11 @@ export type InventoryRow = {
   recipeUsage: number;
   directSales: number;
   transferOut: number;
-  manualConsumption: number;
   manualAdjustment: number;
   remaining: number;
   auto: boolean;
 };
+
 
 
 export type ProductInventoryRow = InventoryRow & { category: string; salePrice: number; value: number };
