@@ -83,8 +83,9 @@ function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { data: visibility } = useMenuVisibility();
   const nav = NAV.filter((item) => isModuleVisible(visibility, item.to));
-
+  return (
     <Sidebar className="no-print">
+
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
