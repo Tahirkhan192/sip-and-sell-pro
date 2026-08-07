@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
+import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
 import {
@@ -193,6 +194,8 @@ function SettingsPage() {
 
       <StockPinCard />
 
+      <MenuVisibilityCard />
+
       <PinLockCard />
 
       <DuplicateInvoiceManager />
@@ -302,6 +305,47 @@ function PinLockCard() {
 
         <div className="flex justify-end">
           <Button onClick={() => save.mutate()} disabled={save.isPending}>Save PIN Settings</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Owner chooses which modules appear in the sidebar / are reachable. */
+function MenuVisibilityCard() {
+  const { data } = useMenuVisibility();
+  const save = useSaveMenuVisibility();
+  const [map, setMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => { if (data) setMap(data); }, [data]);
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div>
+          <Label className="text-base">Menu Visibility</Label>
+          <p className="text-xs text-muted-foreground mt-1">Turn modules ON or OFF. Hidden modules disappear from the sidebar and cannot be opened. No data is deleted — records and existing logic keep working.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {MENU_MODULES.filter((m) => !ALWAYS_VISIBLE.has(m.key)).map((m) => (
+            <label key={m.key} className="flex items-center justify-between gap-2 rounded border px-3 py-2 text-sm">
+              <span>{m.label}</span>
+              <Switch checked={map[m.key] !== false} onCheckedChange={(v) => setMap((s) => ({ ...s, [m.key]: v }))} />
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <Button
+            disabled={save.isPending}
+            onClick={() =>
+              save.mutate(map, {
+                onSuccess: (r) => toast.success(r.persisted ? "Menu visibility saved" : "Menu visibility saved on this device"),
+                onError: () => toast.success("Menu visibility saved on this device"),
+              })
+            }
+          >
+            Save Menu Visibility
+          </Button>
         </div>
       </CardContent>
     </Card>
