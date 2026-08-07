@@ -16,6 +16,9 @@ import { useCategories } from "@/lib/use-categories";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { StockPinDialog } from "@/components/StockPinDialog";
+import { useProductStockAvailable } from "@/components/StockAvailability";
+import { businessToday } from "@/lib/business-date";
+
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
