@@ -175,6 +175,8 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
             <TableHead className="text-right">Opening Qty</TableHead>
             <TableHead className="text-right">Produced</TableHead>
             <TableHead className="text-right">Purchased</TableHead>
+            <TableHead className="text-right">Transfers</TableHead>
+            <TableHead className="text-right">Recipe Usage</TableHead>
             <TableHead className="text-right">Sold Qty</TableHead>
             <TableHead className="text-right">Remaining Qty</TableHead>
             <TableHead className="text-right">Selling Price</TableHead>
@@ -188,6 +190,8 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.produced.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.purchased.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.transferred.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.consumed.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.sold.toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(r.salePrice)}</TableCell>
@@ -195,8 +199,9 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
             )}
+
           </TableBody>
         </Table>
       </div>
