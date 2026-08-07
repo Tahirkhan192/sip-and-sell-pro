@@ -55,6 +55,14 @@ function Page() {
     queryFn: async () => (await supabase.from("stock_items").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
 
+  // Calculated Remaining from the inventory engine — the Current column must match it.
+  const { data: calcRows = [] } = useStockItemAvailable();
+  const calcStock = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of calcRows) m[r.id] = r.remaining;
+    return m;
+  }, [calcRows]);
+
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
     queryFn: async () => (await supabase.from("suppliers").select("id, name").is("deleted_at", null).order("name")).data ?? [],
@@ -167,10 +175,10 @@ function Page() {
                 <TableCell>{p.category ?? "—"}</TableCell>
                 <TableCell>{p.unit}</TableCell>
                 <TableCell className="text-right">{num(p.opening_stock).toFixed(2)}</TableCell>
-                <TableCell className={"text-right font-medium " + (num(p.current_stock) < num(p.minimum_stock) ? "text-destructive" : "")}>{num(p.current_stock).toFixed(2)}</TableCell>
+                <TableCell className={"text-right font-medium " + ((calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? "text-destructive" : "")}>{(calcStock[p.id] ?? num(p.current_stock)).toFixed(2)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{num(p.minimum_stock).toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(p.purchase_price)}</TableCell>
-                <TableCell>{num(p.current_stock) < num(p.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
+                <TableCell>{(calcStock[p.id] ?? num(p.current_stock)) < num(p.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm({
                     id: p.id, name: p.name, category: p.category ?? "", unit: p.unit,
