@@ -266,7 +266,7 @@ function ProductsPage() {
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-2"><Label>Opening</Label><Input type="number" step="0.01" placeholder="" value={form.opening_stock} onChange={(e) => setForm({ ...form, opening_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Current</Label><Input type="number" step="0.01" placeholder="" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
+          <div className="space-y-2"><Label>Current Stock <span className="text-xs text-muted-foreground">(auto)</span></Label><Input readOnly disabled value={form.id ? (calcStock[form.id] ?? 0).toFixed(2) : "0.00"} /></div>
           <div className="space-y-2"><Label>Minimum</Label><Input type="number" step="0.01" placeholder="" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: e.target.value === "" ? "" : Number(e.target.value) })} /></div>
         </div>
         <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
