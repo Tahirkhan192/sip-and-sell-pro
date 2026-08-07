@@ -9,35 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { money, num } from "@/lib/format";
 import { usePinGate } from "@/lib/pin-locks";
 import { buildRange } from "@/lib/business-date";
+import { useInventoryEngine, type Period, type ProductInventoryRow, type StockItemInventoryRow } from "@/lib/inventory-engine";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
-
-type Period = { from: string; to: string; startUTC: string; endExclusiveUTC: string };
 
 function currentPeriod(): Period {
   const r = buildRange("month");
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
-}
-
-/** Opening quantity for a period — the locked snapshot if one exists, else the live opening_stock. */
-function useOpeningSnapshots(period: Period) {
-  const year = Number(period.from.slice(0, 4));
-  const month = Number(period.from.slice(5, 7));
-  return useQuery({
-    queryKey: ["stock-availability", "opening", year, month],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("stock_opening_snapshots")
-        .select("scope,item_id,quantity")
-        .eq("year", year)
-        .eq("month", month);
-      if (error) throw error;
-      const map: Record<string, number> = {};
-      for (const r of (data ?? []) as any[]) map[`${r.scope}:${r.item_id}`] = num(r.quantity);
-      return map;
-    },
-    staleTime: 0,
-  });
 }
 
 function useOverrideMutation(table: "products" | "stock_items", invalidate: string[]) {
@@ -59,104 +37,30 @@ function useOverrideMutation(table: "products" | "stock_items", invalidate: stri
 /* Product Stock Available — PRODUCTS ONLY                             */
 /* ------------------------------------------------------------------ */
 
-export type ProductStockRow = {
-  id: string;
-  name: string;
-  category: string;
-  opening: number;
-  produced: number;
-  purchased: number;
-  transferred: number;
-  consumed: number;
-  sold: number;
-  remaining: number;
-  salePrice: number;
-  value: number;
-};
+export type ProductStockRow = ProductInventoryRow;
 
 export function useProductStockAvailable(period: Period = currentPeriod()) {
-  const { data: openings = {} } = useOpeningSnapshots(period);
-  return useQuery({
-    queryKey: ["stock-availability", "products", period.from, period.to, Object.keys(openings).length],
-    queryFn: async (): Promise<ProductStockRow[]> => {
-      const [p, prod, pur, sold, tr, cons] = await Promise.all([
-        (supabase as any).from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name"),
-        (supabase as any).from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to),
-        (supabase as any).from("stock_purchases").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null).gte("date", period.from).lte("date", period.to),
-        // Sold quantity is always rebuilt from COMPLETED invoices only —
-        // deleted and hidden (duplicate) invoices are ignored.
-        (supabase as any).from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden)")
-          .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC),
-        // Transfers out (category moves, wastage / staff food to expenses)
-        (supabase as any).from("stock_transfers").select("product_id,quantity").is("deleted_at", null).not("product_id", "is", null)
-          .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC),
-        // Recipe usage — product consumed as a component of another production batch
-        (supabase as any).from("production_batch_items").select("component_product_id,quantity,production_batches!inner(batch_date,deleted_at)")
-          .not("component_product_id", "is", null)
-          .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to),
-      ]);
-      if (p.error) throw p.error;
-      const producedBy: Record<string, number> = {};
-      for (const b of ((prod.data ?? []) as any[])) producedBy[b.product_id] = (producedBy[b.product_id] ?? 0) + num(b.quantity);
-      const purchasedBy: Record<string, number> = {};
-      for (const b of ((pur.data ?? []) as any[])) purchasedBy[b.product_id] = (purchasedBy[b.product_id] ?? 0) + num(b.quantity);
-      const transferredBy: Record<string, number> = {};
-      for (const r of ((tr?.data ?? []) as any[])) transferredBy[r.product_id] = (transferredBy[r.product_id] ?? 0) + num(r.quantity);
-      const consumedBy: Record<string, number> = {};
-      for (const r of ((cons?.data ?? []) as any[])) {
-        if (r.production_batches?.deleted_at) continue;
-        consumedBy[r.component_product_id] = (consumedBy[r.component_product_id] ?? 0) + num(r.quantity);
-      }
-      const soldBy: Record<string, number> = {};
-      for (const it of ((sold.data ?? []) as any[])) {
-        const s = it.sales;
-        if (!s || s.deleted_at || s.hidden) continue;
-        if (s.status !== "completed") continue;
-        soldBy[it.product_id] = (soldBy[it.product_id] ?? 0) + num(it.quantity);
-      }
-      return ((p.data ?? []) as any[]).map((r) => {
-        const opening = openings[`product:${r.id}`] ?? num(r.opening_stock);
-        const produced = producedBy[r.id] ?? 0;
-        const purchased = purchasedBy[r.id] ?? 0;
-        const soldQty = soldBy[r.id] ?? 0;
-        const transferred = transferredBy[r.id] ?? 0;
-        const consumed = consumedBy[r.id] ?? 0;
-        // Auto Calculation ON → rebuild Remaining from full transaction history:
-        // Opening + Purchases + Produced (Transfers In) − Transfers Out − Recipe Usage − Sold.
-        // Auto Calculation OFF → keep the manually maintained Remaining.
-        const remaining = r.auto_calc === true
-          ? opening + produced + purchased - transferred - consumed - soldQty
-          : num(r.current_stock);
-        const salePrice = num(r.sale_price);
-        return {
-          id: r.id,
-          name: r.name,
-          category: r.category ?? "—",
-          opening,
-          produced,
-          purchased,
-          transferred,
-          consumed,
-          sold: soldQty,
-          remaining,
-          salePrice,
-          value: remaining * salePrice,
-        };
-      });
-    },
-    staleTime: 0,
-  });
+  const q = useInventoryEngine(period);
+  return { ...q, data: q.data?.products } as typeof q & { data: ProductInventoryRow[] | undefined };
 }
-
-
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
   const period = currentPeriod();
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
-  const totalQty = filtered.reduce((s, r) => s + r.remaining, 0);
-  const totalValue = filtered.reduce((s, r) => s + r.value, 0);
+  const t = filtered.reduce((a, r) => ({
+    opening: a.opening + r.opening,
+    purchases: a.purchases + r.purchases,
+    transferIn: a.transferIn + r.transferIn,
+    production: a.production + r.production,
+    recipeUsage: a.recipeUsage + r.recipeUsage,
+    directSales: a.directSales + r.directSales,
+    transferOut: a.transferOut + r.transferOut,
+    manualConsumption: a.manualConsumption + r.manualConsumption,
+    remaining: a.remaining + r.remaining,
+    value: a.value + r.value,
+  }), { opening: 0, purchases: 0, transferIn: 0, production: 0, recipeUsage: 0, directSales: 0, transferOut: 0, manualConsumption: 0, remaining: 0, value: 0 });
 
   return (
     <Card className="overflow-hidden">
@@ -172,13 +76,15 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
           <TableHeader><TableRow>
             <TableHead>Product</TableHead>
             <TableHead>Category</TableHead>
-            <TableHead className="text-right">Opening Qty</TableHead>
-            <TableHead className="text-right">Produced</TableHead>
-            <TableHead className="text-right">Purchased</TableHead>
-            <TableHead className="text-right">Transfers</TableHead>
+            <TableHead className="text-right">Opening</TableHead>
+            <TableHead className="text-right">Purchases</TableHead>
+            <TableHead className="text-right">Transfer In</TableHead>
+            <TableHead className="text-right">Production</TableHead>
             <TableHead className="text-right">Recipe Usage</TableHead>
-            <TableHead className="text-right">Sold Qty</TableHead>
-            <TableHead className="text-right">Remaining Qty</TableHead>
+            <TableHead className="text-right">Direct Sales</TableHead>
+            <TableHead className="text-right">Transfer Out</TableHead>
+            <TableHead className="text-right">Manual Consumption</TableHead>
+            <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Selling Price</TableHead>
             <TableHead className="text-right">Current Product Value</TableHead>
           </TableRow></TableHeader>
@@ -188,31 +94,48 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
                 <TableCell className="font-medium">{r.name}</TableCell>
                 <TableCell>{r.category}</TableCell>
                 <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.produced.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.purchased.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.transferred.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.consumed.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.sold.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.purchases.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.transferIn.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.production.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.directSales.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{money(r.salePrice)}</TableCell>
                 <TableCell className="text-right font-medium">{money(r.value)}</TableCell>
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No products"}</TableCell></TableRow>
             )}
-
+            {filtered.length > 0 && (
+              <TableRow className="font-semibold bg-muted/50">
+                <TableCell colSpan={2}>Grand Total</TableCell>
+                <TableCell className="text-right">{t.opening.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.purchases.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.transferIn.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.production.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.directSales.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>
+                <TableCell />
+                <TableCell className="text-right">{money(t.value)}</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
 
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Product Quantity</span>
-        <span>{totalQty.toFixed(2)}</span>
+        <span>{t.remaining.toFixed(2)}</span>
       </div>
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Product Value</span>
-        <span>{money(totalValue)}</span>
+        <span>{money(t.value)}</span>
       </div>
     </Card>
   );
@@ -222,65 +145,11 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
 /* Stock Item Available — RAW STOCK ITEMS ONLY                         */
 /* ------------------------------------------------------------------ */
 
-export type StockItemRow = {
-  id: string;
-  name: string;
-  unit: string;
-  opening: number;
-  purchases: number;
-  received: number;
-  consumed: number;
-  transferred: number;
-  closing: number;
-  avgPrice: number;
-  manual: boolean;
-  value: number;
-};
+export type StockItemRow = StockItemInventoryRow;
 
 export function useStockItemAvailable(period: Period = currentPeriod()) {
-  const { data: openings = {} } = useOpeningSnapshots(period);
-  return useQuery({
-    queryKey: ["stock-availability", "stock-items", period.from, period.to, Object.keys(openings).length],
-    queryFn: async (): Promise<StockItemRow[]> => {
-      const [s, pur, tr, cons] = await Promise.all([
-        (supabase as any).from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name"),
-        (supabase as any).from("stock_purchases").select("stock_item_id,quantity").is("deleted_at", null).not("stock_item_id", "is", null).gte("date", period.from).lte("date", period.to),
-        (supabase as any).from("stock_transfers").select("stock_item_id,quantity,from_category,to_category").is("deleted_at", null).not("stock_item_id", "is", null)
-          .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC),
-        (supabase as any).from("production_batch_items").select("component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
-          .not("component_stock_item_id", "is", null)
-          .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to),
-      ]);
-      if (s.error) throw s.error;
-      const purchaseBy: Record<string, number> = {};
-      for (const r of ((pur.data ?? []) as any[])) purchaseBy[r.stock_item_id] = (purchaseBy[r.stock_item_id] ?? 0) + num(r.quantity);
-      const outBy: Record<string, number> = {};
-      for (const r of ((tr.data ?? []) as any[])) outBy[r.stock_item_id] = (outBy[r.stock_item_id] ?? 0) + num(r.quantity);
-      const consumedBy: Record<string, number> = {};
-      for (const r of ((cons?.data ?? []) as any[])) {
-        if (r.production_batches?.deleted_at) continue;
-        consumedBy[r.component_stock_item_id] = (consumedBy[r.component_stock_item_id] ?? 0) + num(r.quantity);
-      }
-
-      return ((s.data ?? []) as any[]).map((r) => {
-        const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
-        const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
-        const opening = openings[`stock_item:${r.id}`] ?? num(r.opening_stock);
-        const purchases = purchaseBy[r.id] ?? 0;
-        const received = 0; // stock received without a purchase record
-        const transferred = outBy[r.id] ?? 0;
-        // Auto Calculation ON → Closing is rebuilt from history.
-        // Auto Calculation OFF → the manual current stock is preserved.
-        const auto = r.auto_calc === true;
-        const consumed = auto
-          ? (consumedBy[r.id] ?? 0)
-          : Math.max(0, opening + purchases + received - transferred - num(r.current_stock));
-        const closing = auto ? opening + purchases + received - consumed - transferred : num(r.current_stock);
-        return { id: r.id, name: r.name, unit: r.unit ?? "pcs", opening, purchases, received, consumed, transferred, closing, avgPrice, manual, value: closing * avgPrice };
-      });
-    },
-    staleTime: 0,
-  });
+  const q = useInventoryEngine(period);
+  return { ...q, data: q.data?.stockItems } as typeof q & { data: StockItemInventoryRow[] | undefined };
 }
 
 export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
@@ -290,11 +159,20 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
   const [editId, setEditId] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState("");
   const { guard, dialog } = usePinGate();
-  const save = useOverrideMutation("stock_items", ["stock-availability", "report", "stock", "stock_items"]);
+  const save = useOverrideMutation("stock_items", ["inventory-engine", "stock-availability", "report", "stock", "stock_items"]);
 
   const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
-  const totalQty = filtered.reduce((s, r) => s + r.closing, 0);
-  const totalValue = filtered.reduce((s, r) => s + r.value, 0);
+  const t = filtered.reduce((a, r) => ({
+    opening: a.opening + r.opening,
+    purchases: a.purchases + r.purchases,
+    transferIn: a.transferIn + r.transferIn,
+    recipeUsage: a.recipeUsage + r.recipeUsage,
+    transferOut: a.transferOut + r.transferOut,
+    manualConsumption: a.manualConsumption + r.manualConsumption,
+    remaining: a.remaining + r.remaining,
+    value: a.value + r.value,
+  }), { opening: 0, purchases: 0, transferIn: 0, recipeUsage: 0, transferOut: 0, manualConsumption: 0, remaining: 0, value: 0 });
+  const colCount = editable ? 11 : 10;
 
   return (
     <Card className="overflow-hidden">
@@ -311,10 +189,11 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
             <TableHead>Stock Item</TableHead>
             <TableHead className="text-right">Opening</TableHead>
             <TableHead className="text-right">Purchases</TableHead>
-            <TableHead className="text-right">Received</TableHead>
-            <TableHead className="text-right">Consumed</TableHead>
-            <TableHead className="text-right">Transfers</TableHead>
-            <TableHead className="text-right">Closing</TableHead>
+            <TableHead className="text-right">Transfer In</TableHead>
+            <TableHead className="text-right">Recipe Usage</TableHead>
+            <TableHead className="text-right">Transfer Out</TableHead>
+            <TableHead className="text-right">Manual Consumption</TableHead>
+            <TableHead className="text-right">Closing (Remaining)</TableHead>
             <TableHead className="text-right">Avg Purchase Price</TableHead>
             <TableHead className="text-right">Current Stock Value</TableHead>
             {editable && <TableHead className="w-24 no-print"></TableHead>}
@@ -325,10 +204,11 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell className="font-medium">{r.name}<span className="ml-2 text-xs text-muted-foreground">{r.unit}</span></TableCell>
                 <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{r.purchases.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.received.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.consumed.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{r.transferred.toFixed(2)}</TableCell>
-                <TableCell className="text-right font-medium">{r.closing.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.transferIn.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-medium">{r.remaining.toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   {editId === r.id ? (
                     <Input className="h-8 w-28 ml-auto text-right" type="number" step="0.01" autoFocus value={priceInput} onChange={(e) => setPriceInput(e.target.value)} />
@@ -355,18 +235,33 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={editable ? 10 : 9} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No stock items"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={colCount} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No stock items"}</TableCell></TableRow>
+            )}
+            {filtered.length > 0 && (
+              <TableRow className="font-semibold bg-muted/50">
+                <TableCell>Grand Total</TableCell>
+                <TableCell className="text-right">{t.opening.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.purchases.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.transferIn.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{t.remaining.toFixed(2)}</TableCell>
+                <TableCell />
+                <TableCell className="text-right">{money(t.value)}</TableCell>
+                {editable && <TableCell className="no-print" />}
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Stock Item Quantity</span>
-        <span>{totalQty.toFixed(2)}</span>
+        <span>{t.remaining.toFixed(2)}</span>
       </div>
       <div className="flex justify-between border-t px-4 py-2 text-sm font-semibold">
         <span>Grand Total Stock Item Value</span>
-        <span>{money(totalValue)}</span>
+        <span>{money(t.value)}</span>
       </div>
       {dialog}
     </Card>
