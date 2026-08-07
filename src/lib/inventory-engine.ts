@@ -231,10 +231,9 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
     const manualAdjustment = adjItem[r.id] ?? 0;
-    const auto = r.auto_calc === true;
-    const remaining = round(auto
-      ? opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment
-      : num(r.current_stock));
+    // Current Stock is ALWAYS calculated — stored current_stock is never trusted.
+    const auto = true;
+    const remaining = round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment);
     const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
     const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
     return {
