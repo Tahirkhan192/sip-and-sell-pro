@@ -88,6 +88,7 @@ function Page() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_items"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock-availability"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["report"] });
@@ -123,6 +124,7 @@ function Page() {
               if (error) { toast.error(error.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["stock_items"] });
+            qc.invalidateQueries({ queryKey: ["inventory-engine"] });
             qc.invalidateQueries({ queryKey: ["report"] });
             toast.success("Opening Stock updated for all stock items");
           }}>Set Current as Opening</Button>

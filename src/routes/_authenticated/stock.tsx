@@ -32,6 +32,7 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["stock-monthly"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["report"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed"),
