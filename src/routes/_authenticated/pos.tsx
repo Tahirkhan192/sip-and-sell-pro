@@ -292,7 +292,56 @@ function POS() {
   const paidNum = round2(num(cashPaid) + num(onlinePaid));
   const remaining = Math.max(0, round2(grandTotal - paidNum));
   const change = Math.max(0, round2(paidNum - grandTotal));
-  const lowStock = useMemo(() => cart.filter((i) => i.selling_method === "fixed" && i.quantity > i.current_stock), [cart]);
+  /**
+   * Stock validation always runs against the latest engine values.
+   * - Stock Tracking OFF → never validated (unlimited).
+   * - Recipe products → validated against their ingredients, not themselves.
+   */
+  const shortLines = useMemo(() => {
+    const recipesByParent: Record<string, any[]> = {};
+    for (const r of recipeRows as any[]) (recipesByParent[r.parent_product_id] ??= []).push(r);
+    const short = new Set<string>();
+    // Aggregate ingredient demand across the whole cart first.
+    const needProd: Record<string, number> = {};
+    const needItem: Record<string, number> = {};
+    const linesOfProd: Record<string, string[]> = {};
+    const linesOfItem: Record<string, string[]> = {};
+    for (const it of cart) {
+      const recipe = recipesByParent[it.product_id];
+      if (recipe && recipe.length) {
+        for (const c of recipe) {
+          const applies: string[] = Array.isArray(c.applies_to) ? c.applies_to : [];
+          if (applies.length > 0 && !applies.includes(orderType)) continue;
+          const need = num(c.quantity) * it.quantity;
+          if (c.component_product_id) {
+            needProd[c.component_product_id] = (needProd[c.component_product_id] ?? 0) + need;
+            (linesOfProd[c.component_product_id] ??= []).push(it.product_id);
+          }
+          if (c.component_stock_item_id) {
+            needItem[c.component_stock_item_id] = (needItem[c.component_stock_item_id] ?? 0) + need;
+            (linesOfItem[c.component_stock_item_id] ??= []).push(it.product_id);
+          }
+        }
+        continue;
+      }
+      // Direct product: only validate tracked products.
+      const avail = productStock[it.product_id];
+      if (avail === undefined) continue; // untracked → unlimited
+      if (it.quantity > avail) short.add(it.product_id);
+    }
+    for (const [pid, need] of Object.entries(needProd)) {
+      const avail = productStock[pid];
+      if (avail === undefined) continue;
+      if (need > avail) for (const l of linesOfProd[pid] ?? []) short.add(l);
+    }
+    for (const [iid, need] of Object.entries(needItem)) {
+      const avail = itemStock[iid];
+      if (avail === undefined) continue;
+      if (need > avail) for (const l of linesOfItem[iid] ?? []) short.add(l);
+    }
+    return short;
+  }, [cart, recipeRows, productStock, itemStock, orderType]);
+  const lowStock = useMemo(() => cart.filter((i) => shortLines.has(i.product_id)), [cart, shortLines]);
   useEffect(() => { if (remaining <= 0 && katha) setKatha(false); }, [remaining, katha]);
 
   // Keyboard: '/' focus search, arrows navigate grid, Enter adds, Esc closes
