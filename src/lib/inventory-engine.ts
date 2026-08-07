@@ -29,7 +29,10 @@ export type InventoryRow = {
   manualAdjustment: number;
   remaining: number;
   auto: boolean;
+  /** Stock Tracking switch — false means unlimited stock, never validated. */
+  tracked: boolean;
 };
+
 
 
 
