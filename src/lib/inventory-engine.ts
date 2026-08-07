@@ -79,6 +79,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     saleItemRows,
     recipeRows,
     expCatRows,
+    adjustRows,
   ] = await Promise.all([
     fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
@@ -95,8 +96,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC).order("id")),
     fetchAllPaged(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
     fetchAllPaged(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
+    fetchAllPaged(() => sb.from("stock_adjustments").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
   ]);
   const prodsRes = { data: prods };
+
   const itemsRes = { data: items };
   const openRes = { data: openRows };
   const purRes = { data: purRows };
