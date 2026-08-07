@@ -237,7 +237,6 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
                 <TableCell>Grand Total</TableCell>
                 <TableCell className="text-right">{t.opening.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.purchases.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{t.transferIn.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.recipeUsage.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.transferOut.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{t.manualConsumption.toFixed(2)}</TableCell>
