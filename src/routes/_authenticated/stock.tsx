@@ -208,33 +208,30 @@ function MonthlyStock() {
   const to = new Date(year, month, 0).toISOString().slice(0, 10);
   const toNext = new Date(year, month, 1).toISOString().slice(0, 10);
 
-  const { data: products = [] } = useQuery({
+  const { data: costs = [] } = useQuery({
     queryKey: ["stock-monthly", "products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,opening_stock,current_stock,cost_price").is("deleted_at", null).order("name")).data ?? [],
-  });
-  const { data: purchases = [] } = useQuery({
-    queryKey: ["stock-monthly", "purchases", from, to],
-    queryFn: async () => (await supabase.from("stock_purchases").select("product_id,quantity,total_cost").is("deleted_at", null).not("product_id", "is", null).gte("date", from).lte("date", to)).data ?? [],
-  });
-  const { data: sales = [] } = useQuery({
-    queryKey: ["stock-monthly", "sales", from, toNext],
-    queryFn: async () => (await supabase.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at)").gte("sales.sale_date", from).lt("sales.sale_date", toNext)).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id,cost_price").is("deleted_at", null)).data ?? [],
   });
 
+  // Single inventory engine for the selected month — no separate formula here.
+  const period: Period = useMemo(
+    () => ({ from, to, startUTC: `${from}T00:00:00.000Z`, endExclusiveUTC: `${toNext}T00:00:00.000Z` }),
+    [from, to, toNext],
+  );
+  const { data: engine } = useInventoryEngine(period);
+
   const rows = useMemo(() => {
-    const byProd: Record<string, { name: string; opening: number; purchased: number; sold: number; remaining: number; cost: number }> = {};
-    for (const p of products as any[]) byProd[p.id] = { name: p.name, opening: num(p.opening_stock), purchased: 0, sold: 0, remaining: num(p.current_stock), cost: num(p.cost_price) };
-    for (const pu of purchases as any[]) {
-      if (byProd[pu.product_id]) byProd[pu.product_id].purchased += num(pu.quantity);
-    }
-    for (const s of sales as any[]) {
-      const sa = s.sales;
-      if (!sa || sa.deleted_at) continue;
-      if (sa.status !== "completed") continue;
-      if (byProd[s.product_id]) byProd[s.product_id].sold += num(s.quantity);
-    }
-    return Object.values(byProd);
-  }, [products, purchases, sales]);
+    const costById: Record<string, number> = {};
+    for (const c of costs as any[]) costById[c.id] = num(c.cost_price);
+    return (engine?.products ?? []).map((p) => ({
+      name: p.name,
+      opening: p.opening,
+      purchased: p.purchases,
+      sold: p.directSales + p.recipeUsage,
+      remaining: p.remaining,
+      cost: costById[p.id] ?? 0,
+    }));
+  }, [engine, costs]);
 
   return (
     <div className="space-y-3">
