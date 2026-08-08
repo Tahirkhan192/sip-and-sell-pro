@@ -212,28 +212,28 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       salePrice,
     };
     // Stock Tracking OFF → unlimited stock, excluded from every calculation.
-    if (!tracked) {
+    // Auto Calculation OFF → not calculated at all; the stored Current Stock
+    // is kept as-is and no movement is attributed to the item.
+    if (!tracked || !auto) {
       return {
         ...base,
         opening: 0, purchases: 0, transferIn: 0, production: 0,
         recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
-        remaining: 0, value: 0,
+        remaining: tracked ? num(r.current_stock) : 0,
+        value: tracked ? num(r.current_stock) * salePrice : 0,
       };
     }
     const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
     const recipeUsage = round(recipeProd[r.id] ?? 0);
-    // A product built from a recipe is consumed through its ingredients;
-    // only products without a recipe are deducted directly on sale.
-    const sold = soldByProduct[r.id] ?? 0;
-    const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
+    // Anything sold directly on an invoice reduces this item's own stock.
+    const directSales = soldByProduct[r.id] ?? 0;
     const transferOut = transferOutProd[r.id] ?? 0;
     const manualAdjustment = adjProd[r.id] ?? 0;
-    // Auto Calculation OFF → keep the manually maintained Current Stock.
-    const remaining = auto
-      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
-      : num(r.current_stock);
+    const remaining = round(
+      opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment,
+    );
     return {
       ...base,
       opening, purchases, transferIn: 0, production,
