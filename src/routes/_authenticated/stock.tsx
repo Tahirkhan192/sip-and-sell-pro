@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
 import { StockAvailability, useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
+import { useInventoryEngine, type Period } from "@/lib/inventory-engine";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
 import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
