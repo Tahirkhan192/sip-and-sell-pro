@@ -244,6 +244,19 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
 
   const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
     const auto = r.auto_calc === true;
+    const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
+    const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
+    const base = { id: r.id as string, name: r.name as string, unit: (r.unit ?? "pcs") as string, tracked: true, auto, avgPrice, manual };
+    // Auto Calculation OFF → not calculated; keep the stored Current Stock.
+    if (!auto) {
+      const remaining = num(r.current_stock);
+      return {
+        ...base,
+        opening: 0, purchases: 0, transferIn: 0, production: 0,
+        recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
+        remaining, value: remaining * avgPrice,
+      };
+    }
     const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;
     const production = 0; // stock items are not produced by batches
@@ -251,20 +264,14 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
     const manualAdjustment = adjItem[r.id] ?? 0;
-    // Auto Calculation OFF → keep the manually maintained Current Stock.
-    const remaining = auto
-      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
-      : num(r.current_stock);
-    const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
-    const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
+    const remaining = round(
+      opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment,
+    );
     return {
-      id: r.id,
-      name: r.name,
-      unit: r.unit ?? "pcs",
-      tracked: true,
+      ...base,
       opening, purchases, transferIn: 0, production,
       recipeUsage, directSales, transferOut, manualAdjustment,
-      remaining, auto, avgPrice, manual, value: remaining * avgPrice,
+      remaining, value: remaining * avgPrice,
     };
   });
 
