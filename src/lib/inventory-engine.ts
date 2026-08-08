@@ -144,13 +144,13 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(recipeItem, r.component_stock_item_id, num(r.quantity));
   }
 
-  // ---- Sales (non-deleted, non-hidden; completed AND pending both reduce stock)
+  // ---- Sales: only valid COMPLETED invoices (non-deleted, non-hidden) reduce stock
   const soldByProduct: Record<string, number> = {};
   const soldByProductAndType: Record<string, Record<string, number>> = {};
   for (const it of (saleItemRes.data ?? []) as any[]) {
     const s = it.sales;
     if (!s || s.deleted_at || s.hidden) continue;
-    if (s.status !== "completed" && s.status !== "pending") continue;
+    if (s.status !== "completed") continue;
     const q = num(it.quantity);
     add(soldByProduct, it.product_id, q);
     const t = (s.order_type ?? "walk_in") as string;
