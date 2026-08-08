@@ -433,7 +433,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
     const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
     cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
-    cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
+    cat.closing += prodOverride[p.id]?.closing ?? (closingQty[`product:${p.id}`] ?? num(p.current_stock)) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
   // Include stock items in opening/closing valuation so Monthly Report reflects them.
