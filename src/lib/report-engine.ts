@@ -196,7 +196,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
     : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
+  const inventoryPromise = hasRange
+    ? fetchInventoryEngine({ from: range.from!, to: range.to!, startUTC: range.startUTC!, endExclusiveUTC: range.endExclusiveUTC! })
+    : Promise.resolve(null);
+
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ, inventory] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -211,8 +215,14 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     snapshotPromise,
     staffPromise,
     attendancePromise,
+    inventoryPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
+
+  // Closing quantities always come from the one inventory engine.
+  const closingQty: Record<string, number> = {};
+  for (const p of inventory?.products ?? []) closingQty[`product:${p.id}`] = p.remaining;
+  for (const si of inventory?.stockItems ?? []) closingQty[`stock_item:${si.id}`] = si.remaining;
 
   // Opening quantities locked to this period, keyed "<scope>:<id>".
   const openingSnapshot: Record<string, number> = {};
