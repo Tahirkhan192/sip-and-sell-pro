@@ -144,13 +144,13 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(recipeItem, r.component_stock_item_id, num(r.quantity));
   }
 
-  // ---- Sales (non-deleted, non-hidden; completed AND pending both reduce stock)
+  // ---- Sales: only valid COMPLETED invoices (non-deleted, non-hidden) reduce stock
   const soldByProduct: Record<string, number> = {};
   const soldByProductAndType: Record<string, Record<string, number>> = {};
   for (const it of (saleItemRes.data ?? []) as any[]) {
     const s = it.sales;
     if (!s || s.deleted_at || s.hidden) continue;
-    if (s.status !== "completed" && s.status !== "pending") continue;
+    if (s.status !== "completed") continue;
     const q = num(it.quantity);
     add(soldByProduct, it.product_id, q);
     const t = (s.order_type ?? "walk_in") as string;
@@ -271,7 +271,18 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   });
 
 
-
+  // ---- Reconciliation: Closing must equal the one formula for every auto item.
+  for (const r of [...products, ...stockItems]) {
+    if (!r.auto || !r.tracked) continue;
+    const expected = round(
+      r.opening + r.purchases + r.production - r.recipeUsage - r.directSales - r.transferOut + r.manualAdjustment,
+    );
+    if (Math.abs(expected - r.remaining) > 1e-6) {
+      console.warn(
+        `[inventory-engine] reconciliation mismatch for "${r.name}" (${r.id}): shown ${r.remaining}, formula ${expected}`,
+      );
+    }
+  }
 
   return { products, stockItems };
 }
