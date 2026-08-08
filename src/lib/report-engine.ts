@@ -442,7 +442,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
     const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
     cat.opening += openQty * price;
-    cat.closing += num(si.current_stock) * price;
+    cat.closing += (closingQty[`stock_item:${si.id}`] ?? num(si.current_stock)) * price;
   }
 
   for (const [category, override] of Object.entries(catOverride)) {
