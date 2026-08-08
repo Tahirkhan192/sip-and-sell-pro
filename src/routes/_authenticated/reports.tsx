@@ -229,11 +229,22 @@ function CategoryReport() {
 
 // ============================================================ STOCK
 function StockReport() {
-  const { data = [] } = useQuery({
+  const { data: raw = [] } = useQuery({
     queryKey: ["report", "stock"],
     queryFn: async () => (await supabase.from("products").select("*").is("deleted_at", null).order("name")).data ?? [],
   });
-  const totalValue = (data as any[]).reduce((s, p) => s + num(p.current_stock) * num(p.cost_price), 0);
+  // Single inventory engine — Remaining always comes from the one formula.
+  const { data: engineRows = [] } = useProductStockAvailable();
+  const remainingById = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of engineRows) m[r.id] = r.remaining;
+    return m;
+  }, [engineRows]);
+  const data = useMemo(
+    () => (raw as any[]).map((p) => ({ ...p, remaining: remainingById[p.id] ?? num(p.current_stock) })),
+    [raw, remainingById],
+  );
+  const totalValue = data.reduce((s, p) => s + num(p.remaining) * num(p.cost_price), 0);
   return (
     <div className="space-y-4">
     <StockAvailability />
@@ -248,15 +259,15 @@ function StockReport() {
           <TableHead className="text-right">Stock Value</TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {(data as any[]).map((r) => (
+          {data.map((r) => (
             <TableRow key={r.id}>
               <TableCell className="font-medium">{r.name}</TableCell>
               <TableCell>{r.category ?? "—"}</TableCell>
               <TableCell className="text-right">{num(r.opening_stock).toFixed(2)}</TableCell>
-              <TableCell className="text-right font-medium">{num(r.current_stock).toFixed(2)}</TableCell>
+              <TableCell className="text-right font-medium">{num(r.remaining).toFixed(2)}</TableCell>
               <TableCell className="text-right">{num(r.minimum_stock).toFixed(2)}</TableCell>
               <TableCell className="text-right">{money(r.cost_price)}</TableCell>
-              <TableCell className="text-right">{money(num(r.current_stock) * num(r.cost_price))}</TableCell>
+              <TableCell className="text-right">{money(num(r.remaining) * num(r.cost_price))}</TableCell>
             </TableRow>
           ))}
         </TableBody>
