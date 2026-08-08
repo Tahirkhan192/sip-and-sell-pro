@@ -159,9 +159,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   }
 
   // ---- Recipe usage via POS sales: recipe qty × sold qty of the parent product
-  const parentsWithRecipe = new Set<string>();
   for (const r of (recipeRes.data ?? []) as any[]) {
-    parentsWithRecipe.add(r.parent_product_id);
     const byType = soldByProductAndType[r.parent_product_id];
     if (!byType) continue;
     const applies: string[] = Array.isArray(r.applies_to) ? r.applies_to : [];
