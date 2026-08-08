@@ -271,7 +271,18 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   });
 
 
-
+  // ---- Reconciliation: Closing must equal the one formula for every auto item.
+  for (const r of [...products, ...stockItems]) {
+    if (!r.auto || !r.tracked) continue;
+    const expected = round(
+      r.opening + r.purchases + r.production - r.recipeUsage - r.directSales - r.transferOut + r.manualAdjustment,
+    );
+    if (Math.abs(expected - r.remaining) > 1e-6) {
+      console.warn(
+        `[inventory-engine] reconciliation mismatch for "${r.name}" (${r.id}): shown ${r.remaining}, formula ${expected}`,
+      );
+    }
+  }
 
   return { products, stockItems };
 }
