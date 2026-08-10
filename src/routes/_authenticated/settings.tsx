@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
+import { BackupCard } from "@/components/BackupCard";
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
@@ -193,6 +194,8 @@ function SettingsPage() {
       </Card>
 
       <StockPinCard />
+
+      <BackupCard />
 
       <MenuVisibilityCard />
 
