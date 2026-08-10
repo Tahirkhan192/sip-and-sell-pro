@@ -782,6 +782,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_settings_key    ON settings(key) WHERE deleted_at IS NULL;
 CREATE INDEX        IF NOT EXISTS idx_settings_sync  ON settings(sync_status);
+CREATE INDEX        IF NOT EXISTS idx_settings_upd   ON settings(updated_at);
 
 -- ===========================================================================
 -- STAFF (mirrors cloud staff / attendance / payments / carry-forward)
