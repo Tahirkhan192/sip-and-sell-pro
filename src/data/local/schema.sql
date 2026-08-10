@@ -785,6 +785,210 @@ CREATE INDEX        IF NOT EXISTS idx_settings_sync  ON settings(sync_status);
 CREATE INDEX        IF NOT EXISTS idx_settings_upd   ON settings(updated_at);
 
 -- ===========================================================================
--- END OF SCHEMA v1
+-- STAFF (mirrors cloud staff / attendance / payments / carry-forward)
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS staff (
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  father_name    TEXT,
+  phone          TEXT,
+  cnic           TEXT,
+  joining_date   TEXT NOT NULL,
+  monthly_salary REAL NOT NULL DEFAULT 0,
+  status         TEXT NOT NULL DEFAULT 'active',
+  notes          TEXT,
+  opening_katha  REAL NOT NULL DEFAULT 0,
+  katha_balance  REAL NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE INDEX IF NOT EXISTS idx_staff_sync    ON staff(sync_status);
+CREATE INDEX IF NOT EXISTS idx_staff_updated ON staff(updated_at);
+
+CREATE TABLE IF NOT EXISTS staff_attendance (
+  id             TEXT PRIMARY KEY,
+  staff_id       TEXT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
+  date           TEXT NOT NULL,
+  status         TEXT NOT NULL, -- present | absent | leave
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_attendance ON staff_attendance(staff_id, date) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_staff_att_sync    ON staff_attendance(sync_status);
+CREATE INDEX IF NOT EXISTS idx_staff_att_updated ON staff_attendance(updated_at);
+
+CREATE TABLE IF NOT EXISTS staff_payments (
+  id                TEXT PRIMARY KEY,
+  staff_id          TEXT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
+  kind              TEXT NOT NULL, -- salary | advance | katha_payment
+  amount            REAL NOT NULL,
+  payment_method    TEXT NOT NULL,
+  remark            TEXT,
+  date              TEXT NOT NULL,
+  cash_movement_id  TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  deleted_at        TEXT,
+  business_date     TEXT,
+  business_time     TEXT,
+  version           INTEGER NOT NULL DEFAULT 1,
+  server_version    INTEGER,
+  device_id         TEXT NOT NULL,
+  sync_status       TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE INDEX IF NOT EXISTS idx_staff_pay_staff   ON staff_payments(staff_id);
+CREATE INDEX IF NOT EXISTS idx_staff_pay_date    ON staff_payments(date);
+CREATE INDEX IF NOT EXISTS idx_staff_pay_sync    ON staff_payments(sync_status);
+CREATE INDEX IF NOT EXISTS idx_staff_pay_updated ON staff_payments(updated_at);
+
+CREATE TABLE IF NOT EXISTS staff_month_carry (
+  id             TEXT PRIMARY KEY,
+  staff_id       TEXT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
+  year           INTEGER NOT NULL,
+  month          INTEGER NOT NULL,
+  prev_remaining REAL NOT NULL DEFAULT 0,
+  prev_advance   REAL NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_carry ON staff_month_carry(staff_id, year, month) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_staff_carry_sync ON staff_month_carry(sync_status);
+
+-- ===========================================================================
+-- DIGI KATHA OPENING
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS katha_opening (
+  id                     TEXT PRIMARY KEY,
+  opening_loan_to_get    REAL NOT NULL DEFAULT 0,
+  opening_loan_to_give   REAL NOT NULL DEFAULT 0,
+  as_of_date             TEXT NOT NULL,
+  note                   TEXT,
+  created_at             TEXT NOT NULL,
+  updated_at             TEXT NOT NULL,
+  deleted_at             TEXT,
+  business_date          TEXT,
+  business_time          TEXT,
+  version                INTEGER NOT NULL DEFAULT 1,
+  server_version         INTEGER,
+  device_id              TEXT NOT NULL,
+  sync_status            TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+
+-- ===========================================================================
+-- MANUAL STOCK ADJUSTMENTS + OPENING SNAPSHOTS
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS stock_adjustments (
+  id             TEXT PRIMARY KEY,
+  scope          TEXT NOT NULL, -- 'product' | 'stock_item'
+  product_id     TEXT REFERENCES products(id) ON DELETE RESTRICT,
+  stock_item_id  TEXT REFERENCES stock_items(id) ON DELETE RESTRICT,
+  quantity       REAL NOT NULL, -- may be negative
+  reason         TEXT,
+  notes          TEXT,
+  date           TEXT NOT NULL,
+  created_by     TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict')),
+  CHECK (product_id IS NOT NULL OR stock_item_id IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_stock_adj_product ON stock_adjustments(product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_adj_item    ON stock_adjustments(stock_item_id);
+CREATE INDEX IF NOT EXISTS idx_stock_adj_date    ON stock_adjustments(date);
+CREATE INDEX IF NOT EXISTS idx_stock_adj_sync    ON stock_adjustments(sync_status);
+
+CREATE TABLE IF NOT EXISTS stock_opening_snapshots (
+  id             TEXT PRIMARY KEY,
+  scope          TEXT NOT NULL, -- 'product' | 'stock_item'
+  item_id        TEXT NOT NULL,
+  year           INTEGER NOT NULL,
+  month          INTEGER NOT NULL,
+  quantity       REAL NOT NULL DEFAULT 0,
+  unit_value     REAL NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_stock_snapshot ON stock_opening_snapshots(scope, item_id, year, month);
+
+-- ===========================================================================
+-- USERS / PERMISSIONS / AUDIT
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS user_roles (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL,
+  role           TEXT NOT NULL, -- admin | staff
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_roles ON user_roles(user_id, role) WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT,
+  action         TEXT NOT NULL,
+  entity         TEXT,
+  entity_id      TEXT,
+  details_json   TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  business_date  TEXT,
+  business_time  TEXT,
+  version        INTEGER NOT NULL DEFAULT 1,
+  server_version INTEGER,
+  device_id      TEXT NOT NULL,
+  sync_status    TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local','pending','synced','conflict'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+
+-- ===========================================================================
+-- END OF SCHEMA v2
 -- ===========================================================================
 INSERT OR IGNORE INTO _schema_migrations(version) VALUES (1);
+INSERT OR IGNORE INTO _schema_migrations(version) VALUES (2);
+
