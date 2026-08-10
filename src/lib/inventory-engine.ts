@@ -144,13 +144,13 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     add(recipeItem, r.component_stock_item_id, num(r.quantity));
   }
 
-  // ---- Sales: only valid COMPLETED invoices (non-deleted, non-hidden) reduce stock
+  // ---- Sales (non-deleted, non-hidden; completed AND pending both reduce stock)
   const soldByProduct: Record<string, number> = {};
   const soldByProductAndType: Record<string, Record<string, number>> = {};
   for (const it of (saleItemRes.data ?? []) as any[]) {
     const s = it.sales;
     if (!s || s.deleted_at || s.hidden) continue;
-    if (s.status !== "completed") continue;
+    if (s.status !== "completed" && s.status !== "pending") continue;
     const q = num(it.quantity);
     add(soldByProduct, it.product_id, q);
     const t = (s.order_type ?? "walk_in") as string;
@@ -159,7 +159,9 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   }
 
   // ---- Recipe usage via POS sales: recipe qty × sold qty of the parent product
+  const parentsWithRecipe = new Set<string>();
   for (const r of (recipeRes.data ?? []) as any[]) {
+    parentsWithRecipe.add(r.parent_product_id);
     const byType = soldByProductAndType[r.parent_product_id];
     if (!byType) continue;
     const applies: string[] = Array.isArray(r.applies_to) ? r.applies_to : [];
@@ -212,28 +214,28 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       salePrice,
     };
     // Stock Tracking OFF → unlimited stock, excluded from every calculation.
-    // Auto Calculation OFF → not calculated at all; the stored Current Stock
-    // is kept as-is and no movement is attributed to the item.
-    if (!tracked || !auto) {
+    if (!tracked) {
       return {
         ...base,
         opening: 0, purchases: 0, transferIn: 0, production: 0,
         recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
-        remaining: tracked ? num(r.current_stock) : 0,
-        value: tracked ? num(r.current_stock) * salePrice : 0,
+        remaining: 0, value: 0,
       };
     }
     const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
     const recipeUsage = round(recipeProd[r.id] ?? 0);
-    // Anything sold directly on an invoice reduces this item's own stock.
-    const directSales = soldByProduct[r.id] ?? 0;
+    // A product built from a recipe is consumed through its ingredients;
+    // only products without a recipe are deducted directly on sale.
+    const sold = soldByProduct[r.id] ?? 0;
+    const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
     const transferOut = transferOutProd[r.id] ?? 0;
     const manualAdjustment = adjProd[r.id] ?? 0;
-    const remaining = round(
-      opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment,
-    );
+    // Auto Calculation OFF → keep the manually maintained Current Stock.
+    const remaining = auto
+      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
+      : num(r.current_stock);
     return {
       ...base,
       opening, purchases, transferIn: 0, production,
@@ -244,19 +246,6 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
 
   const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
     const auto = r.auto_calc === true;
-    const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
-    const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
-    const base = { id: r.id as string, name: r.name as string, unit: (r.unit ?? "pcs") as string, tracked: true, auto, avgPrice, manual };
-    // Auto Calculation OFF → not calculated; keep the stored Current Stock.
-    if (!auto) {
-      const remaining = num(r.current_stock);
-      return {
-        ...base,
-        opening: 0, purchases: 0, transferIn: 0, production: 0,
-        recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
-        remaining, value: remaining * avgPrice,
-      };
-    }
     const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;
     const production = 0; // stock items are not produced by batches
@@ -264,30 +253,25 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const directSales = 0; // stock items are never sold directly on an invoice
     const transferOut = transferOutItem[r.id] ?? 0;
     const manualAdjustment = adjItem[r.id] ?? 0;
-    const remaining = round(
-      opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment,
-    );
+    // Auto Calculation OFF → keep the manually maintained Current Stock.
+    const remaining = auto
+      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
+      : num(r.current_stock);
+    const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
+    const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
     return {
-      ...base,
+      id: r.id,
+      name: r.name,
+      unit: r.unit ?? "pcs",
+      tracked: true,
       opening, purchases, transferIn: 0, production,
       recipeUsage, directSales, transferOut, manualAdjustment,
-      remaining, value: remaining * avgPrice,
+      remaining, auto, avgPrice, manual, value: remaining * avgPrice,
     };
   });
 
 
-  // ---- Reconciliation: Closing must equal the one formula for every auto item.
-  for (const r of [...products, ...stockItems]) {
-    if (!r.auto || !r.tracked) continue;
-    const expected = round(
-      r.opening + r.purchases + r.production - r.recipeUsage - r.directSales - r.transferOut + r.manualAdjustment,
-    );
-    if (Math.abs(expected - r.remaining) > 1e-6) {
-      console.warn(
-        `[inventory-engine] reconciliation mismatch for "${r.name}" (${r.id}): shown ${r.remaining}, formula ${expected}`,
-      );
-    }
-  }
+
 
   return { products, stockItems };
 }

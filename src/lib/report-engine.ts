@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
-import { fetchInventoryEngine } from "@/lib/inventory-engine";
 
 export type ReportRangeInput = Partial<RangeResult> & { label?: string };
 
@@ -197,11 +196,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
     : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
 
-  const inventoryPromise = hasRange
-    ? fetchInventoryEngine({ from: range.from!, to: range.to!, startUTC: range.startUTC!, endExclusiveUTC: range.endExclusiveUTC! })
-    : Promise.resolve(null);
-
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ, inventory] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -216,14 +211,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     snapshotPromise,
     staffPromise,
     attendancePromise,
-    inventoryPromise,
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
-
-  // Closing quantities always come from the one inventory engine.
-  const closingQty: Record<string, number> = {};
-  for (const p of inventory?.products ?? []) closingQty[`product:${p.id}`] = p.remaining;
-  for (const si of inventory?.stockItems ?? []) closingQty[`stock_item:${si.id}`] = si.remaining;
 
   // Opening quantities locked to this period, keyed "<scope>:<id>".
   const openingSnapshot: Record<string, number> = {};
@@ -433,7 +422,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
     const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
     cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
-    cat.closing += prodOverride[p.id]?.closing ?? (closingQty[`product:${p.id}`] ?? num(p.current_stock)) * costPrice;
+    cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
   // Include stock items in opening/closing valuation so Monthly Report reflects them.
@@ -442,7 +431,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
     const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
     cat.opening += openQty * price;
-    cat.closing += (closingQty[`stock_item:${si.id}`] ?? num(si.current_stock)) * price;
+    cat.closing += num(si.current_stock) * price;
   }
 
   for (const [category, override] of Object.entries(catOverride)) {

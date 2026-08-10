@@ -102,15 +102,15 @@ function POS() {
   // Products and Reports always show the exact same quantity.
   const { data: calcRows = [] } = useProductStockAvailable();
   const { data: calcItemRows = [] } = useStockItemAvailable();
-  /** product id → latest calculated Current Stock (tracked + auto-calculated only). */
+  /** product id → latest calculated Current Stock (tracked products only). */
   const productStock = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of calcRows) if (r.tracked && r.auto) m[r.id] = r.remaining;
+    for (const r of calcRows) if (r.tracked) m[r.id] = r.remaining;
     return m;
   }, [calcRows]);
   const itemStock = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of calcItemRows) if (r.auto) m[r.id] = r.remaining;
+    for (const r of calcItemRows) m[r.id] = r.remaining;
     return m;
   }, [calcItemRows]);
   const products = useMemo(() => {

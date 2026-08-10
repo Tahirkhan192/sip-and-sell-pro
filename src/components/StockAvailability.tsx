@@ -48,8 +48,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
   const period = currentPeriod();
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
   const [search, setSearch] = useState("");
-  // Auto Calculation OFF → item is not calculated, so it stays out of this report.
-  const filtered = useMemo(() => rows.filter((r) => r.auto && r.tracked && r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
+  const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
   const t = filtered.reduce((a, r) => ({
     opening: a.opening + r.opening,
     purchases: a.purchases + r.purchases,
@@ -159,8 +158,7 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
   const { guard, dialog } = usePinGate();
   const save = useOverrideMutation("stock_items", ["inventory-engine", "stock-availability", "report", "stock", "stock_items"]);
 
-  // Auto Calculation OFF → item is not calculated, so it stays out of this report.
-  const filtered = useMemo(() => rows.filter((r) => r.auto && r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
+  const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
   const t = filtered.reduce((a, r) => ({
     opening: a.opening + r.opening,
     purchases: a.purchases + r.purchases,
