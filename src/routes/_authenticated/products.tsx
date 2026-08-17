@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveProduct as saveProductWrite, deleteProduct as deleteProductWrite, setProductOpeningStock } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,10 +105,7 @@ function ProductsPage() {
         track_stock: p.track_stock,
         auto_calc: p.auto_calc,
       } as any;
-      const res = p.id
-        ? await supabase.from("products").update(payload).eq("id", p.id).select("id").maybeSingle()
-        : await supabase.from("products").insert(payload).select("id").maybeSingle();
-      if (res.error) throw res.error;
+      await saveProductWrite({ id: p.id, ...payload });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -120,8 +118,7 @@ function ProductsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteProductWrite(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Deleted"); },
     onError: (e: any) => toast.error(e.message),
@@ -163,8 +160,9 @@ function ProductsPage() {
             if (!confirm("Copy Current Stock → Opening Stock for ALL products? Use this at the start of a new business month after physical stock counting.")) return;
             const rows = (data as any[]).map((p) => ({ id: p.id, opening_stock: num(p.current_stock) }));
             for (const r of rows) {
-              const { error } = await supabase.from("products").update({ opening_stock: r.opening_stock }).eq("id", r.id);
-              if (error) { toast.error(error.message); return; }
+              try {
+                await setProductOpeningStock(r.id, r.opening_stock);
+              } catch (e: any) { toast.error(e.message); return; }
             }
             qc.invalidateQueries({ queryKey: ["products"] });
             qc.invalidateQueries({ queryKey: ["report"] });

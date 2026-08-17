@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveCustomer as saveCustomerWrite, deleteCustomer as deleteCustomerWrite } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,10 +38,7 @@ function Page() {
   const save = useMutation({
     mutationFn: async (p: C) => {
       const payload = { name: p.name.trim(), phone: p.phone.trim() || null, address: p.address || null, notes: p.notes || null };
-      const res = p.id
-        ? await supabase.from("customers").update(payload).eq("id", p.id)
-        : await supabase.from("customers").insert(payload);
-      if (res.error) throw res.error;
+      await saveCustomerWrite({ id: p.id, ...payload });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message?.includes("duplicate") ? "Phone already exists" : e.message),
@@ -48,8 +46,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteCustomerWrite(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Deleted"); },
   });

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteStockItem as deleteStockItemWrite } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,8 +110,7 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_items").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteStockItemWrite(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock_items"] }); toast.success("Deleted"); },
   });
