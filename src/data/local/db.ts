@@ -16,7 +16,14 @@ import type {
   LocalDb,
   LocalStorageMode,
 } from "./engine";
-import type { LocalDbRequest, LocalDbResponse } from "./protocol";
+import type {
+  LocalDbRequest,
+  LocalDbResponse,
+  MirrorStatus,
+  VerifyTableResult,
+} from "./protocol";
+import type { MirrorColumn, SeedMetaRecord } from "./mirror";
+import type { SqliteValue } from "./seed-format";
 
 export type { EngineFacts, EngineStatus, LocalDb, LocalStorageMode };
 export { LOCAL_SCHEMA_VERSION, LOCAL_DB_NAME, LOCAL_DB_POOL, PROBE_TABLE } from "./engine";
@@ -162,6 +169,50 @@ export async function closeLocalDb(): Promise<void> {
   transportKind = null;
   workerState = "idle";
   pending.clear();
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase 3 — cloud → local seed (typed operations only, no raw SQL).   *
+ * ------------------------------------------------------------------ */
+
+/** Mirror table row counts, seed metadata and transaction state. */
+export async function mirrorStatus(): Promise<MirrorStatus> {
+  return unwrap<MirrorStatus>(await request({ op: "mirrorStatus" }));
+}
+
+/** Column list (name / declared type / nullability) of one mirror table. */
+export async function mirrorColumns(table: string): Promise<MirrorColumn[]> {
+  return unwrap<{ columns: MirrorColumn[] }>(await request({ op: "mirrorColumns", table })).columns;
+}
+
+export async function seedBegin(): Promise<void> {
+  unwrap(await request({ op: "seedBegin" }));
+}
+
+export async function seedInsert(
+  table: string,
+  columns: string[],
+  rows: SqliteValue[][],
+): Promise<number> {
+  return unwrap<{ inserted: number }>(await request({ op: "seedInsert", table, columns, rows }))
+    .inserted;
+}
+
+export async function seedCommit(): Promise<void> {
+  unwrap(await request({ op: "seedCommit" }));
+}
+
+export async function seedRollback(): Promise<void> {
+  unwrap(await request({ op: "seedRollback" }));
+}
+
+/** Local count + primary keys + deterministic digest for one mirror table. */
+export async function verifyTable(table: string, pk: string): Promise<VerifyTableResult> {
+  return unwrap<VerifyTableResult>(await request({ op: "verifyTable", table, pk }));
+}
+
+export async function writeSeedMeta(meta: SeedMetaRecord): Promise<void> {
+  unwrap(await request({ op: "writeSeedMeta", meta }));
 }
 
 /** Test-only alias kept for Phase 2 callers. */
