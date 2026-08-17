@@ -3,9 +3,13 @@
  * SQLite worker.
  *
  * Deliberately narrow: there is NO generic `execute(sql)` operation. Only the
- * controlled initialization/diagnostic operations below are reachable from the
- * main thread, so application code cannot run arbitrary SQL against the local
- * database in this phase.
+ * controlled initialization / diagnostic / seed operations below are reachable
+ * from the main thread, so application code cannot run arbitrary SQL against
+ * the local database.
+ *
+ * Phase 3 adds the minimum needed for a transactional cloud → local seed:
+ * begin, insert-batch (into a named mirror table only), commit, rollback,
+ * verification reads and the seed metadata record.
  */
 
 import {
@@ -19,6 +23,23 @@ import {
   type EngineFacts,
   type EngineStatus,
 } from "./engine";
+import {
+  mirrorColumns,
+  mirrorCounts,
+  mirrorDigest,
+  mirrorPrimaryKeys,
+  mirrorTotalRows,
+  readSeedMeta,
+  seedBegin,
+  seedCommit,
+  seedInsert,
+  seedRollback,
+  seedTxOpen,
+  writeSeedMeta,
+  type MirrorColumn,
+  type SeedMetaRecord,
+} from "./mirror";
+import type { SqliteValue } from "./seed-format";
 
 export type LocalDbRequest =
   | { id: number; op: "init" }
@@ -33,11 +54,34 @@ export type LocalDbRequest =
     }
   | { id: number; op: "close" }
   /** Test-only: closes the connection. Never deletes the OPFS database file. */
-  | { id: number; op: "resetForTests" };
+  | { id: number; op: "resetForTests" }
+  /* ---- Phase 3: cloud → local seed ---- */
+  | { id: number; op: "mirrorStatus" }
+  | { id: number; op: "mirrorColumns"; table: string }
+  | { id: number; op: "seedBegin" }
+  | { id: number; op: "seedInsert"; table: string; columns: string[]; rows: SqliteValue[][] }
+  | { id: number; op: "seedCommit" }
+  | { id: number; op: "seedRollback" }
+  | { id: number; op: "verifyTable"; table: string; pk: string }
+  | { id: number; op: "writeSeedMeta"; meta: SeedMetaRecord };
 
 export type LocalDbOp = LocalDbRequest["op"];
 
 export type LocalDbErrorPayload = { message: string; name: string; stack?: string };
+
+export type MirrorStatus = {
+  counts: Record<string, number>;
+  totalRows: number;
+  seedMeta: SeedMetaRecord | null;
+  transactionOpen: boolean;
+};
+
+export type VerifyTableResult = {
+  table: string;
+  count: number;
+  digest: string;
+  primaryKeys: SqliteValue[];
+};
 
 export type LocalDbResponse =
   | { id: number; op: LocalDbOp; ok: true; result: LocalDbResult }
@@ -47,7 +91,13 @@ export type LocalDbResult =
   | EngineStatus
   | EngineFacts
   | { probe: string | null }
-  | { closed: true };
+  | { closed: true }
+  | MirrorStatus
+  | { columns: MirrorColumn[] }
+  | { inserted: number }
+  | { transactionOpen: boolean }
+  | VerifyTableResult
+  | { written: true };
 
 /**
  * Executes one protocol request. Lives outside the worker file so it can be
@@ -79,6 +129,61 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           return { id: req.id, op: req.op, ok: true, result: { probe: null } };
         }
         return { id: req.id, op: req.op, ok: true, result: { probe: probeRead(db, req.key) } };
+      }
+      case "mirrorStatus": {
+        const db = await openEngine();
+        const result: MirrorStatus = {
+          counts: mirrorCounts(db),
+          totalRows: mirrorTotalRows(db),
+          seedMeta: readSeedMeta(db),
+          transactionOpen: seedTxOpen(),
+        };
+        return { id: req.id, op: req.op, ok: true, result };
+      }
+      case "mirrorColumns": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { columns: mirrorColumns(db, req.table) },
+        };
+      }
+      case "seedBegin": {
+        const db = await openEngine();
+        seedBegin(db);
+        return { id: req.id, op: req.op, ok: true, result: { transactionOpen: true } };
+      }
+      case "seedInsert": {
+        const db = await openEngine();
+        const inserted = seedInsert(db, req.table, req.columns, req.rows);
+        return { id: req.id, op: req.op, ok: true, result: { inserted } };
+      }
+      case "seedCommit": {
+        const db = await openEngine();
+        seedCommit(db);
+        return { id: req.id, op: req.op, ok: true, result: { transactionOpen: false } };
+      }
+      case "seedRollback": {
+        const db = await openEngine();
+        seedRollback(db);
+        return { id: req.id, op: req.op, ok: true, result: { transactionOpen: false } };
+      }
+      case "verifyTable": {
+        const db = await openEngine();
+        const { digest, rows } = await mirrorDigest(db, req.table, req.pk);
+        const result: VerifyTableResult = {
+          table: req.table,
+          count: rows,
+          digest,
+          primaryKeys: mirrorPrimaryKeys(db, req.table, req.pk),
+        };
+        return { id: req.id, op: req.op, ok: true, result };
+      }
+      case "writeSeedMeta": {
+        const db = await openEngine();
+        writeSeedMeta(db, req.meta);
+        return { id: req.id, op: req.op, ok: true, result: { written: true } };
       }
       case "close":
       case "resetForTests": {
