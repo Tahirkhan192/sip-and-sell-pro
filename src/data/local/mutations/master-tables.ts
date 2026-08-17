@@ -40,6 +40,15 @@ export const MASTER_TABLES = [
   "customers",
   "employees",
   "expense_categories",
+  /**
+   * PHASE 5E — plain business expenses only. The stock-transfer flavour
+   * (`is_stock_transfer = 1`) is produced by the cloud procedures
+   * `stock_to_expense_transfer` / `update_stock_transfer_expense` /
+   * `delete_stock_transfer_expense`, which also move product and stock-item
+   * quantities. Those rows are never created, edited or deleted locally —
+   * see `EXPENSE_ROW_GUARD` and the routing in `src/data/writes/expenses.ts`.
+   */
+  "expenses",
   "money_movement_subcategories",
   "products",
   "recipes",
@@ -57,7 +66,6 @@ export const CLOUD_ONLY_TABLES = [
   "cash_movements",
   "daily_closings",
   "delivery_expenses",
-  "expenses",
   "katha_opening",
   "monthly_stock_overrides",
   "production_batch_items",
@@ -127,6 +135,12 @@ export type MasterTableSpec = {
   touchUpdatedAt: boolean;
   /** Unique constraints copied from the cloud schema (case-insensitive text). */
   unique: readonly (readonly string[])[];
+  /**
+   * Row-level gate. An existing row whose `column` does not equal `equals` may
+   * not be updated or deleted locally, whatever the payload says. Used to keep
+   * cloud-owned rows (stock-transfer expenses) out of the local write path.
+   */
+  rowGuard?: { column: string; equals: SqliteValue; message: string };
   columns: Record<string, ColumnSpec>;
 };
 
@@ -190,6 +204,73 @@ export const MASTER_TABLE_SPECS: Record<MasterTable, MasterTableSpec> = {
       deleted_at: DELETED_AT,
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
+    },
+  },
+
+  /**
+   * PHASE 5E — general business expenses.
+   *
+   * Audited before being added here: the cloud `expenses` table has NO
+   * triggers, and nothing else in the schema reacts to an expense row. A plain
+   * expense is pure bookkeeping — the reports read it, no cash movement, stock
+   * quantity or balance is derived from it. That is what makes it safe to
+   * write locally.
+   *
+   * Everything that is NOT pure bookkeeping stays cloud-only and is expressed
+   * as a non-writable column below: `is_stock_transfer` and the four `source_*`
+   * columns belong to the stock-transfer procedures, and `payment_method`
+   * deliberately does not accept `stock_transfer`.
+   */
+  expenses: {
+    pk: "id",
+    pkKind: "uuid",
+    allowInsert: true,
+    allowHardDelete: false,
+    softDelete: true,
+    touchUpdatedAt: false,
+    unique: [],
+    rowGuard: {
+      column: "is_stock_transfer",
+      equals: 0,
+      message:
+        "stock-transfer expenses are managed by the cloud stock procedures and cannot be changed locally.",
+    },
+    columns: {
+      id: { kind: "uuid", writable: false },
+      date: { kind: "text", writable: true, required: true },
+      category: { kind: "text", writable: true, required: true },
+      amount: { kind: "number", writable: true, required: true, min: 0 },
+      description: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      payment_method: {
+        kind: "text",
+        writable: true,
+        insertDefault: "cash",
+        oneOf: ["cash", "online"],
+      },
+      payment_status: {
+        kind: "text",
+        writable: true,
+        insertDefault: "paid",
+        oneOf: ["paid", "unpaid", "katha"],
+      },
+      paid_amount: { kind: "number", writable: true, insertDefault: 0, min: 0 },
+      paid_at: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      payment_source: {
+        kind: "text",
+        writable: true,
+        insertDefault: "cash",
+        oneOf: ["cash", "online"],
+      },
+      supplier: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      notes: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      /** Stock-transfer provenance — owned by the cloud procedures only. */
+      is_stock_transfer: { kind: "boolean", writable: false, insertDefault: 0 },
+      source_product_id: { kind: "uuid", nullable: true, writable: false, insertDefault: null },
+      source_stock_item_id: { kind: "uuid", nullable: true, writable: false, insertDefault: null },
+      source_quantity: { kind: "number", nullable: true, writable: false, insertDefault: null },
+      source_unit_cost: { kind: "number", nullable: true, writable: false, insertDefault: null },
+      deleted_at: DELETED_AT,
+      created_at: CREATED_AT,
     },
   },
 
@@ -561,6 +642,7 @@ export function assertRowInvariants(
   row: Record<string, SqliteValue>,
   mode: "insert" | "update",
 ): void {
+  if (table === "expenses") return assertExpenseInvariants(row, mode);
   if (table !== "recipes") return;
   const hasProduct = row.component_product_id !== undefined && row.component_product_id !== null;
   const hasStock =
@@ -579,5 +661,45 @@ export function assertRowInvariants(
     row.parent_product_id === row.component_product_id
   ) {
     fail("a product cannot be its own component.");
+  }
+}
+
+/**
+ * PHASE 5E — expense rules the cloud enforces through CHECK constraints and
+ * the screen enforces through its payload. Kept in one place so the worker
+ * re-checks exactly what the main thread checked.
+ */
+function assertExpenseInvariants(
+  row: Record<string, SqliteValue>,
+  mode: "insert" | "update",
+): void {
+  if (row.is_stock_transfer !== undefined && Number(row.is_stock_transfer) !== 0) {
+    fail("a stock-transfer expense cannot be created or edited locally.");
+  }
+  for (const column of [
+    "source_product_id",
+    "source_stock_item_id",
+    "source_quantity",
+    "source_unit_cost",
+  ]) {
+    if (row[column] !== undefined && row[column] !== null) {
+      fail(`expenses.${column} belongs to the cloud stock-transfer procedures.`);
+    }
+  }
+  if (mode === "insert" && (row.amount === undefined || Number(row.amount) <= 0)) {
+    fail("expenses.amount must be greater than 0.");
+  }
+  if (mode === "update" && row.amount !== undefined && Number(row.amount) <= 0) {
+    fail("expenses.amount must be greater than 0.");
+  }
+  // `paid_amount` mirrors the screen: the full amount when paid, else nothing.
+  if (row.payment_status !== undefined && row.paid_amount !== undefined) {
+    const expected = row.payment_status === "paid" ? Number(row.amount ?? row.paid_amount) : 0;
+    if (row.amount !== undefined && Number(row.paid_amount) !== expected) {
+      fail("expenses.paid_amount must equal the amount when paid, and 0 otherwise.");
+    }
+    if (row.payment_status !== "paid" && Number(row.paid_amount) !== 0) {
+      fail("expenses.paid_amount must be 0 unless the expense is paid.");
+    }
   }
 }

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Settings2 } from "lucide-react";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
+import { listExpenses } from "@/data/reads/reference";
+import { deleteExpense as routedDeleteExpense, saveExpense } from "@/data/writes/expenses";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
@@ -38,40 +39,23 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["expenses"],
-    queryFn: async () => (await supabase.from("expenses").select("*").is("deleted_at", null).order("date", { ascending: false }).range(0, 99999)).data ?? [],
+    queryFn: () => listExpenses(),
   });
 
   const save = useMutation({
-    mutationFn: async (p: E) => {
-      const amt = Number(p.amount || 0);
-      // Stock-transfer expense: edit via dedicated RPC to keep stock in sync.
-      if (p.id && p.is_stock_transfer) {
-        const { error } = await supabase.rpc("update_stock_transfer_expense" as any, {
-          _expense_id: p.id,
-          _quantity: amt > 0 && (p as any).source_unit_cost ? amt / Number((p as any).source_unit_cost) : (p as any).source_quantity,
-          _date: p.date,
-          _category: p.category,
-          _description: p.description || null,
-          _notes: null,
-        } as any);
-        if (error) throw error;
-        return;
-      }
-      const payload = {
+    mutationFn: async (p: E) =>
+      saveExpense({
+        id: p.id,
         date: p.date,
         category: p.category,
-        amount: amt,
-        description: p.description || null,
+        amount: Number(p.amount || 0),
+        description: p.description,
         payment_method: p.payment_method,
         payment_status: p.payment_status,
-        paid_amount: p.payment_status === "paid" ? amt : 0,
-        paid_at: p.payment_status === "paid" ? new Date().toISOString() : null,
-      };
-      const res = p.id
-        ? await supabase.from("expenses").update(payload).eq("id", p.id)
-        : await supabase.from("expenses").insert(payload);
-      if (res.error) throw res.error;
-    },
+        is_stock_transfer: p.is_stock_transfer,
+        source_quantity: (p as any).source_quantity ?? null,
+        source_unit_cost: (p as any).source_unit_cost ?? null,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -83,15 +67,8 @@ function Page() {
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
-    mutationFn: async ({ id, isTransfer }: { id: string; isTransfer: boolean }) => {
-      if (isTransfer) {
-        const { error } = await supabase.rpc("delete_stock_transfer_expense" as any, { _expense_id: id } as any);
-        if (error) throw error;
-        return;
-      }
-      const { error } = await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, isTransfer }: { id: string; isTransfer: boolean }) =>
+      routedDeleteExpense(id, isTransfer),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -100,6 +77,7 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["report"] });
       toast.success("Deleted");
     },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const filtered = useMemo(() => {
