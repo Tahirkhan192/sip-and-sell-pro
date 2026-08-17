@@ -71,7 +71,7 @@ let db: LocalDb;
 
 function insertCategory(id: string, name: string) {
   db.exec(
-    `INSERT INTO "${mirrorTable("categories" as any)}" (id, name, sort_order, created_at, updated_at) VALUES ('${id}', '${name}', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+    `INSERT INTO "${mirrorTable("categories" as any)}" (id, name, sort_order, active, created_at, updated_at) VALUES ('${id}', '${name}', 0, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
   );
 }
 
