@@ -107,7 +107,13 @@ describe("update conflict handling", () => {
       g,
     );
     expect(res.outcome).toBe("synced");
-    expect(updateRow).toHaveBeenCalledWith("categories", "id", "c1", { name: "Cold Drinks" });
+    expect(updateRow).toHaveBeenCalledWith(
+      "categories",
+      "id",
+      "c1",
+      { name: "Cold Drinks" },
+      { column: "updated_at", value: base.updated_at },
+    );
   });
 
   it("keeps both versions when the cloud row changed meanwhile", async () => {
@@ -152,7 +158,7 @@ describe("update conflict handling", () => {
     expect(updateRow).not.toHaveBeenCalled();
   });
 
-  it("flags a missing cloud row instead of recreating it", async () => {
+  it("treats a delete of an already missing row as done, never recreating it", async () => {
     const { g } = gateway(null);
     const res = await applyOutboxRecord(
       record({
@@ -163,7 +169,8 @@ describe("update conflict handling", () => {
       }),
       g,
     );
-    expect(res.outcome).toBe("conflict");
+    // Phase 9: a delete is never lost and never resurrects the row.
+    expect(res.outcome).toBe("synced");
   });
 });
 
