@@ -543,7 +543,7 @@ CREATE TABLE IF NOT EXISTS cloud_monthly_stock_overrides (
 CREATE TABLE IF NOT EXISTS cloud_audit_log (
   id TEXT NOT NULL,
   user_id TEXT,
-  action TEXT,
+  action TEXT NOT NULL,
   entity TEXT,
   entity_id TEXT,
   details TEXT,
