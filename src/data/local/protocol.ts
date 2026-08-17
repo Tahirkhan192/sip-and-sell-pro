@@ -39,6 +39,18 @@ import {
   type MirrorColumn,
   type SeedMetaRecord,
 } from "./mirror";
+import {
+  clearTestArtifacts,
+  mutationCounts,
+  readMutationEvents,
+  readTestRows,
+  runMutationTx,
+  type LocalMutationEventRow,
+  type LocalTestRow,
+  type MutationCounts,
+  type MutationStep,
+  type MutationTxOutcome,
+} from "./mutations/engine-mutations";
 import { runCount, runSelect, type LocalFilter, type SelectSpec } from "./query";
 import type { SqliteValue } from "./seed-format";
 
@@ -67,7 +79,14 @@ export type LocalDbRequest =
   | { id: number; op: "writeSeedMeta"; meta: SeedMetaRecord }
   /* ---- Phase 4: read-only mirror queries (no raw SQL is ever accepted) ---- */
   | { id: number; op: "select"; spec: SelectSpec }
-  | { id: number; op: "countRows"; table: string; filter?: LocalFilter };
+  | { id: number; op: "countRows"; table: string; filter?: LocalFilter }
+  /* ---- Phase 5A: isolated local mutation foundation (no raw SQL, no
+         business table is reachable — see mutations/engine-mutations.ts) ---- */
+  | { id: number; op: "mutationTx"; steps: MutationStep[] }
+  | { id: number; op: "mutationTestRows"; ids?: string[] }
+  | { id: number; op: "mutationEvents"; ids?: string[] }
+  | { id: number; op: "mutationCounts" }
+  | { id: number; op: "mutationClearTest"; ids: string[]; mutationIds: string[] };
 
 export type LocalDbOp = LocalDbRequest["op"];
 
@@ -103,7 +122,12 @@ export type LocalDbResult =
   | VerifyTableResult
   | { written: true }
   | { rows: Record<string, SqliteValue>[] }
-  | { count: number };
+  | { count: number }
+  | { outcome: MutationTxOutcome }
+  | { rows: LocalTestRow[] }
+  | { events: LocalMutationEventRow[] }
+  | { counts: MutationCounts }
+  | { removed: number };
 
 /**
  * Executes one protocol request. Lives outside the worker file so it can be
@@ -207,6 +231,41 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           op: req.op,
           ok: true,
           result: { count: runCount(db, req.table, req.filter) },
+        };
+      }
+      case "mutationTx": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { outcome: runMutationTx(db, req.steps) },
+        };
+      }
+      case "mutationTestRows": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { rows: readTestRows(db, req.ids) } };
+      }
+      case "mutationEvents": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { events: readMutationEvents(db, req.ids) },
+        };
+      }
+      case "mutationCounts": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { counts: mutationCounts(db) } };
+      }
+      case "mutationClearTest": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { removed: clearTestArtifacts(db, req.ids, req.mutationIds) },
         };
       }
       case "close":

@@ -55,14 +55,17 @@ export const REQUIRED_LOCAL_PROCEDURES = [
   "has_role",
 ] as const;
 
-export const READ_ONLY_MESSAGE = "LocalRepository is read-only in Phase 4";
+export const READ_ONLY_MESSAGE =
+  "LocalRepository is read-only until Phase 5B (local business writes)";
 
 function readOnly(what: string): never {
   throw new Error(
     `${READ_ONLY_MESSAGE}: ${what}() is not available locally. ` +
-      `Business writes must go through the cloud repository.`,
+      `Business writes must go through the cloud repository. ` +
+      `Phase 5A only adds the local transaction/audit foundation, not business mutations.`,
   );
 }
+
 
 /** `SelectOptions.columns` is a PostgREST projection string ("a,b,c"). */
 function parseColumns(columns?: string): string[] | undefined {
