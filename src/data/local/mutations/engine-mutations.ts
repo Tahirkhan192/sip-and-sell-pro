@@ -494,10 +494,13 @@ export function readOutbox(
     bind.push(...filter.ids);
   }
   const limit = Number.isFinite(filter.limit) ? ` LIMIT ${Math.max(1, Number(filter.limit))}` : "";
+  // `rowid` is SQLite's monotonic insertion counter: it is the ONLY tiebreak
+  // that preserves the real order of two mutations written in the same
+  // millisecond (uuid ids sort randomly and would reorder create/update/delete).
   return db.selectObjects(
-    `SELECT * FROM ${OUTBOX_TABLE}
+    `SELECT rowid AS seq, * FROM ${OUTBOX_TABLE}
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY created_at, id${limit}`,
+     ORDER BY created_at, rowid${limit}`,
     bind,
   ) as unknown as OutboxRow[];
 }

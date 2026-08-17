@@ -54,6 +54,12 @@ export type OutboxRow = {
   synced_at: string | null;
   /** JSON or null — cloud state + local payload captured when a conflict was seen. */
   conflict_details: string | null;
+  /**
+   * SQLite `rowid`, present on reads only. Monotonic insertion order — the
+   * tiebreak that keeps per-entity ordering exact when two mutations share a
+   * timestamp. Never written by the app.
+   */
+  seq?: number;
 };
 
 export const OUTBOX_SCHEMA_SQL = `
