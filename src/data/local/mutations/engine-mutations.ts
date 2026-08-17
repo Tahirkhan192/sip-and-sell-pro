@@ -113,6 +113,8 @@ export type MutationStep =
       nextRetryAt?: string | null;
       syncedAt?: string | null;
       conflictDetails?: string | null;
+      /** PHASE 9 — re-baseline after a human resolves a conflict. */
+      baseSnapshot?: string | null;
     }
   /** Test-only: forces the transaction to fail so rollback can be proven. */
   | { kind: "failDeliberately"; message: string };
@@ -472,6 +474,10 @@ function applyOutboxStatus(
   if (step.conflictDetails !== undefined) {
     sets.push("conflict_details = ?");
     bind.push(step.conflictDetails);
+  }
+  if (step.baseSnapshot !== undefined) {
+    sets.push("base_snapshot = ?");
+    bind.push(step.baseSnapshot);
   }
   bind.push(requireString(step.id, "id"));
   db.exec({ sql: `UPDATE ${OUTBOX_TABLE} SET ${sets.join(", ")} WHERE id = ?`, bind });
