@@ -14,6 +14,8 @@
 
 import { LOCAL_SCHEMA_VERSION, engineStatus, mirrorStatus, workerStatus } from "@/data/local/db";
 import { isLocalSqliteEnabled } from "@/data/local/status";
+import { isLocalWritesEnabled } from "@/data/local/mutations/flags";
+import { isMasterTable } from "@/data/local/mutations/master-tables";
 import type { TableName } from "./types";
 
 /** Tables whose READ path may be served locally in Phase 4 (reference data). */
@@ -166,4 +168,47 @@ export async function canReadLocally(table: TableName): Promise<boolean> {
   const health = await localReadHealth();
   if (!health.usable) return false;
   return (health.seededTables[table] ?? 0) > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * PHASE 5C — master-data WRITE gate.
+ *
+ * A local master-data write needs everything a local read needs (flags,
+ * running worker, persistent OPFS, current schema, a verified seed, not
+ * invalidated) PLUS the local-writes flag and a table that the Phase 5B
+ * procedure layer actually supports. Anything else → the cloud path.
+ * ------------------------------------------------------------------ */
+
+/** Tables whose master-data WRITE path may be served locally in Phase 5C. */
+export const LOCAL_WRITE_TABLES: TableName[] = [
+  "branches",
+  "categories",
+  "customers",
+  "employees",
+  "expense_categories",
+  "money_movement_subcategories",
+  "products",
+  "recipes",
+  "settings",
+  "staff",
+  "stock_items",
+  "suppliers",
+];
+
+/**
+ * May this master-data table be written locally right now? Never throws:
+ * any doubt at all resolves to `false`, and the caller keeps its existing
+ * Supabase mutation. A table the seed left empty is still writable —
+ * unlike a read, an empty table cannot mislead a write.
+ */
+export async function canWriteLocally(table: string): Promise<boolean> {
+  try {
+    if (!isMasterTable(table)) return false;
+    if (!LOCAL_WRITE_TABLES.includes(table as TableName)) return false;
+    if (!isLocalWritesEnabled()) return false;
+    const health = await localReadHealth();
+    return health.usable;
+  } catch {
+    return false;
+  }
 }
