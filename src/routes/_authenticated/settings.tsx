@@ -197,6 +197,8 @@ function SettingsPage() {
 
       <BackupCard />
 
+      <LocalDbCard />
+
       <MenuVisibilityCard />
 
       <PinLockCard />
