@@ -56,6 +56,7 @@ import {
   type MutationTxOutcome,
 } from "./mutations/engine-mutations";
 import { runCount, runSelect, type LocalFilter, type SelectSpec } from "./query";
+import { handleAuthRequest, type AuthRequest, type AuthResult } from "../auth/auth-worker";
 import type { SqliteValue } from "./seed-format";
 
 export type LocalDbRequest =
@@ -100,7 +101,9 @@ export type LocalDbRequest =
   | { id: number; op: "mutationTestRows"; ids?: string[] }
   | { id: number; op: "mutationEvents"; ids?: string[] }
   | { id: number; op: "mutationCounts" }
-  | { id: number; op: "mutationClearTest"; ids: string[]; mutationIds: string[] };
+  | { id: number; op: "mutationClearTest"; ids: string[]; mutationIds: string[] }
+  /* ---- Phase 7: offline authentication (identity/session tables only) ---- */
+  | ({ id: number } & AuthRequest);
 
 export type LocalDbOp = LocalDbRequest["op"];
 
@@ -143,7 +146,8 @@ export type LocalDbResult =
   | { counts: MutationCounts }
   | { records: OutboxRow[] }
   | { byStatus: Record<string, number> }
-  | { removed: number };
+  | { removed: number }
+  | AuthResult;
 
 /**
  * Executes one protocol request. Lives outside the worker file so it can be
@@ -312,6 +316,16 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           result: { removed: clearTestArtifacts(db, req.ids, req.mutationIds) },
         };
       }
+      case "authStatus":
+      case "authEnrol":
+      case "authUnlock":
+      case "authOnlineSession":
+      case "authLogout":
+      case "authReconcile": {
+        const db = await openEngine();
+        const result = await handleAuthRequest(db, req as AuthRequest);
+        return { id: req.id, op: req.op, ok: true, result };
+      }
       case "close":
       case "resetForTests": {
         await closeEngine();
@@ -333,7 +347,7 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
       op: req.op,
       ok: false,
       error: {
-        name: e?.name ?? "Error",
+        name: e?.code ? `${e?.name ?? "Error"}:${e.code}` : (e?.name ?? "Error"),
         message: e?.message ?? String(e),
         stack: typeof e?.stack === "string" ? e.stack : undefined,
       },

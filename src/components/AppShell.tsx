@@ -24,7 +24,6 @@ import {
   BookOpen,
   Banknote,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -41,6 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { isModuleVisible, useMenuVisibility } from "@/lib/menu-visibility";
+import { signOutEverywhere } from "@/data/auth/local-auth";
 import { SyncIndicator } from "@/components/SyncIndicator";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
@@ -132,7 +132,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggle } = useTheme();
 
   async function signOut() {
-    await supabase.auth.signOut();
+    // PHASE 7: local session first, then the cloud — no offline re-entry
+    // without the device unlock code. Business data is never deleted.
+    await signOutEverywhere();
     navigate({ to: "/auth", replace: true });
   }
 
