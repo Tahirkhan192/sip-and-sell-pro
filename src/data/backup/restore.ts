@@ -13,7 +13,15 @@
  * exactly one Purchase X.
  */
 
-import { BACKUP_FORMAT_VERSION, BACKUP_TABLES, primaryKeyOf, type BackupFile, type BackupValidation } from "./format";
+import {
+  BACKUP_FORMAT_VERSION,
+  BACKUP_TABLES,
+  computeChecksum,
+  payloadOf,
+  primaryKeyOf,
+  type BackupFile,
+  type BackupValidation,
+} from "./format";
 import type { TableName } from "@/data/repo";
 
 /** Parent → child relationships that must still resolve after import. */
