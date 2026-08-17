@@ -128,6 +128,10 @@ function RootComponent() {
     void registerAppServiceWorker();
   }, []);
 
+  // PHASE 5D — start the master-data sync engine once, for the whole app.
+  useEffect(() => startSyncEngine(), []);
+
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
