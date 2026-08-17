@@ -54,6 +54,11 @@ export const MASTER_TABLES = [
   "recipes",
   "settings",
   "staff",
+  /**
+   * PHASE 5H — manual stock adjustments. Audited: no cloud trigger, no RPC,
+   * no derived column written server-side. See the spec below.
+   */
+  "stock_adjustments",
   "stock_items",
   "suppliers",
 ] as const;
@@ -518,6 +523,45 @@ export const MASTER_TABLE_SPECS: Record<MasterTable, MasterTableSpec> = {
       whatsapp_phone_id: { kind: "text", nullable: true, writable: false },
       whatsapp_business_id: { kind: "text", nullable: true, writable: false },
       updated_at: UPDATED_AT,
+    },
+  },
+
+  /**
+   * PHASE 5H — manual stock adjustments.
+   *
+   * Audited before being added here: the cloud `stock_adjustments` table has
+   * NO triggers and NO stored procedure behind it. The Products screen writes
+   * one plain row (`scope`, `product_id`/`stock_item_id`, `quantity`, `reason`,
+   * `date`) and nothing else happens server-side — `products.current_stock` is
+   * NOT written by the cloud on adjustment; the Remaining figure the app shows
+   * is recomputed by the client inventory engine, which simply sums this
+   * ledger. That makes an adjustment a pure append-only ledger insert and the
+   * only inventory operation that can be reproduced locally without loss.
+   *
+   * Deliberately restricted: rows are insert-only (the app has no edit and no
+   * delete for an adjustment), and `created_by` is not writable — the cloud
+   * insert leaves it null too.
+   */
+  stock_adjustments: {
+    pk: "id",
+    pkKind: "uuid",
+    allowInsert: true,
+    allowHardDelete: false,
+    softDelete: true,
+    touchUpdatedAt: false,
+    unique: [],
+    columns: {
+      id: { kind: "uuid", writable: false },
+      scope: { kind: "text", writable: true, required: true, oneOf: ["product", "stock_item"] },
+      product_id: { kind: "uuid", nullable: true, writable: true, insertDefault: null },
+      stock_item_id: { kind: "uuid", nullable: true, writable: true, insertDefault: null },
+      quantity: { kind: "number", writable: true, required: true },
+      reason: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      notes: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      date: { kind: "text", writable: true, required: true },
+      created_by: { kind: "uuid", nullable: true, writable: false, insertDefault: null },
+      deleted_at: DELETED_AT,
+      created_at: CREATED_AT,
     },
   },
 };
