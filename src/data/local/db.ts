@@ -140,6 +140,24 @@ function ensureDeviceId(db: LocalDb) {
   db.exec({ sql: "INSERT INTO _meta(key, value) VALUES ('device_id', ?)", bind: [id] });
 }
 
+/** Records the schema revision once; never rewrites an existing value. */
+function ensureSchemaVersion(db: LocalDb) {
+  db.exec({
+    sql: "INSERT OR IGNORE INTO _meta(key, value) VALUES ('schema_version', ?)",
+    bind: [String(LOCAL_SCHEMA_VERSION)],
+  });
+  db.exec({
+    sql: "INSERT OR IGNORE INTO _schema_migrations(version) VALUES (?)",
+    bind: [LOCAL_SCHEMA_VERSION],
+  });
+}
+
+/** Schema version recorded in the local database (0 when unknown). */
+export function getSchemaVersion(db: LocalDb): number {
+  const rows = db.selectValues("SELECT value FROM _meta WHERE key = 'schema_version'") as string[];
+  return rows.length ? Number(rows[0]) : 0;
+}
+
 function fallbackUuid(): string {
   // RFC 4122 v4-ish fallback for browsers without crypto.randomUUID.
   const bytes = new Uint8Array(16);
