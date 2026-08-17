@@ -39,6 +39,7 @@ import {
   type MirrorColumn,
   type SeedMetaRecord,
 } from "./mirror";
+import { runCount, runSelect, type LocalFilter, type SelectSpec } from "./query";
 import type { SqliteValue } from "./seed-format";
 
 export type LocalDbRequest =
@@ -63,7 +64,10 @@ export type LocalDbRequest =
   | { id: number; op: "seedCommit" }
   | { id: number; op: "seedRollback" }
   | { id: number; op: "verifyTable"; table: string; pk: string }
-  | { id: number; op: "writeSeedMeta"; meta: SeedMetaRecord };
+  | { id: number; op: "writeSeedMeta"; meta: SeedMetaRecord }
+  /* ---- Phase 4: read-only mirror queries (no raw SQL is ever accepted) ---- */
+  | { id: number; op: "select"; spec: SelectSpec }
+  | { id: number; op: "countRows"; table: string; filter?: LocalFilter };
 
 export type LocalDbOp = LocalDbRequest["op"];
 
@@ -97,7 +101,9 @@ export type LocalDbResult =
   | { inserted: number }
   | { transactionOpen: boolean }
   | VerifyTableResult
-  | { written: true };
+  | { written: true }
+  | { rows: Record<string, SqliteValue>[] }
+  | { count: number };
 
 /**
  * Executes one protocol request. Lives outside the worker file so it can be
@@ -184,6 +190,24 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
         const db = await openEngine();
         writeSeedMeta(db, req.meta);
         return { id: req.id, op: req.op, ok: true, result: { written: true } };
+      }
+      case "select": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { rows: runSelect(db, req.spec) },
+        };
+      }
+      case "countRows": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { count: runCount(db, req.table, req.filter) },
+        };
       }
       case "close":
       case "resetForTests": {
