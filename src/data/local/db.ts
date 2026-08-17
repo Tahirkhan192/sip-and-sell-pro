@@ -21,22 +21,38 @@ import schemaSql from "./schema.sql?raw";
 
 export type LocalDb = Database;
 
+/** Schema revision applied by schema.sql. Stored in `_meta`. */
+export const LOCAL_SCHEMA_VERSION = 1;
+
+export type LocalStorageMode = "opfs" | "memory";
+
 let sqlite3: Sqlite3Static | null = null;
 let dbPromise: Promise<LocalDb> | null = null;
+let storageMode: LocalStorageMode | null = null;
+let sqliteVersion: string | null = null;
+let initializedAt: string | null = null;
+
+/** Read-only facts about the current local database instance. */
+export function localDbFacts() {
+  return {
+    storageMode,
+    sqliteVersion,
+    initializedAt,
+    opened: dbPromise !== null,
+  };
+}
 
 /**
  * Open (or reopen) the local SQLite database. Idempotent — subsequent calls
  * return the same instance. Safe to call multiple times.
  *
- * Throws if OPFS is unavailable or the WASM module fails to load. Callers
- * MUST catch and degrade gracefully.
+ * Throws if the WASM module fails to load. When OPFS is unavailable the
+ * database falls back to a non-persistent in-memory instance, reported via
+ * `localDbFacts().storageMode === "memory"`.
  */
 export function openLocalDb(): Promise<LocalDb> {
   if (dbPromise) return dbPromise;
   dbPromise = (async () => {
-    if (typeof window === "undefined") {
-      throw new Error("openLocalDb() must be called in the browser");
-    }
     // Dynamic import so the WASM bundle is only fetched on demand.
     const mod = await import("@sqlite.org/sqlite-wasm");
     const init = (mod as unknown as { default: (opts?: unknown) => Promise<Sqlite3Static> }).default;
@@ -44,35 +60,49 @@ export function openLocalDb(): Promise<LocalDb> {
       print: () => {},
       printErr: (msg: string) => console.error("[sqlite]", msg),
     });
+    sqliteVersion = (sqlite3 as any)?.version?.libVersion ?? null;
 
     // Prefer OPFS SAH Pool (persistent, fast, WAL-like semantics).
-    const OpfsSAHPool = (sqlite3 as any).installOpfsSAHPoolVfs
-      ? await (sqlite3 as any).installOpfsSAHPoolVfs({ name: "kdf-pos-pool" })
-      : null;
+    let OpfsSAHPool: any = null;
+    if ((sqlite3 as any).installOpfsSAHPoolVfs) {
+      try {
+        OpfsSAHPool = await (sqlite3 as any).installOpfsSAHPoolVfs({ name: "kdf-pos-pool" });
+      } catch (err) {
+        console.warn("[sqlite] OPFS SAH Pool could not be installed", err);
+        OpfsSAHPool = null;
+      }
+    }
 
     let db: LocalDb;
     if (OpfsSAHPool?.OpfsSAHPoolDb) {
       db = new OpfsSAHPool.OpfsSAHPoolDb("/kdf-pos.sqlite3");
+      storageMode = "opfs";
     } else {
       // Fallback: transient in-memory DB. Data does NOT persist across reloads.
-      // Real fallback for older browsers is handled in Phase 3 via Dexie/IndexedDB.
       console.warn("[sqlite] OPFS SAH Pool unavailable — using in-memory DB");
       db = new (sqlite3 as any).oo1.DB(":memory:", "ct");
+      storageMode = "memory";
     }
 
     // Apply schema (idempotent — uses IF NOT EXISTS everywhere).
     db.exec(schemaSql);
+    // Foreign keys are per-connection, so re-assert after opening.
+    db.exec("PRAGMA foreign_keys = ON");
 
     // Ensure a stable device_id for this browser install.
     ensureDeviceId(db);
+    ensureSchemaVersion(db);
+    initializedAt = new Date().toISOString();
 
     return db;
   })().catch((err) => {
     dbPromise = null; // allow retry
+    storageMode = null;
     throw err;
   });
   return dbPromise;
 }
+
 
 /**
  * Runs `fn` inside a SQLite transaction. Rolls back on any thrown error so
