@@ -26,6 +26,7 @@ export * from "./parties";
 export * from "./catalog";
 export * from "./settings";
 export * from "./expenses";
+export * from "./inventory";
 
 export {
   CLOUD_ONLY_TABLES,
