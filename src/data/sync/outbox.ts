@@ -18,6 +18,7 @@ import type { MasterTable } from "@/data/local/mutations/master-tables";
 import { tableSpec } from "@/data/local/mutations/master-tables";
 import {
   emptyCounts,
+  MAX_AUTO_ATTEMPTS,
   nextRetryAt,
   OUTBOX_STATUSES,
   type OutboxCounts,
@@ -158,6 +159,9 @@ export function markSynced(record: OutboxRow, at = new Date()): Promise<void> {
 /** Failure: keep the record, count the attempt, schedule the next try. */
 export function markFailed(record: OutboxRow, error: string, at = new Date()): Promise<void> {
   const attempt = Number(record.attempt_count ?? 0) + 1;
+  // After the bounded retry budget the record STAYS (never dropped), but stops
+  // retrying automatically — it waits for a manual "Retry failed changes".
+  const retryAt = attempt >= MAX_AUTO_ATTEMPTS ? null : nextRetryAt(attempt, at);
   return transition({
     kind: "outboxStatus",
     id: record.id,
@@ -165,7 +169,7 @@ export function markFailed(record: OutboxRow, error: string, at = new Date()): P
     updatedAt: at.toISOString(),
     attemptCount: attempt,
     lastError: error.slice(0, 2000),
-    nextRetryAt: nextRetryAt(attempt, at),
+    nextRetryAt: retryAt,
   });
 }
 
