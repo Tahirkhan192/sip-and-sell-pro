@@ -237,9 +237,16 @@ export async function localCount(table: string, filter?: LocalFilter): Promise<n
  * Still no raw SQL: the request union itself is the whole vocabulary.  *
  * ------------------------------------------------------------------ */
 
+/** Distributive omit so each member of the request union keeps its own shape. */
+export type LocalDbRequestInput = LocalDbRequest extends infer R
+  ? R extends { id: number }
+    ? Omit<R, "id">
+    : never
+  : never;
+
 /** Sends one typed protocol request to the worker and unwraps the result. */
 export async function requestLocalDb(
-  req: Omit<LocalDbRequest, "id">,
+  req: LocalDbRequestInput,
 ): Promise<import("./protocol").LocalDbResult> {
   return unwrap(await request(req as any));
 }
