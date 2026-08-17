@@ -172,7 +172,17 @@ function fallbackUuid(): string {
  * Test-only helper: fully close and drop the current instance so the next
  * call to openLocalDb() re-initialises. Not used in production code.
  */
-export function _resetForTests() {
+export async function _resetForTests() {
+  const pending = dbPromise;
   dbPromise = null;
   sqlite3 = null;
+  storageMode = null;
+  initializedAt = null;
+  if (pending) {
+    try {
+      (await pending).close();
+    } catch {
+      // ignore close errors
+    }
+  }
 }
