@@ -123,3 +123,51 @@ transaction (row + audit event + outbox) → the existing sync engine.
 Still cloud-only inside inventory: `rebuild_item_remaining` (writes the derived
 `current_stock`), opening-stock snapshots, monthly overrides, stock transfers,
 stock-to-expense transfers and WAC recomputation.
+
+### 5G — Purchase READS are offline-capable (writes remain cloud-only)
+
+The purchase *write* audit above is unchanged: purchases still save through the
+cloud so the two triggers keep owning `cash_movements` and `stock_purchases`.
+Reading them, however, needs no server logic — the Purchases screen issues a
+single embedded select:
+
+```
+purchases select *, purchase_items(*, products(name,unit), stock_items(name,unit))
+        where deleted_at is null order by date desc
+```
+
+`src/data/reads/purchases.ts` reproduces that exact shape from the local mirror
+(`purchases`, `purchase_items`, `products`, `stock_items`) with a pure
+assembler, so the screen receives identical objects whether it read the cloud
+or SQLite. `purchases`, `purchase_items` and `stock_purchases` are therefore in
+`LOCAL_READ_TABLES`; the usual health gate still applies, and a table the seed
+left empty falls back to the cloud.
+
+Parity is proven twice: `purchases.test.ts` compares the assembler output
+field-for-field against the literal PostgREST shape, and
+`purchases.sqlite.test.ts` writes rows into the real `cloud_*` mirror and reads
+them back through the same path, asserting ordering, soft-delete filtering and
+exact money/quantity round-trips.
+
+### 5L — Offline auth foundation
+
+`src/data/auth/offline-identity.ts` adds `_local_identities` and
+`_local_sessions`. The design constraints, all covered by tests:
+
+* **No secret is ever stored.** The unlock code is kept only as a PBKDF2-SHA-256
+  hash + per-identity salt; `assertNoSecrets` rejects anything token-shaped
+  (JWTs, `sb_secret_*`, `refresh_token`) before it can be written.
+* **No session token is stored.** `_local_sessions` holds ids, role, device,
+  timestamps and origin — nothing replayable against the cloud.
+* **Enrolment requires the cloud.** A device can only be enrolled while online
+  and authenticated; there is no offline account creation.
+* **Offline access expires.** Each identity carries a grace window from the last
+  verified online contact; past it, offline unlock is refused until the user
+  signs in online again.
+* **Failed attempts lock the device**, sessions expire, logout revokes
+  immediately, and `reconcileIdentity` applies the cloud's role (narrowing only)
+  or revokes the identity and kills its sessions when the account is gone.
+
+This is foundation only: it gates local UI/read access, never cloud
+authorization. Every cloud call still carries a real Supabase token and is
+still checked by RLS.
