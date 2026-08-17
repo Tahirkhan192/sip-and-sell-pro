@@ -82,7 +82,6 @@ export const CLOUD_ONLY_TABLES = [
   "staff_attendance",
   "staff_month_carry",
   "staff_payments",
-  "stock_adjustments",
   "stock_opening_snapshots",
   "stock_purchases",
   "stock_transfers",
@@ -687,6 +686,7 @@ export function assertRowInvariants(
   mode: "insert" | "update",
 ): void {
   if (table === "expenses") return assertExpenseInvariants(row, mode);
+  if (table === "stock_adjustments") return assertStockAdjustmentInvariants(row, mode);
   if (table !== "recipes") return;
   const hasProduct = row.component_product_id !== undefined && row.component_product_id !== null;
   const hasStock =
@@ -705,6 +705,31 @@ export function assertRowInvariants(
     row.parent_product_id === row.component_product_id
   ) {
     fail("a product cannot be its own component.");
+  }
+}
+
+/**
+ * PHASE 5H — an adjustment names exactly one item, and the scope must match
+ * the column that is filled. The cloud CHECK only requires one of the two ids;
+ * the screen always sends a matching scope, and so must a local write.
+ */
+function assertStockAdjustmentInvariants(
+  row: Record<string, SqliteValue>,
+  mode: "insert" | "update",
+): void {
+  if (mode === "update") {
+    fail("a stock adjustment cannot be edited; record a new adjustment instead.");
+  }
+  const hasProduct = row.product_id !== undefined && row.product_id !== null;
+  const hasItem = row.stock_item_id !== undefined && row.stock_item_id !== null;
+  if (hasProduct === hasItem) {
+    fail("a stock adjustment needs exactly one target (product OR stock item).");
+  }
+  if (row.scope === "product" && !hasProduct) fail("scope \"product\" needs a product_id.");
+  if (row.scope === "stock_item" && !hasItem) fail("scope \"stock_item\" needs a stock_item_id.");
+  const qty = Number(row.quantity ?? 0);
+  if (!Number.isFinite(qty) || qty === 0) {
+    fail("stock_adjustments.quantity must be a non-zero number.");
   }
 }
 
