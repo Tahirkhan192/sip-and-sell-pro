@@ -174,8 +174,16 @@ function validateMasterRow(
       out[column] = value;
       continue;
     }
-    if (column !== "deleted_at") assertWritable(table, column, mode);
+    if (column !== "deleted_at") {
+      const col = spec.columns[column];
+      const baseline = col?.insertDefault ?? null;
+      // A derived column (stock, balances, credentials) may appear in an insert
+      // ONLY at its baseline value — it can never carry a caller-chosen number.
+      const derivedAtBaseline = mode === "insert" && col && !col.writable && value === baseline;
+      if (!derivedAtBaseline) assertWritable(table, column, mode);
+    }
     out[column] = encodeColumnValue(table, column, value);
+
   }
 
   if (mode === "insert") {
