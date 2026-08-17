@@ -180,12 +180,44 @@ export async function applyOutboxRecord(
     return { outcome: "synced" };
   }
 
-  // update / delete (soft delete is an update of deleted_at)
+  // update / delete (a delete is a soft delete: an update of deleted_at)
   const changed = Object.keys(payload);
+  const isDelete = record.operation_type === "delete";
+  const cloudDeleted = cloud !== null && isTombstoned(cloud);
+
+  if (isDelete) {
+    // TOMBSTONES. A delete is idempotent and always terminal:
+    //   * the row is already gone or already tombstoned → nothing to do,
+    //   * the row exists → tombstone it WITHOUT a baseline guard, so a
+    //     concurrent edit on another device can never resurrect it.
+    if (!cloud || cloudDeleted) return { outcome: "synced" };
+    await gateway.updateRow(table, spec.pk, id, payload, null);
+    return { outcome: "synced" };
+  }
+
   if (cloud && alreadyApplied(cloud, payload)) {
     // Already identical in the cloud — a replay, not a change. Idempotent.
     return { outcome: "synced" };
   }
+
+  // An update must never revive a row another device deleted, unless this very
+  // change is an explicit un-delete (deleted_at set back to null).
+  if (cloudDeleted && !("deleted_at" in payload && payload.deleted_at === null)) {
+    const reason = "This record was deleted on another device, so the change was not applied.";
+    return {
+      outcome: "conflict",
+      reason,
+      details: conflictDetails({
+        reason,
+        columns: ["deleted_at"],
+        local: payload,
+        base,
+        cloud,
+        detectedAt: at.toISOString(),
+      }),
+    };
+  }
+
   const decision = detectConflict(cloud, base, changed);
   if (decision.conflict) {
     return {
@@ -202,6 +234,28 @@ export async function applyOutboxRecord(
     };
   }
 
-  await gateway.updateRow(table, spec.pk, id, payload);
+  // Conditional update: the baseline travels with the WHERE clause, so the
+  // database — not this stale read — decides whether we still own the row.
+  const guard = updateGuard(base);
+  const affected = await gateway.updateRow(table, spec.pk, id, payload, guard);
+  if (affected === 0) {
+    const fresh = await gateway.fetchRow(table, spec.pk, id);
+    const reason = fresh
+      ? "Another device changed this record while it was being uploaded."
+      : "The cloud row no longer exists, so this change cannot be applied safely.";
+    return {
+      outcome: "conflict",
+      reason,
+      details: conflictDetails({
+        reason,
+        columns: guard ? [guard.column] : changed,
+        local: payload,
+        base,
+        cloud: fresh,
+        detectedAt: at.toISOString(),
+      }),
+    };
+  }
   return { outcome: "synced" };
+
 }
