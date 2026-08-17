@@ -25,6 +25,9 @@ export const LOCAL_READ_TABLES: TableName[] = [
   "customers",
   "employees",
   "expense_categories",
+  // PHASE 5E — plain business expenses. Stock-transfer expenses are rejected
+  // by the column contract and the worker row guard, and keep going to cloud.
+  "expenses",
   "money_movement_subcategories",
   "products",
   "recipes",
