@@ -39,8 +39,12 @@ import {
   type MirrorColumn,
   type SeedMetaRecord,
 } from "./mirror";
+import type { OutboxRow, OutboxStatus } from "./mutations/outbox-schema";
 import {
   clearTestArtifacts,
+  deleteOutboxRecords,
+  outboxCounts,
+  readOutbox,
   mutationCounts,
   readMutationEvents,
   readTestRows,
@@ -78,6 +82,16 @@ export type LocalDbRequest =
   | { id: number; op: "verifyTable"; table: string; pk: string }
   | { id: number; op: "writeSeedMeta"; meta: SeedMetaRecord }
   /* ---- Phase 4: read-only mirror queries (no raw SQL is ever accepted) ---- */
+  /* ---- Phase 5D: master-data outbox (no raw SQL; internal table only) ---- */
+  | {
+      id: number;
+      op: "outboxList";
+      statuses?: OutboxStatus[];
+      ids?: string[];
+      limit?: number;
+    }
+  | { id: number; op: "outboxCounts" }
+  | { id: number; op: "outboxDelete"; ids: string[] }
   | { id: number; op: "select"; spec: SelectSpec }
   | { id: number; op: "countRows"; table: string; filter?: LocalFilter }
   /* ---- Phase 5A: isolated local mutation foundation (no raw SQL, no
@@ -127,6 +141,8 @@ export type LocalDbResult =
   | { rows: LocalTestRow[] }
   | { events: LocalMutationEventRow[] }
   | { counts: MutationCounts }
+  | { records: OutboxRow[] }
+  | { byStatus: Record<string, number> }
   | { removed: number };
 
 /**
@@ -240,6 +256,34 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           op: req.op,
           ok: true,
           result: { outcome: runMutationTx(db, req.steps) },
+        };
+      }
+      case "outboxList": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: {
+            records: readOutbox(db, {
+              statuses: req.statuses,
+              ids: req.ids,
+              limit: req.limit,
+            }),
+          },
+        };
+      }
+      case "outboxCounts": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { byStatus: outboxCounts(db) } };
+      }
+      case "outboxDelete": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { removed: deleteOutboxRecords(db, req.ids) },
         };
       }
       case "mutationTestRows": {

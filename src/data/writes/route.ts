@@ -13,8 +13,9 @@
  *     worker, memory fallback, no verified seed, another tab holding OPFS —
  *     the cloud mutation runs instead.
  *   * There is NO dual-write. Exactly one of the two paths executes.
- *   * A local success is NOT synced and NOT marked synced. The mutation event
- *     stays `pending` for the future Phase 9 outbox.
+ *   * A local success queues its Phase 5D outbox record (committed in the same
+ *     SQLite transaction) and asks the sync engine to upload it. The mutation
+ *     itself never waits for the network.
  *   * A real rejection (duplicate name, FK violation, validation) is NOT
  *     retried against the cloud: it is the same rejection the cloud would
  *     give, and re-running it there would only produce a second error.
@@ -23,6 +24,7 @@
 import { LocalMutationError } from "@/data/local/mutations/errors";
 import type { MasterMutationResult } from "@/data/local/mutations/procedures/run";
 import { canWriteLocally } from "@/data/repo/health";
+import { requestSync } from "@/data/sync/sync-engine";
 
 export type WritePath = "local" | "cloud";
 
@@ -64,6 +66,8 @@ export async function routeMasterWrite(
   if (await canWriteLocally(table)) {
     try {
       const result = await local();
+      // Fire-and-forget: the write is already durable locally.
+      requestSync();
       return { path: "local", local: result };
     } catch (err) {
       if (!isEnvironmentFailure(err)) throw err;

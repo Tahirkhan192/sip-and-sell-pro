@@ -33,6 +33,7 @@ import type { MutationOperation } from "../schema";
 import { businessStamp } from "../timestamps";
 import { runLocalTransaction, requireWritableEngine } from "../transaction";
 import type { MutationStep } from "../engine-mutations";
+import { buildOutboxStep } from "@/data/sync/outbox";
 
 export type MasterMutationResult = {
   table: MasterTable;
@@ -42,6 +43,9 @@ export type MasterMutationResult = {
   mutationId: string;
   businessDate: string;
   createdAt: string;
+  /** Phase 5D — the outbox record committed alongside this mutation. */
+  operationId: string;
+  outboxId: string;
 };
 
 export type MasterInput = Record<string, unknown>;
@@ -136,6 +140,8 @@ async function execute(
   id: string,
   payload: unknown,
   dataStep: MutationStep,
+  /** Exactly what SQLite will write — the row (insert) or the SET map (update). */
+  applied: Record<string, SqliteValue>,
 ): Promise<MasterMutationResult> {
   const engine = await requireWritableEngine();
   const stamp = businessStamp();
@@ -149,7 +155,22 @@ async function execute(
     stamp,
   });
 
-  const outcome = await runLocalTransaction([dataStep, eventStep]);
+  // PHASE 5D — the outbox record rides in the SAME transaction as the data
+  // change. Commit both or neither: a local master-data mutation can never
+  // exist without its pending sync record, and a rolled-back mutation can
+  // never leave one behind. The outbox step goes FIRST so the worker reads the
+  // pre-mutation row for conflict detection.
+  const { row: outboxRow, step: outboxStep } = buildOutboxStep({
+    deviceId: engine.deviceId,
+    schemaVersion: engine.schemaVersion,
+    table,
+    operation,
+    entityId: id,
+    payload: applied,
+    stamp,
+  });
+
+  const outcome = await runLocalTransaction([outboxStep, dataStep, eventStep]);
   if (!outcome.committed) {
     throw new LocalMutationError("TRANSACTION_FAILED", outcome.message);
   }
@@ -160,6 +181,8 @@ async function execute(
     mutationId: metadata.mutationId,
     businessDate: stamp.businessDate,
     createdAt: stamp.utc,
+    operationId: outboxRow.operation_id,
+    outboxId: outboxRow.id,
   };
 }
 
@@ -171,11 +194,14 @@ export async function createMasterRow(
   try {
     assertMasterDataWritesEnabled(table);
     const row = buildInsertRow(table, input);
-    return await execute(table, "insert", String(row[tableSpec(table).pk]), input, {
-      kind: "masterInsert",
+    return await execute(
       table,
+      "insert",
+      String(row[tableSpec(table).pk]),
+      input,
+      { kind: "masterInsert", table, row },
       row,
-    });
+    );
   } catch (err) {
     wrap(err);
   }
@@ -190,12 +216,14 @@ export async function updateMasterRow(
   try {
     assertMasterDataWritesEnabled(table);
     const values = buildUpdateValues(table, input);
-    return await execute(table, "update", String(id), input, {
-      kind: "masterUpdate",
+    return await execute(
       table,
-      id: id as SqliteValue,
+      "update",
+      String(id),
+      input,
+      { kind: "masterUpdate", table, id: id as SqliteValue, values },
       values,
-    });
+    );
   } catch (err) {
     wrap(err);
   }
@@ -218,12 +246,14 @@ export async function softDeleteMasterRow(
     }
     const values: Record<string, SqliteValue> = { deleted_at: at.toISOString() };
     if (spec.touchUpdatedAt) values.updated_at = at.toISOString();
-    return await execute(table, "delete", id, { deleted_at: values.deleted_at }, {
-      kind: "masterUpdate",
+    return await execute(
       table,
+      "delete",
       id,
+      { deleted_at: values.deleted_at },
+      { kind: "masterUpdate", table, id, values },
       values,
-    });
+    );
   } catch (err) {
     wrap(err);
   }
@@ -243,12 +273,14 @@ export async function restoreMasterRow(
     }
     const values: Record<string, SqliteValue> = { deleted_at: null };
     if (spec.touchUpdatedAt) values.updated_at = at.toISOString();
-    return await execute(table, "update", id, { deleted_at: null }, {
-      kind: "masterUpdate",
+    return await execute(
       table,
+      "update",
       id,
+      { deleted_at: null },
+      { kind: "masterUpdate", table, id, values },
       values,
-    });
+    );
   } catch (err) {
     wrap(err);
   }
