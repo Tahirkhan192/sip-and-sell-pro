@@ -125,6 +125,10 @@ export function openEngine(): Promise<LocalDb> {
     // Phase 3: the cloud-faithful `cloud_*` mirror tables (also additive).
     const { applyMirrorSchema } = await import("./mirror");
     applyMirrorSchema(db);
+    // Phase 5L: offline identity/session tables (additive, no secrets stored).
+    const { ensureOfflineAuthSchema } = await import("../auth/offline-identity");
+    ensureOfflineAuthSchema(db);
+
     // Foreign keys are per-connection, so re-assert after opening.
     db.exec("PRAGMA foreign_keys = ON");
 
