@@ -8,11 +8,16 @@
  * local write path can execute.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { compareCalculation, compareRowSets, compareValues } from "@/data/repo/calc-parity";
 import { READ_ONLY_MESSAGE, LocalRepository } from "@/data/repo/local-repository";
-import { businessDateFor, businessMonthRangeFor } from "@/lib/business-date";
+import {
+  businessToday,
+  endOfBusinessMonth,
+  setBusinessConfig,
+  startOfBusinessMonth,
+} from "@/lib/business-date";
 
 import {
   BUSINESS_WRITES_ENABLED,
@@ -36,13 +41,15 @@ import {
   redactPayload,
   REDACTED,
 } from "./metadata";
-import { localBusinessDate, localBusinessMonthRange } from "./business-date";
+import {
+  localBusinessDate,
+  localBusinessMonthEnd,
+  localBusinessMonthStart,
+} from "./business-date";
 import { businessStamp } from "./timestamps";
 import { MUTATION_OPERATIONS, MUTATION_STATUSES, EVENT_TABLE, TEST_TABLE } from "./schema";
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const CONFIG = { rolloverHour: 8, rolloverMinute: 0, monthStartDay: 1, timeZone: "UTC" };
-
 describe("Phase 5A — UUID generation", () => {
   it("produces RFC 4122 v4 UUIDs", () => {
     expect(newUuid()).toMatch(UUID_V4);
@@ -79,31 +86,42 @@ describe("Phase 5A — business timestamps", () => {
 });
 
 describe("Phase 5A — business-date parity with the cloud rules", () => {
+  // The authoritative module holds one shared config; the local layer reads
+  // the same one, which is exactly the property under test.
+  beforeAll(() => {
+    setBusinessConfig({ timezone: "UTC", startHour: 8, startMinute: 0, monthStartDay: 1 });
+  });
+
   it("matches the authoritative helper before the rollover hour", () => {
     const at = new Date("2026-02-03T03:00:00.000Z");
-    expect(localBusinessDate(at, CONFIG)).toBe(businessDateFor(at, CONFIG));
+    expect(localBusinessDate(at)).toBe(businessToday(at));
+    expect(localBusinessDate(at)).toBe("2026-02-02");
   });
 
   it("matches the authoritative helper after the rollover hour", () => {
     const at = new Date("2026-02-03T18:00:00.000Z");
-    expect(localBusinessDate(at, CONFIG)).toBe(businessDateFor(at, CONFIG));
+    expect(localBusinessDate(at)).toBe(businessToday(at));
+    expect(localBusinessDate(at)).toBe("2026-02-03");
   });
 
   it("rolls a pre-rollover instant back to the previous day", () => {
-    const before = localBusinessDate(new Date("2026-02-03T03:00:00.000Z"), CONFIG);
-    const after = localBusinessDate(new Date("2026-02-03T18:00:00.000Z"), CONFIG);
+    const before = localBusinessDate(new Date("2026-02-03T03:00:00.000Z"));
+    const after = localBusinessDate(new Date("2026-02-03T18:00:00.000Z"));
     expect(before < after).toBe(true);
   });
 
   it("matches the authoritative business-month range", () => {
-    const at = new Date("2026-02-15T12:00:00.000Z");
-    expect(localBusinessMonthRange(at, CONFIG)).toEqual(businessMonthRangeFor(at, CONFIG));
+    const d = localBusinessDate(new Date("2026-02-15T12:00:00.000Z"));
+    expect(localBusinessMonthStart(d)).toBe(startOfBusinessMonth(d));
+    expect(localBusinessMonthEnd(d)).toBe(endOfBusinessMonth(d));
   });
 
   it("honours a non-default month start day identically to the cloud helper", () => {
-    const cfg = { ...CONFIG, monthStartDay: 5 };
-    const at = new Date("2026-02-03T12:00:00.000Z");
-    expect(localBusinessMonthRange(at, cfg)).toEqual(businessMonthRangeFor(at, cfg));
+    setBusinessConfig({ monthStartDay: 5 });
+    const d = "2026-02-03";
+    expect(localBusinessMonthStart(d)).toBe(startOfBusinessMonth(d));
+    expect(localBusinessMonthStart(d)).toBe("2026-01-05");
+    setBusinessConfig({ monthStartDay: 1 });
   });
 });
 
@@ -248,8 +266,8 @@ describe("Phase 5A — safety gates (default flags)", () => {
     const repo = new LocalRepository();
     expect(READ_ONLY_MESSAGE).toMatch(/read-only/i);
     await expect(repo.insert("products" as any, {} as any)).rejects.toThrow(READ_ONLY_MESSAGE);
-    await expect(repo.update("products" as any, "1", {} as any)).rejects.toThrow(/Phase 5B/);
-    await expect(repo.delete("products" as any, "1")).rejects.toThrow(/Phase 5B/);
+    await expect(repo.update("products" as any, {} as any, {} as any)).rejects.toThrow(/Phase 5B/);
+    await expect(repo.remove("products" as any, {} as any)).rejects.toThrow(/Phase 5B/);
   });
 });
 
