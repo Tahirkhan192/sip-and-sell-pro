@@ -100,7 +100,7 @@ describe("authentication safety", () => {
 });
 
 describe("keyset pagination", () => {
-  it.each([0, 1, 1000, 1001, 2500])("exports %i rows without duplicates or gaps", async (n) => {
+  it.each([0, 1, 1000, 1001, 2500])("exports %i rows without duplicates or gaps", async (n: number) => {
     seed({ sales: Math.max(n, 1), sale_items: n });
     const backup = await exportFullBackup();
     const t = backup.tables.find((x) => x.table === "sale_items")!;
