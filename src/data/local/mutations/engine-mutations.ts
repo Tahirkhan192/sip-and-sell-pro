@@ -28,6 +28,15 @@ import {
   type MasterTable,
 } from "./master-tables";
 import {
+  OUTBOX_OPERATIONS,
+  OUTBOX_SCHEMA_SQL,
+  OUTBOX_STATUSES,
+  OUTBOX_TABLE,
+  type OutboxOperation,
+  type OutboxRow,
+  type OutboxStatus,
+} from "./outbox-schema";
+import {
   EVENT_TABLE,
   MUTATION_OPERATIONS,
   MUTATION_SCHEMA_SQL,
@@ -83,6 +92,28 @@ export type MutationStep =
       values: Record<string, SqliteValue>;
     }
   | { kind: "masterDelete"; table: MasterTable; id: SqliteValue }
+  /* ---- Phase 5D: master-data outbox (same transaction as the data step) ---- */
+  | {
+      kind: "outbox";
+      row: OutboxRow;
+      /**
+       * Reads the named columns of the CURRENT local row before the data step
+       * runs, and stores them as `base_snapshot`. That snapshot is what the
+       * mutation was based on, and is what sync compares the cloud row against.
+       */
+      captureBase?: { table: MasterTable; columns: string[] };
+    }
+  | {
+      kind: "outboxStatus";
+      id: string;
+      status: OutboxStatus;
+      updatedAt: string;
+      attemptCount?: number;
+      lastError?: string | null;
+      nextRetryAt?: string | null;
+      syncedAt?: string | null;
+      conflictDetails?: string | null;
+    }
   /** Test-only: forces the transaction to fail so rollback can be proven. */
   | { kind: "failDeliberately"; message: string };
 
@@ -94,6 +125,7 @@ export type MutationTxOutcome =
 /** Applies the internal Phase 5A DDL. Idempotent and purely additive. */
 export function ensureMutationSchema(db: LocalDb): void {
   db.exec(MUTATION_SCHEMA_SQL);
+  db.exec(OUTBOX_SCHEMA_SQL);
 }
 
 let txOpen = false;
@@ -310,6 +342,169 @@ function applyMasterDelete(db: LocalDb, table: MasterTable, id: SqliteValue): vo
   });
 }
 
+/* ------------------------------------------------------------------ *
+ * PHASE 5D — outbox steps                                             *
+ * ------------------------------------------------------------------ */
+
+function validateOutboxRow(row: OutboxRow): OutboxRow {
+  if (!OUTBOX_OPERATIONS.includes(row?.operation_type)) {
+    throw new Error(`Invalid outbox operation: ${String(row?.operation_type)}`);
+  }
+  if (!OUTBOX_STATUSES.includes(row?.status)) {
+    throw new Error(`Invalid outbox status: ${String(row?.status)}`);
+  }
+  // Only Phase 5B/5C master data may ever be queued. A transactional table is
+  // rejected here, inside the worker, before a statement is prepared.
+  tableSpec(requireString(row?.entity, "entity") as MasterTable);
+  return {
+    id: requireString(row.id, "id"),
+    device_id: requireString(row.device_id, "device_id"),
+    operation_id: requireString(row.operation_id, "operation_id"),
+    entity: row.entity,
+    entity_id: requireString(row.entity_id, "entity_id"),
+    operation_type: row.operation_type as OutboxOperation,
+    payload: requireString(row.payload, "payload"),
+    base_snapshot: row.base_snapshot ?? null,
+    created_at: requireString(row.created_at, "created_at"),
+    updated_at: requireString(row.updated_at, "updated_at"),
+    business_date: requireString(row.business_date, "business_date"),
+    status: row.status,
+    attempt_count: Number.isFinite(row.attempt_count) ? Number(row.attempt_count) : 0,
+    last_error: row.last_error ?? null,
+    next_retry_at: row.next_retry_at ?? null,
+    schema_version: Number.isFinite(row.schema_version)
+      ? Number(row.schema_version)
+      : LOCAL_SCHEMA_VERSION,
+    synced_at: row.synced_at ?? null,
+    conflict_details: row.conflict_details ?? null,
+  };
+}
+
+/** Reads the pre-mutation value of the columns a mutation is about to change. */
+function captureBaseSnapshot(
+  db: LocalDb,
+  table: MasterTable,
+  id: SqliteValue,
+  columns: string[],
+): string | null {
+  const spec = tableSpec(table);
+  const known = columns.filter((c) => c in spec.columns || c === spec.pk);
+  if (known.length === 0) return null;
+  const rows = db.selectObjects(
+    `SELECT ${known.map((c) => `"${c}"`).join(", ")} FROM "${mirrorTable(table)}"
+     WHERE "${spec.pk}" = ?`,
+    [id] as any[],
+  ) as any[];
+  if (rows.length === 0) return null;
+  return JSON.stringify(rows[0]);
+}
+
+function applyOutboxInsert(
+  db: LocalDb,
+  raw: OutboxRow,
+  captureBase?: { table: MasterTable; columns: string[] },
+): void {
+  const row = validateOutboxRow(raw);
+  if (captureBase) {
+    row.base_snapshot = captureBaseSnapshot(
+      db,
+      captureBase.table,
+      row.entity_id,
+      captureBase.columns,
+    );
+  }
+  const columns = Object.keys(row);
+  db.exec({
+    sql: `INSERT INTO ${OUTBOX_TABLE}(${columns.join(", ")})
+          VALUES (${columns.map(() => "?").join(", ")})`,
+    bind: columns.map((c) => (row as any)[c]),
+  });
+}
+
+function applyOutboxStatus(
+  db: LocalDb,
+  step: Extract<MutationStep, { kind: "outboxStatus" }>,
+): void {
+  if (!OUTBOX_STATUSES.includes(step.status)) {
+    throw new Error(`Invalid outbox status: ${String(step.status)}`);
+  }
+  const sets: string[] = ["status = ?", "updated_at = ?"];
+  const bind: any[] = [step.status, requireString(step.updatedAt, "updatedAt")];
+  if (step.attemptCount !== undefined) {
+    sets.push("attempt_count = ?");
+    bind.push(Number(step.attemptCount));
+  }
+  if (step.lastError !== undefined) {
+    sets.push("last_error = ?");
+    bind.push(step.lastError);
+  }
+  if (step.nextRetryAt !== undefined) {
+    sets.push("next_retry_at = ?");
+    bind.push(step.nextRetryAt);
+  }
+  if (step.syncedAt !== undefined) {
+    sets.push("synced_at = ?");
+    bind.push(step.syncedAt);
+  }
+  if (step.conflictDetails !== undefined) {
+    sets.push("conflict_details = ?");
+    bind.push(step.conflictDetails);
+  }
+  bind.push(requireString(step.id, "id"));
+  db.exec({ sql: `UPDATE ${OUTBOX_TABLE} SET ${sets.join(", ")} WHERE id = ?`, bind });
+}
+
+/** Deterministic creation-order read of the outbox. */
+export function readOutbox(
+  db: LocalDb,
+  filter: { statuses?: OutboxStatus[]; ids?: string[]; limit?: number } = {},
+): OutboxRow[] {
+  ensureMutationSchema(db);
+  const where: string[] = [];
+  const bind: any[] = [];
+  if (filter.statuses?.length) {
+    where.push(`status IN (${filter.statuses.map(() => "?").join(", ")})`);
+    bind.push(...filter.statuses);
+  }
+  if (filter.ids?.length) {
+    where.push(`id IN (${filter.ids.map(() => "?").join(", ")})`);
+    bind.push(...filter.ids);
+  }
+  const limit = Number.isFinite(filter.limit) ? ` LIMIT ${Math.max(1, Number(filter.limit))}` : "";
+  return db.selectObjects(
+    `SELECT * FROM ${OUTBOX_TABLE}
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY created_at, id${limit}`,
+    bind,
+  ) as unknown as OutboxRow[];
+}
+
+export function outboxCounts(db: LocalDb): Record<string, number> {
+  ensureMutationSchema(db);
+  const out: Record<string, number> = {};
+  for (const row of db.selectObjects(
+    `SELECT status, COUNT(*) AS n FROM ${OUTBOX_TABLE} GROUP BY status`,
+  ) as any[]) {
+    out[String(row.status)] = Number(row.n);
+  }
+  return out;
+}
+
+/**
+ * Removes outbox records BY EXPLICIT ID. Never called by the sync engine —
+ * only by tests and by a future manual clean-up UI. Automatic deletion of a
+ * failed or conflicted record does not exist anywhere in this codebase.
+ */
+export function deleteOutboxRecords(db: LocalDb, ids: string[]): number {
+  ensureMutationSchema(db);
+  let removed = 0;
+  for (const id of ids) {
+    db.exec({ sql: `DELETE FROM ${OUTBOX_TABLE} WHERE id = ?`, bind: [id] });
+    removed += 1;
+  }
+  return removed;
+}
+
 function applyStep(db: LocalDb, step: MutationStep): void {
   switch (step.kind) {
     case "testInsert": {
@@ -372,6 +567,14 @@ function applyStep(db: LocalDb, step: MutationStep): void {
     }
     case "masterDelete": {
       applyMasterDelete(db, step.table, step.id);
+      return;
+    }
+    case "outbox": {
+      applyOutboxInsert(db, step.row, step.captureBase);
+      return;
+    }
+    case "outboxStatus": {
+      applyOutboxStatus(db, step);
       return;
     }
     case "failDeliberately": {
