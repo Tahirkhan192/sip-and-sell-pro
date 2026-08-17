@@ -41,3 +41,31 @@ Database                  (cloud today → local SQLite later)
 `src/data/local/schema.sql` mirrors every cloud table, including staff,
 attendance, payments, carry-forward, Digi Katha opening, manual stock
 adjustments, opening snapshots, user roles, and the audit log.
+
+## Phase 5E — offline-first expenses
+
+`expenses` is the first transactional table with a local write path, and only
+in its plain, bookkeeping-only form.
+
+Audit that allowed it: the cloud `expenses` table has **no triggers**, and no
+cash movement, stock quantity or balance is derived from an expense row. The
+reports simply read it.
+
+| Operation | Path |
+|---|---|
+| Add / edit / soft delete a plain expense | Local SQLite → outbox → cloud sync |
+| Anything with `is_stock_transfer = 1` or `payment_method = 'stock_transfer'` | Cloud only, always |
+| Delivery expenses | Cloud only (different table, out of scope) |
+
+Stock-transfer expenses move product and stock-item quantities through
+`stock_to_expense_transfer`, `update_stock_transfer_expense` and
+`delete_stock_transfer_expense`. Writing only the money half offline would
+leave stock wrong, so three independent gates block it: the column contract
+(`is_stock_transfer` and every `source_*` column non-writable,
+`payment_method` limited to cash/online), the worker `rowGuard`, and the
+routing in `src/data/writes/expenses.ts`.
+
+Reads go through `listExpenses()` in `src/data/reads/reference.ts`, so an
+expense created offline appears in the list immediately.
+
+Proof: `src/data/local/mutations/expenses.sqlite.test.ts`.
