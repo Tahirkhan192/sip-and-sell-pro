@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
+import { tryLocalReportInputs, type ReportInputs } from "@/data/reads/report-inputs";
+
+export type { ReportInputs };
 
 export type ReportRangeInput = Partial<RangeResult> & { label?: string };
 
@@ -87,6 +90,10 @@ export type ReportResult = {
   monthExp: number;
   monthDelExp: number;
   overall: number;
+  /** Where the raw rows came from: the cloud, or the offline SQLite mirror. */
+  source?: "cloud" | "local";
+  /** Seed timestamp when `source === "local"`, so staleness is visible. */
+  asOf?: string | null;
 };
 
 function reportKey(range: ReportRangeInput, categories: string[] = []) {
@@ -126,7 +133,8 @@ async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promis
   return out;
 }
 
-export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
+/** Loads the fourteen raw row sets the report is calculated from, from the cloud. */
+export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<ReportInputs> {
   const hasRange = Boolean(range.from && range.to && range.startUTC && range.endExclusiveUTC);
 
   const buildSales = () => {
@@ -214,31 +222,55 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
 
+  return {
+    sales: salesRows as any[],
+    expenses: expensesRows as any[],
+    deliveryExpenses: deliveryExpensesRows as any[],
+    purchases: purchasesRows as any[],
+    products: productsRows as any[],
+    stockItems: (stockItemsRows ?? []) as any[],
+    recipes: (recipesRows ?? []) as any[],
+    transfers: (transferRows ?? []) as any[],
+    production: (productionRows ?? []) as any[],
+    transferExpenses: (transferExpenseRows ?? []) as any[],
+    overrides: ((overridesQ as any).data ?? []) as any[],
+    snapshot: ((snapshotQ as any).data ?? []) as any[],
+    staff: ((staffQ as any).data ?? []) as any[],
+    attendance: ((attendanceQ as any).data ?? []) as any[],
+  };
+}
+
+/**
+ * The ONE report calculation. Identical for cloud and local inputs — no
+ * formula, rounding or default differs by source.
+ */
+export function computeReport(inputs: ReportInputs, range: ReportRangeInput, seedCategories: string[] = []): ReportResult {
   // Opening quantities locked to this period, keyed "<scope>:<id>".
   const openingSnapshot: Record<string, number> = {};
-  for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
+  for (const r of inputs.snapshot) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
   // Part 3 — present staff accrue one daily salary (monthly ÷ 30) per present day.
   const salaryById: Record<string, number> = {};
-  for (const s of (((staffQ as any).data ?? []) as any[])) salaryById[s.id] = num(s.monthly_salary) / 30;
+  for (const s of inputs.staff) salaryById[s.id] = num(s.monthly_salary) / 30;
   let staffSalaryCost = 0;
-  for (const a of (((attendanceQ as any).data ?? []) as any[])) staffSalaryCost += salaryById[a.staff_id] ?? 0;
+  for (const a of inputs.attendance) staffSalaryCost += salaryById[a.staff_id] ?? 0;
   staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
 
 
-  const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
-  const expenses = expensesRows as any[];
-  const deliveryExpenses = deliveryExpensesRows as any[];
-  const purchases = purchasesRows as any[];
-  const products = productsRows as any[];
-  const stockItems = (stockItemsRows ?? []) as any[];
-  const recipes = (recipesRows ?? []) as any[];
-  const transfers = (transferRows ?? []) as any[];
-  const production = (productionRows ?? []) as any[];
-  const transferExpenses = (transferExpenseRows ?? []) as any[];
+  const invoices = inputs.sales.filter((s) => inBusinessRange(s, range));
+  const expenses = inputs.expenses;
+  const deliveryExpenses = inputs.deliveryExpenses;
+  const purchases = inputs.purchases;
+  const products = inputs.products;
+  const stockItems = inputs.stockItems;
+  const recipes = inputs.recipes;
+  const transfers = inputs.transfers;
+  const production = inputs.production;
+  const transferExpenses = inputs.transferExpenses;
 
 
-  const overrides = (overridesQ.data ?? []) as any[];
+  const overrides = inputs.overrides;
+
 
   const catMap: Record<string, ReportCategoryRow> = {};
   const productMap: Record<string, ReportProductRow> = {};
@@ -544,6 +576,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     monthDelExp: deliveryExpenseTotal,
     overall: netProfit,
   };
+}
+
+/**
+ * Report for one range. Inputs come from the cloud whenever it is reachable;
+ * the local SQLite mirror is used only while offline (see
+ * `src/data/reads/report-inputs.ts`). The calculation itself is the same in
+ * both cases.
+ */
+export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
+  const local = await tryLocalReportInputs(range);
+  if (local) {
+    return { ...computeReport(local.inputs, range, seedCategories), source: "local", asOf: local.seededAt };
+  }
+  const inputs = await fetchCloudReportInputs(range);
+  return { ...computeReport(inputs, range, seedCategories), source: "cloud", asOf: null };
 }
 
 /** Change returned to the customer for one sale row. */
