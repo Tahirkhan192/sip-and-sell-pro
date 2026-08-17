@@ -18,7 +18,7 @@ import schemaSql from "./schema.sql?raw";
 export type LocalDb = Database;
 
 /** Schema revision applied by schema.sql. Stored in `_meta`. */
-export const LOCAL_SCHEMA_VERSION = 2;
+export const LOCAL_SCHEMA_VERSION = 3;
 
 /** Persistent database identity — must never change silently. */
 export const LOCAL_DB_NAME = "/kdf-pos.sqlite3";
@@ -122,6 +122,9 @@ export function openEngine(): Promise<LocalDb> {
 
     // Apply schema (idempotent — uses IF NOT EXISTS everywhere). Never drops.
     db.exec(schemaSql);
+    // Phase 3: the cloud-faithful `cloud_*` mirror tables (also additive).
+    const { applyMirrorSchema } = await import("./mirror");
+    applyMirrorSchema(db);
     // Foreign keys are per-connection, so re-assert after opening.
     db.exec("PRAGMA foreign_keys = ON");
 
@@ -172,10 +175,15 @@ function ensureDeviceId(db: LocalDb) {
   db.exec({ sql: "INSERT INTO _meta(key, value) VALUES ('device_id', ?)", bind: [id] });
 }
 
-/** Records the schema revision once; never rewrites an existing value. */
+/**
+ * Records the schema revision. Schema application is purely additive
+ * (`CREATE TABLE IF NOT EXISTS`), so an older database is upgraded in place
+ * and the recorded version moves forward — nothing is dropped or rebuilt.
+ */
 function ensureSchemaVersion(db: LocalDb) {
   db.exec({
-    sql: "INSERT OR IGNORE INTO _meta(key, value) VALUES ('schema_version', ?)",
+    sql: `INSERT INTO _meta(key, value) VALUES ('schema_version', ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     bind: [String(LOCAL_SCHEMA_VERSION)],
   });
   db.exec({
