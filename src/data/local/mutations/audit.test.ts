@@ -262,12 +262,12 @@ describe("Phase 5A — safety gates (default flags)", () => {
     expect(() => assertBusinessWritesEnabled()).toThrow(/Phase 5B/);
   });
 
-  it("keeps LocalRepository read-only and points at Phase 5B", async () => {
+  it("keeps LocalRepository read-only and points at Phase 5B", () => {
     const repo = new LocalRepository();
     expect(READ_ONLY_MESSAGE).toMatch(/read-only/i);
-    await expect(repo.insert("products" as any, {} as any)).rejects.toThrow(READ_ONLY_MESSAGE);
-    await expect(repo.update("products" as any, {} as any, {} as any)).rejects.toThrow(/Phase 5B/);
-    await expect(repo.remove("products" as any, {} as any)).rejects.toThrow(/Phase 5B/);
+    expect(() => repo.insert("products" as any, {} as any)).toThrow(READ_ONLY_MESSAGE);
+    expect(() => repo.update("products" as any, {} as any, {} as any)).toThrow(/Phase 5B/);
+    expect(() => repo.remove("products" as any, {} as any)).toThrow(/Phase 5B/);
   });
 });
 
