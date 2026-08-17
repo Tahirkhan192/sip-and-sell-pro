@@ -29,9 +29,15 @@ export const LOCAL_READ_TABLES: TableName[] = [
   "expenses",
   "money_movement_subcategories",
   "products",
+  // PHASE 5G — purchase READS only (writes stay cloud-only: the purchase
+  // triggers derive cash_movements and stock_purchases server-side).
+  "purchase_items",
+  "purchases",
   "recipes",
   "settings",
   "staff",
+  // PHASE 5G — the ledger rows the purchase trigger produced, read-only.
+  "stock_purchases",
   // PHASE 5H — manual stock adjustments: an append-only ledger row with no
   // cloud trigger, RPC or derived column behind it.
   "stock_adjustments",

@@ -264,7 +264,40 @@ function fillCloud() {
       applies_to: ["walkin", "delivery"],
     },
   ];
+  // PHASE 5G — purchases are read locally, so the seed must carry them.
+  cloud["purchases"] = [
+    {
+      id: uid("bbbb", 1),
+      date: "2026-03-02",
+      supplier: "Metro",
+      category: "Drinks",
+      payment_status: "paid",
+      payment_method: "cash",
+      grand_total: 1200,
+      notes: null,
+      created_by: null,
+      cash_movement_id: null,
+      created_at: iso,
+      updated_at: iso,
+      deleted_at: null,
+    },
+  ];
+  cloud["purchase_items"] = [
+    {
+      id: uid("bbbc", 1),
+      purchase_id: uid("bbbb", 1),
+      product_id: uid("aaaa", 1),
+      stock_item_id: null,
+      category: "Drinks",
+      quantity: 10,
+      unit: "kg",
+      unit_cost: 120,
+      total_cost: 1200,
+      created_at: iso,
+    },
+  ];
 }
+
 
 async function seed() {
   return seedCloudToLocal({ allowNonPersistent: true });
@@ -453,11 +486,24 @@ describe("health gate and repository selection", () => {
     await seed();
     pretendPersistent();
     await localReadHealth(true);
-    for (const t of ["sales", "sale_items", "cash_movements", "purchases"] as const) {
+    // `purchases`/`purchase_items` moved to local reads in Phase 5G; the
+    // transactional tables below are still cloud-only for reads.
+    for (const t of ["sales", "sale_items", "cash_movements"] as const) {
       expect(LOCAL_READ_TABLES).not.toContain(t);
       expect((await readRepo(t)).kind).toBe("cloud");
     }
   });
+
+  it("purchase reads are served locally once the local database is healthy", async () => {
+    await seed();
+    pretendPersistent();
+    await localReadHealth(true);
+    for (const t of ["purchases", "purchase_items"] as const) {
+      expect(LOCAL_READ_TABLES).toContain(t);
+      expect((await readRepo(t)).kind).toBe("local");
+    }
+  });
+
 
   it("invalidation immediately forces cloud reads", async () => {
     await seed();
@@ -486,11 +532,15 @@ describe("cloud/local parity", () => {
   });
 
   it("passes on the seeded fixtures for every locally-readable table", async () => {
-    // `recipes` has no name column, so it gets its own ordering.
+    // `recipes` and `purchase_items` have no name column; `purchase_items`
+    // has no deleted_at either, so those get their own options.
     const tables = LOCAL_READ_TABLES.filter((t) => (cloud[t] ?? []).length > 0 && t !== "settings");
-    const { ok, results } = await compareTables(tables, (t) =>
-      t === "recipes" ? { filter: opts.filter, order: [{ column: "id" }] } : opts,
-    );
+    const { ok, results } = await compareTables(tables, (t) => {
+      if (t === "purchase_items") return { order: [{ column: "id" as const }] };
+      if (t === "recipes" || t === "purchases")
+        return { filter: opts.filter, order: [{ column: "id" as const }] };
+      return opts;
+    });
     for (const r of results) {
       expect(r.notes, `${r.table}: ${r.notes.join(" ")}`).toEqual([]);
       expect(r.cloudCount).toBe(r.localCount);
