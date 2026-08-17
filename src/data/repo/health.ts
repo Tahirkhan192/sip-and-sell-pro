@@ -16,34 +16,14 @@ import { LOCAL_SCHEMA_VERSION, engineStatus, mirrorStatus, workerStatus } from "
 import { isLocalSqliteEnabled } from "@/data/local/status";
 import { isLocalWritesEnabled } from "@/data/local/mutations/flags";
 import { isMasterTable } from "@/data/local/mutations/master-tables";
+import { LOCAL_READ_TABLE_SET, LOCAL_WRITE_TABLE_SET } from "./entity-classification";
 import type { TableName } from "./types";
 
-/** Tables whose READ path may be served locally in Phase 4 (reference data). */
-export const LOCAL_READ_TABLES: TableName[] = [
-  "branches",
-  "categories",
-  "customers",
-  "employees",
-  "expense_categories",
-  // PHASE 5E — the expense list, so a locally created expense is visible at once.
-  "expenses",
-  "money_movement_subcategories",
-  "products",
-  // PHASE 5G — purchase READS only (writes stay cloud-only: the purchase
-  // triggers derive cash_movements and stock_purchases server-side).
-  "purchase_items",
-  "purchases",
-  "recipes",
-  "settings",
-  "staff",
-  // PHASE 5G — the ledger rows the purchase trigger produced, read-only.
-  "stock_purchases",
-  // PHASE 5H — manual stock adjustments: an append-only ledger row with no
-  // cloud trigger, RPC or derived column behind it.
-  "stock_adjustments",
-  "stock_items",
-  "suppliers",
-];
+/**
+ * Tables whose READ path may be served locally. PHASE 6: derived from the
+ * single classification registry so the gate can never drift from the audit.
+ */
+export const LOCAL_READ_TABLES: TableName[] = LOCAL_READ_TABLE_SET;
 
 export type LocalHealth = {
   usable: boolean;
@@ -190,28 +170,11 @@ export async function canReadLocally(table: TableName): Promise<boolean> {
  * procedure layer actually supports. Anything else → the cloud path.
  * ------------------------------------------------------------------ */
 
-/** Tables whose master-data WRITE path may be served locally in Phase 5C. */
-export const LOCAL_WRITE_TABLES: TableName[] = [
-  "branches",
-  "categories",
-  "customers",
-  "employees",
-  "expense_categories",
-  // PHASE 5E — plain business expenses only. Stock-transfer expenses are
-  // rejected by the column contract and the worker row guard, and keep going
-  // to the cloud procedures that also move stock.
-  "expenses",
-  "money_movement_subcategories",
-  "products",
-  "recipes",
-  "settings",
-  "staff",
-  // PHASE 5H — manual stock adjustments: an append-only ledger row with no
-  // cloud trigger, RPC or derived column behind it.
-  "stock_adjustments",
-  "stock_items",
-  "suppliers",
-];
+/**
+ * Tables whose WRITE path may be served locally. PHASE 6: derived from the
+ * classification registry (see `entity-classification.ts` for each blocker).
+ */
+export const LOCAL_WRITE_TABLES: TableName[] = LOCAL_WRITE_TABLE_SET;
 
 /**
  * May this master-data table be written locally right now? Never throws:
