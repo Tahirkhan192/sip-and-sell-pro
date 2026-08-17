@@ -71,7 +71,7 @@ let db: LocalDb;
 
 function insertCategory(id: string, name: string) {
   db.exec(
-    `INSERT INTO "${mirrorTable("categories" as any)}" (id, name) VALUES ('${id}', '${name}')`,
+    `INSERT INTO "${mirrorTable("categories" as any)}" (id, name, sort_order) VALUES ('${id}', '${name}', 0)`,
   );
 }
 
@@ -410,10 +410,13 @@ describe("rotation", () => {
     const { client, files } = fakeDrive();
     for (let i = 0; i < 5; i++) {
       writeBackupState(db, { dirtySince: new Date().toISOString() });
-      await runBackupCycle({ client, makeBackup: async () => {
-        const b = await makeBackup();
-        return { ...b, createdAt: `2026-01-0${i + 1}T00:00:00.000Z` } as any;
-      }, keep: 3, online: () => true });
+      const at = new Date(`2026-01-0${i + 1}T00:00:00.000Z`);
+      await runBackupCycle({
+        client,
+        makeBackup: () => buildLocalBackup(snapshotLocal(db, at)),
+        keep: 3,
+        online: () => true,
+      });
     }
     const kept = [...files.values()].map((s) => s.file);
     expect(kept.length).toBe(3);
