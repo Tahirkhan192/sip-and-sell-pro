@@ -41,6 +41,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { isModuleVisible, useMenuVisibility } from "@/lib/menu-visibility";
+import { SyncIndicator } from "@/components/SyncIndicator";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const NAV: NavItem[] = [
