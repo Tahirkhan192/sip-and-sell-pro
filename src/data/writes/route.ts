@@ -25,6 +25,7 @@ import { LocalMutationError } from "@/data/local/mutations/errors";
 import type { MasterMutationResult } from "@/data/local/mutations/procedures/run";
 import { canWriteLocally } from "@/data/repo/health";
 import { requestSync } from "@/data/sync/sync-engine";
+import { markLocalChange } from "@/data/backup/local-backup";
 
 export type WritePath = "local" | "cloud";
 
@@ -68,6 +69,9 @@ export async function routeMasterWrite(
       const result = await local();
       // Fire-and-forget: the write is already durable locally.
       requestSync();
+      // Phase 8: only a committed local transaction marks the database as
+      // needing a fresh backup, so an idle café never re-uploads the same data.
+      void markLocalChange();
       return { path: "local", local: result };
     } catch (err) {
       if (!isEnvironmentFailure(err)) throw err;
