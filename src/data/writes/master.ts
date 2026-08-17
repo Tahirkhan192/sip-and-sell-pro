@@ -39,7 +39,6 @@ import {
   updateBusinessSettings,
   updateCategory,
   updateCustomer,
-  updatePinLocks,
   updateProduct,
   updateRecipe,
   updateStaff,
@@ -401,10 +400,11 @@ export function savePinSettings(input: {
 }): Promise<WriteOutcome> {
   return routeMasterWrite(
     "settings",
-    async () => {
-      await updatePinLocks(input.pin_locks);
-      return updateBusinessSettings({ staff_invoice_color: input.staff_invoice_color });
-    },
+    () =>
+      updateBusinessSettings({
+        pin_locks: input.pin_locks,
+        staff_invoice_color: input.staff_invoice_color,
+      }),
     async () =>
       check(
         await supabase
