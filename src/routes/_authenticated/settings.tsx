@@ -20,6 +20,7 @@ import { LocalBackupCard } from "@/components/LocalBackupCard";
 import { CloudSeedCard } from "@/components/CloudSeedCard";
 import { SyncStatusCard } from "@/components/SyncStatusCard";
 import { SyncConflicts } from "@/components/SyncConflicts";
+import { OfflineCapabilityCard } from "@/components/OfflineCapabilityCard";
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
@@ -205,6 +206,7 @@ function SettingsPage() {
       <CloudSeedCard />
       <SyncStatusCard />
       <SyncConflicts />
+      <OfflineCapabilityCard />
 
       <MenuVisibilityCard />
 
