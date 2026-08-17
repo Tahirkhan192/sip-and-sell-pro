@@ -90,6 +90,10 @@ export type ReportResult = {
   monthExp: number;
   monthDelExp: number;
   overall: number;
+  /** Where the raw rows came from: the cloud, or the offline SQLite mirror. */
+  source?: "cloud" | "local";
+  /** Seed timestamp when `source === "local"`, so staleness is visible. */
+  asOf?: string | null;
 };
 
 function reportKey(range: ReportRangeInput, categories: string[] = []) {
