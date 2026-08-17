@@ -270,6 +270,27 @@ function assertUnique(
   }
 }
 
+/**
+ * PHASE 5E — row-level gate. Some tables hold rows that only cloud procedures
+ * may change (a stock-transfer expense also moves stock). The contract marks
+ * them with `rowGuard`; the worker refuses to touch a row that fails it, even
+ * if the main thread was bypassed.
+ */
+function assertRowGuard(db: LocalDb, table: MasterTable, id: SqliteValue): void {
+  const spec = tableSpec(table);
+  const guard = spec.rowGuard;
+  if (!guard) return;
+  const values = db.selectValues(
+    `SELECT "${guard.column}" FROM "${mirrorTable(table)}" WHERE "${spec.pk}" = ?`,
+    [id] as any[],
+  ) as SqliteValue[];
+  if (values.length === 0) return; // "does not exist" is reported by the caller
+  const actual = values[0];
+  if (Number(actual ?? 0) !== Number(guard.equals ?? 0)) {
+    throw new MasterDataError(`Invalid local mutation: ${guard.message}`);
+  }
+}
+
 function rowExists(db: LocalDb, table: MasterTable, id: SqliteValue): boolean {
   const spec = tableSpec(table);
   const v = db.selectValues(
@@ -320,6 +341,7 @@ function applyMasterUpdate(
   if (!rowExists(db, table, id)) {
     throw new MasterDataError(`Invalid local mutation: ${table} row "${String(id)}" does not exist.`);
   }
+  assertRowGuard(db, table, id);
   assertUnique(db, table, values, id);
 
   db.exec({
@@ -331,6 +353,7 @@ function applyMasterUpdate(
 
 function applyMasterDelete(db: LocalDb, table: MasterTable, id: SqliteValue): void {
   const spec = tableSpec(table);
+  assertRowGuard(db, table, id);
   if (!spec.allowHardDelete) {
     throw new MasterDataError(
       `Invalid local mutation: "${table}" rows are soft-deleted (deleted_at), never removed.`,
