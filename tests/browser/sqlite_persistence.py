@@ -48,7 +48,10 @@ async def main() -> int:
         await page.reload(wait_until="networkidle")
         read = await page.evaluate(READ)
 
-        # And a brand-new page in the same browser context.
+        # And a brand-new page. The OPFS SAH Pool is single-writer per origin,
+        # so the first page must release it before the next one opens it.
+        await page.evaluate("async () => { const db = await import('/src/data/local/db.ts'); await db.closeLocalDb(); }")
+        await page.close()
         page2 = await context.new_page()
         await page2.goto(f"{BASE}/auth", wait_until="networkidle")
         read2 = await page2.evaluate(READ)
