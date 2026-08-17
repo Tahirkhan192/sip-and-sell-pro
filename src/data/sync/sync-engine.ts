@@ -29,6 +29,7 @@ import {
   type OutboxRow,
 } from "./outbox";
 import { applyOutboxRecord, supabaseGateway, type CloudGateway } from "./sync-protocol";
+import { decodeError, type FailureKind } from "./failure";
 
 export type SyncPhase = "idle" | "syncing" | "offline" | "disabled";
 
@@ -47,8 +48,23 @@ export type SyncRunSummary = {
   failed: number;
   conflicts: number;
   skipped: number;
+  /** Records that will not be retried automatically until a human acts. */
+  needsAttention: number;
+  failureKinds: Partial<Record<FailureKind, number>>;
   error?: string;
 };
+
+function emptySummary(): SyncRunSummary {
+  return {
+    attempted: 0,
+    synced: 0,
+    failed: 0,
+    conflicts: 0,
+    skipped: 0,
+    needsAttention: 0,
+    failureKinds: {},
+  };
+}
 
 const EMPTY_COUNTS: OutboxCounts = {
   pending: 0,
@@ -99,10 +115,17 @@ export async function refreshSyncCounts(): Promise<OutboxCounts> {
   }
 }
 
-/** Oldest first; ties broken by insertion order so intent is preserved. */
+/**
+ * Oldest first; ties broken by SQLite `rowid` — real insertion order — so
+ * "create → rename → delete" can never be reordered, even when two mutations
+ * share a millisecond.
+ */
 function orderRecords(records: OutboxRow[]): OutboxRow[] {
   return [...records].sort((a, b) => {
     if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+    const sa = Number(a.seq ?? Number.MAX_SAFE_INTEGER);
+    const sb = Number(b.seq ?? Number.MAX_SAFE_INTEGER);
+    if (sa !== sb) return sa - sb;
     return a.id < b.id ? -1 : 1;
   });
 }
@@ -112,13 +135,7 @@ function entityKey(record: OutboxRow): string {
 }
 
 async function runOnce(gateway: CloudGateway, at: Date): Promise<SyncRunSummary> {
-  const summary: SyncRunSummary = {
-    attempted: 0,
-    synced: 0,
-    failed: 0,
-    conflicts: 0,
-    skipped: 0,
-  };
+  const summary = emptySummary();
 
   // A run that died mid-upload (tab closed, crash) leaves records in
   // `syncing`. They go back to `pending`, never to `synced`.
@@ -136,8 +153,13 @@ async function runOnce(gateway: CloudGateway, at: Date): Promise<SyncRunSummary>
       continue;
     }
     if (record.status === "failed") {
-      if (record.attempt_count >= MAX_AUTO_ATTEMPTS || !isDue(record, at)) {
+      const previous = decodeError(record.last_error).kind;
+      const permanent = previous === "auth" || previous === "validation" || previous === "permanent";
+      if (permanent || record.attempt_count >= MAX_AUTO_ATTEMPTS || !isDue(record, at)) {
+        // Permanent failures are never retried automatically: they wait for a
+        // human. Not retrying is what keeps this loop bounded.
         summary.skipped += 1;
+        if (permanent) summary.needsAttention += 1;
         blocked.add(key);
         continue;
       }
@@ -156,10 +178,17 @@ async function runOnce(gateway: CloudGateway, at: Date): Promise<SyncRunSummary>
         blocked.add(key);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await markFailed(record, message, new Date());
+      const outcome = await markFailed(record, error, new Date());
       summary.failed += 1;
+      summary.failureKinds[outcome.kind] = (summary.failureKinds[outcome.kind] ?? 0) + 1;
+      if (!outcome.retryable) summary.needsAttention += 1;
       blocked.add(key);
+      // A sign-in problem will fail identically for every remaining record —
+      // stop the pass instead of burning the whole queue's retry budget.
+      if (outcome.kind === "auth") {
+        summary.error = "Sign-in required before changes can be uploaded.";
+        break;
+      }
     }
   }
 
@@ -178,7 +207,7 @@ export async function syncNow(options: { gateway?: CloudGateway } = {}): Promise
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     publish({ phase: "offline", online: false });
     await refreshSyncCounts();
-    return { attempted: 0, synced: 0, failed: 0, conflicts: 0, skipped: 0 };
+    return emptySummary();
   }
 
   const run = (async (): Promise<SyncRunSummary> => {
@@ -198,7 +227,7 @@ export async function syncNow(options: { gateway?: CloudGateway } = {}): Promise
       // that is not an app error, sync just has nothing to do.
       const message = error instanceof Error ? error.message : String(error);
       publish({ phase: "idle", lastError: message });
-      return { attempted: 0, synced: 0, failed: 0, conflicts: 0, skipped: 0, error: message };
+      return { ...emptySummary(), error: message };
     } finally {
       inFlight = null;
     }

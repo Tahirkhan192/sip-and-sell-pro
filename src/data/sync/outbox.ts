@@ -28,6 +28,7 @@ import {
 } from "@/data/local/mutations/outbox-schema";
 import { runLocalTransaction } from "@/data/local/mutations/transaction";
 import type { BusinessStamp } from "@/data/local/mutations/timestamps";
+import { classifyFailure, encodeError, type FailureKind } from "./failure";
 
 export type { OutboxRow, OutboxStatus, OutboxOperation, OutboxCounts };
 export {
@@ -156,21 +157,35 @@ export function markSynced(record: OutboxRow, at = new Date()): Promise<void> {
   });
 }
 
-/** Failure: keep the record, count the attempt, schedule the next try. */
-export function markFailed(record: OutboxRow, error: string, at = new Date()): Promise<void> {
+/**
+ * Failure: keep the record, count the attempt, schedule the next try.
+ *
+ * PHASE 9 — the failure CLASS decides the schedule:
+ *   * retryable (network / unknown) → bounded exponential backoff,
+ *   * non-retryable (auth, validation, permanent) → no automatic retry at all.
+ *     The record stays forever, flagged for a human, and cannot busy-loop.
+ * The class is encoded into `last_error` so the UI and later runs can read it.
+ */
+export function markFailed(
+  record: OutboxRow,
+  error: unknown,
+  at = new Date(),
+): Promise<{ kind: FailureKind; retryable: boolean }> {
+  const failure = classifyFailure(error);
   const attempt = Number(record.attempt_count ?? 0) + 1;
-  // After the bounded retry budget the record STAYS (never dropped), but stops
-  // retrying automatically — it waits for a manual "Retry failed changes".
-  const retryAt = attempt >= MAX_AUTO_ATTEMPTS ? null : nextRetryAt(attempt, at);
+  const exhausted = attempt >= MAX_AUTO_ATTEMPTS;
+  const retryAt = failure.retryable && !exhausted ? nextRetryAt(attempt, at) : null;
   return transition({
     kind: "outboxStatus",
     id: record.id,
     status: "failed",
     updatedAt: at.toISOString(),
-    attemptCount: attempt,
-    lastError: error.slice(0, 2000),
+    // A permanent failure is parked at the attempt ceiling so no automatic
+    // pass ever picks it up again — only an explicit "Retry failed changes".
+    attemptCount: failure.retryable ? attempt : MAX_AUTO_ATTEMPTS,
+    lastError: encodeError(failure.kind, failure.message),
     nextRetryAt: retryAt,
-  });
+  }).then(() => ({ kind: failure.kind, retryable: failure.retryable && !exhausted }));
 }
 
 /**
@@ -226,4 +241,58 @@ export async function recoverStuckSyncing(at = new Date()): Promise<number> {
     });
   }
   return stuck.length;
+}
+
+/* ------------------------------------------------------------------ *
+ * PHASE 9 — human conflict resolution                                 *
+ * ------------------------------------------------------------------ */
+
+/**
+ * "Keep my version": re-baseline the record against the cloud row that was
+ * captured with the conflict, then put it back in the queue. The next pass
+ * re-applies the local payload on top of the current cloud state — nothing was
+ * destroyed, and the decision was explicit.
+ */
+export async function resolveConflictKeepLocal(
+  record: OutboxRow,
+  at = new Date(),
+): Promise<void> {
+  let cloud: unknown = null;
+  try {
+    const details = record.conflict_details ? JSON.parse(record.conflict_details) : null;
+    cloud = details?.cloudRow ?? null;
+  } catch {
+    cloud = null;
+  }
+  await transition({
+    kind: "outboxStatus",
+    id: record.id,
+    status: "pending",
+    updatedAt: at.toISOString(),
+    attemptCount: 0,
+    lastError: null,
+    nextRetryAt: null,
+    baseSnapshot: cloud ? JSON.stringify(cloud) : record.base_snapshot,
+  });
+}
+
+/**
+ * "Keep the cloud version": the local change is withdrawn from the queue. The
+ * record is NOT deleted — it keeps both versions and its conflict details as
+ * an audit trail of the decision.
+ */
+export function resolveConflictKeepCloud(record: OutboxRow, at = new Date()): Promise<void> {
+  return transition({
+    kind: "outboxStatus",
+    id: record.id,
+    status: "synced",
+    updatedAt: at.toISOString(),
+    syncedAt: at.toISOString(),
+    lastError: encodeError("conflict", "Resolved by keeping the cloud version."),
+    nextRetryAt: null,
+  });
+}
+
+export async function listConflicts(): Promise<OutboxRow[]> {
+  return listOutbox({ statuses: ["conflict"] });
 }

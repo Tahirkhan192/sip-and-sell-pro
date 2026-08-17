@@ -113,6 +113,8 @@ export type MutationStep =
       nextRetryAt?: string | null;
       syncedAt?: string | null;
       conflictDetails?: string | null;
+      /** PHASE 9 — re-baseline after a human resolves a conflict. */
+      baseSnapshot?: string | null;
     }
   /** Test-only: forces the transaction to fail so rollback can be proven. */
   | { kind: "failDeliberately"; message: string };
@@ -473,6 +475,10 @@ function applyOutboxStatus(
     sets.push("conflict_details = ?");
     bind.push(step.conflictDetails);
   }
+  if (step.baseSnapshot !== undefined) {
+    sets.push("base_snapshot = ?");
+    bind.push(step.baseSnapshot);
+  }
   bind.push(requireString(step.id, "id"));
   db.exec({ sql: `UPDATE ${OUTBOX_TABLE} SET ${sets.join(", ")} WHERE id = ?`, bind });
 }
@@ -494,10 +500,13 @@ export function readOutbox(
     bind.push(...filter.ids);
   }
   const limit = Number.isFinite(filter.limit) ? ` LIMIT ${Math.max(1, Number(filter.limit))}` : "";
+  // `rowid` is SQLite's monotonic insertion counter: it is the ONLY tiebreak
+  // that preserves the real order of two mutations written in the same
+  // millisecond (uuid ids sort randomly and would reorder create/update/delete).
   return db.selectObjects(
-    `SELECT * FROM ${OUTBOX_TABLE}
+    `SELECT rowid AS seq, * FROM ${OUTBOX_TABLE}
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY created_at, id${limit}`,
+     ORDER BY created_at, rowid${limit}`,
     bind,
   ) as unknown as OutboxRow[];
 }

@@ -21,15 +21,41 @@ import {
   type MasterTable,
 } from "@/data/local/mutations/master-tables";
 import type { OutboxRow } from "@/data/local/mutations/outbox-schema";
-import { conflictDetails, detectConflict, parseSnapshot, sameValue } from "./conflicts";
+import {
+  conflictDetails,
+  detectConflict,
+  isTombstoned,
+  parseSnapshot,
+  sameValue,
+  updateGuard,
+} from "./conflicts";
 
 export type CloudRow = Record<string, unknown>;
+
+/**
+ * PHASE 9 — the smallest safe server-side mechanism for a conditional update.
+ *
+ * The cloud schema has no row-version column, and adding one to 30+ live
+ * tables would be a large, risky migration. Instead the UPDATE itself carries
+ * the baseline: `UPDATE ... WHERE id = $1 AND updated_at = <baseline>`,
+ * returning the affected rows. If zero rows come back, another device wrote
+ * first and we have a conflict — decided by the DATABASE, not by a read that
+ * could be stale. No migration, no RLS change, no data change.
+ */
+export type UpdateGuard = { column: string; value: unknown } | null;
 
 /** The narrow cloud surface the sync engine needs — injectable for tests. */
 export type CloudGateway = {
   fetchRow: (table: string, pk: string, id: unknown) => Promise<CloudRow | null>;
   insertRow: (table: string, row: CloudRow) => Promise<void>;
-  updateRow: (table: string, pk: string, id: unknown, values: CloudRow) => Promise<void>;
+  /** Returns the number of rows actually updated (0 = the guard did not match). */
+  updateRow: (
+    table: string,
+    pk: string,
+    id: unknown,
+    values: CloudRow,
+    guard?: UpdateGuard,
+  ) => Promise<number>;
 };
 
 export type ApplyResult =
@@ -50,12 +76,21 @@ export async function supabaseGateway(): Promise<CloudGateway> {
       const { error } = await client.from(table).insert(row);
       if (error) throw error;
     },
-    async updateRow(table, pk, id, values) {
-      const { error } = await client.from(table).update(values).eq(pk, id);
+    async updateRow(table, pk, id, values, guard) {
+      let query = client.from(table).update(values).eq(pk, id);
+      if (guard) {
+        query =
+          guard.value === null || guard.value === undefined
+            ? query.is(guard.column, null)
+            : query.eq(guard.column, guard.value);
+      }
+      const { data, error } = await query.select(pk);
       if (error) throw error;
+      return Array.isArray(data) ? data.length : 0;
     },
   };
 }
+
 
 /**
  * Decodes one stored payload value back to its cloud representation.
@@ -152,12 +187,44 @@ export async function applyOutboxRecord(
     return { outcome: "synced" };
   }
 
-  // update / delete (soft delete is an update of deleted_at)
+  // update / delete (a delete is a soft delete: an update of deleted_at)
   const changed = Object.keys(payload);
+  const isDelete = record.operation_type === "delete";
+  const cloudDeleted = cloud !== null && isTombstoned(cloud);
+
+  if (isDelete) {
+    // TOMBSTONES. A delete is idempotent and always terminal:
+    //   * the row is already gone or already tombstoned → nothing to do,
+    //   * the row exists → tombstone it WITHOUT a baseline guard, so a
+    //     concurrent edit on another device can never resurrect it.
+    if (!cloud || cloudDeleted) return { outcome: "synced" };
+    await gateway.updateRow(table, spec.pk, id, payload, null);
+    return { outcome: "synced" };
+  }
+
   if (cloud && alreadyApplied(cloud, payload)) {
     // Already identical in the cloud — a replay, not a change. Idempotent.
     return { outcome: "synced" };
   }
+
+  // An update must never revive a row another device deleted, unless this very
+  // change is an explicit un-delete (deleted_at set back to null).
+  if (cloudDeleted && !("deleted_at" in payload && payload.deleted_at === null)) {
+    const reason = "This record was deleted on another device, so the change was not applied.";
+    return {
+      outcome: "conflict",
+      reason,
+      details: conflictDetails({
+        reason,
+        columns: ["deleted_at"],
+        local: payload,
+        base,
+        cloud,
+        detectedAt: at.toISOString(),
+      }),
+    };
+  }
+
   const decision = detectConflict(cloud, base, changed);
   if (decision.conflict) {
     return {
@@ -174,6 +241,28 @@ export async function applyOutboxRecord(
     };
   }
 
-  await gateway.updateRow(table, spec.pk, id, payload);
+  // Conditional update: the baseline travels with the WHERE clause, so the
+  // database — not this stale read — decides whether we still own the row.
+  const guard = updateGuard(base);
+  const affected = await gateway.updateRow(table, spec.pk, id, payload, guard);
+  if (affected === 0) {
+    const fresh = await gateway.fetchRow(table, spec.pk, id);
+    const reason = fresh
+      ? "Another device changed this record while it was being uploaded."
+      : "The cloud row no longer exists, so this change cannot be applied safely.";
+    return {
+      outcome: "conflict",
+      reason,
+      details: conflictDetails({
+        reason,
+        columns: guard ? [guard.column] : changed,
+        local: payload,
+        base,
+        cloud: fresh,
+        detectedAt: at.toISOString(),
+      }),
+    };
+  }
   return { outcome: "synced" };
+
 }
