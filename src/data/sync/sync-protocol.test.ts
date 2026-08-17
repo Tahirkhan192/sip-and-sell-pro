@@ -39,7 +39,7 @@ function record(patch: Partial<OutboxRow>): OutboxRow {
 
 function gateway(row: Record<string, unknown> | null) {
   const insertRow = vi.fn(async () => undefined);
-  const updateRow = vi.fn(async () => undefined);
+  const updateRow = vi.fn(async () => 1);
   const g: CloudGateway = {
     fetchRow: async () => row,
     insertRow,
