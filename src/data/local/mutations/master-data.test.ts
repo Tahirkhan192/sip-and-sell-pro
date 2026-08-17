@@ -58,7 +58,7 @@ describe("Phase 5B — table classification", () => {
   });
 
   it("never classifies a money/stock table as writable", () => {
-    for (const t of ["sales", "purchases", "expenses", "cash_movements", "stock_transfers"]) {
+    for (const t of ["sales", "purchases", "delivery_expenses", "cash_movements", "stock_transfers"]) {
       expect(classifyTable(t)).toBe("CLOUD_ONLY");
       expect(() => tableSpec(t)).toThrow(MasterDataError);
     }

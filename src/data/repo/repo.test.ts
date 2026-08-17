@@ -453,7 +453,7 @@ describe("health gate and repository selection", () => {
     await seed();
     pretendPersistent();
     await localReadHealth(true);
-    for (const t of ["sales", "sale_items", "expenses", "purchases"] as const) {
+    for (const t of ["sales", "sale_items", "cash_movements", "purchases"] as const) {
       expect(LOCAL_READ_TABLES).not.toContain(t);
       expect((await readRepo(t)).kind).toBe("cloud");
     }
