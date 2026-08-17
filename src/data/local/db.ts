@@ -13,11 +13,12 @@
 import type {
   EngineFacts,
   EngineStatus,
+  LocalDb,
   LocalStorageMode,
 } from "./engine";
 import type { LocalDbRequest, LocalDbResponse } from "./protocol";
 
-export type { EngineFacts, EngineStatus, LocalStorageMode };
+export type { EngineFacts, EngineStatus, LocalDb, LocalStorageMode };
 export { LOCAL_SCHEMA_VERSION, LOCAL_DB_NAME, LOCAL_DB_POOL, PROBE_TABLE } from "./engine";
 
 export type WorkerState = "idle" | "starting" | "running" | "error";
@@ -96,7 +97,10 @@ async function ensureTransport(): Promise<Transport> {
   return transport;
 }
 
-function request(req: Omit<LocalDbRequest, "id"> & { id?: number }): Promise<LocalDbResponse> {
+type RequestBody = DistributiveOmit<LocalDbRequest, "id">;
+type DistributiveOmit<T, K extends keyof any> = T extends unknown ? Omit<T, K> : never;
+
+function request(req: RequestBody): Promise<LocalDbResponse> {
   const id = ++seq;
   const full = { ...req, id } as LocalDbRequest;
   return ensureTransport().then(
