@@ -232,6 +232,18 @@ export async function localCount(table: string, filter?: LocalFilter): Promise<n
   return unwrap<{ count: number }>(await request({ op: "countRows", table, filter })).count;
 }
 
+/* ------------------------------------------------------------------ *
+ * Phase 5A — escape hatch for the typed mutation ops.                 *
+ * Still no raw SQL: the request union itself is the whole vocabulary.  *
+ * ------------------------------------------------------------------ */
+
+/** Sends one typed protocol request to the worker and unwraps the result. */
+export async function requestLocalDb(
+  req: Omit<LocalDbRequest, "id">,
+): Promise<import("./protocol").LocalDbResult> {
+  return unwrap(await request(req as any));
+}
+
 /** Test-only alias kept for Phase 2 callers. */
 export async function _resetForTests(): Promise<void> {
   if (!transport) return;
