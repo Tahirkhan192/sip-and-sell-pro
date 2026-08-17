@@ -532,11 +532,15 @@ describe("cloud/local parity", () => {
   });
 
   it("passes on the seeded fixtures for every locally-readable table", async () => {
-    // `recipes` has no name column, so it gets its own ordering.
+    // `recipes` and `purchase_items` have no name column; `purchase_items`
+    // has no deleted_at either, so those get their own options.
     const tables = LOCAL_READ_TABLES.filter((t) => (cloud[t] ?? []).length > 0 && t !== "settings");
-    const { ok, results } = await compareTables(tables, (t) =>
-      t === "recipes" ? { filter: opts.filter, order: [{ column: "id" }] } : opts,
-    );
+    const { ok, results } = await compareTables(tables, (t) => {
+      if (t === "purchase_items") return { order: [{ column: "id" as const }] };
+      if (t === "recipes" || t === "purchases")
+        return { filter: opts.filter, order: [{ column: "id" as const }] };
+      return opts;
+    });
     for (const r of results) {
       expect(r.notes, `${r.table}: ${r.notes.join(" ")}`).toEqual([]);
       expect(r.cloudCount).toBe(r.localCount);
