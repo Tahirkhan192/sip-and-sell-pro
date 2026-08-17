@@ -62,7 +62,7 @@ describe("Phase 5E — expenses against real SQLite", () => {
       at,
     );
     const id = String(row.id);
-    expect(runMutationTx(db, [{ kind: "masterInsert", table: "expenses", row })]).toMatchObject({
+    expect(runMutationTx(db, [{ kind: "masterInsert", table: "expenses", row }])).toMatchObject({
       committed: true,
     });
 
