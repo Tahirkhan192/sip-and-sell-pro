@@ -38,8 +38,9 @@ export const LOCAL_DB_POOL = "kdf-pos-pool";
 
 /** Build-time flag. Defaults to disabled when unset or not exactly "true". */
 export function isLocalSqliteEnabled(): boolean {
-  const raw = (import.meta as any).env?.VITE_ENABLE_LOCAL_SQLITE;
-  return String(raw) === "true";
+  const fromVite = (import.meta as any).env?.VITE_ENABLE_LOCAL_SQLITE;
+  const fromNode = typeof process !== "undefined" ? process.env?.VITE_ENABLE_LOCAL_SQLITE : undefined;
+  return String(fromVite ?? fromNode) === "true";
 }
 
 export function emptyStatus(overrides: Partial<LocalDbStatus> = {}): LocalDbStatus {

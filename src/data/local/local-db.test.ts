@@ -76,7 +76,7 @@ describe("Test B — schema", () => {
     ]) {
       expect(tables, `${t} missing`).toContain(t);
     }
-    expect(getSchemaVersion(db)).toBe(1);
+    expect(getSchemaVersion(db)).toBe(2);
     expect(getDeviceId(db)).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
@@ -125,7 +125,7 @@ describe("Test D — idempotent initialization", () => {
     const migrations = c.selectValues("SELECT COUNT(*) FROM _schema_migrations") as number[];
     expect(deviceRows[0]).toBe(1);
     expect(versionRows[0]).toBe(1);
-    expect(migrations[0]).toBe(1);
+    expect(migrations[0]).toBe(2); // schema.sql records revisions 1 and 2
 
     const tables = localTableNames(c);
     expect(new Set(tables).size).toBe(tables.length);

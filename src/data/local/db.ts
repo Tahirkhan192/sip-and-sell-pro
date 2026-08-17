@@ -22,7 +22,7 @@ import schemaSql from "./schema.sql?raw";
 export type LocalDb = Database;
 
 /** Schema revision applied by schema.sql. Stored in `_meta`. */
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;
 
 export type LocalStorageMode = "opfs" | "memory";
 
