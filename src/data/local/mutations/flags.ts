@@ -12,6 +12,7 @@
 
 import { isLocalSqliteEnabled } from "../status";
 import { LocalMutationError } from "./errors";
+import { classifyTable } from "./master-tables";
 
 function readFlag(name: string): string | undefined {
   const fromVite = (import.meta as any).env?.[name];
@@ -26,13 +27,17 @@ export function isLocalWritesEnabled(): boolean {
 }
 
 /**
- * Phase 5B will flip this. Until then, no production business mutation may be
- * served locally, regardless of the feature flags.
+ * Transactional writes (sales, purchases, expenses, cash movements, stock
+ * movements, production, staff payments/attendance, closings) are still cloud
+ * only. Phase 5B unlocked master/reference data ONLY.
  */
 export const BUSINESS_WRITES_ENABLED = false;
 
 export const BUSINESS_WRITES_MESSAGE =
-  "Local business writes are not enabled until Phase 5B.";
+  "Local transactional writes are not enabled yet (Phase 5B covers master/reference data only).";
+
+/** Phase 5B: master/reference data may be mutated locally when the flags allow. */
+export const MASTER_DATA_WRITES_ENABLED = true;
 
 /** Throws unless the isolated Phase 5A mutation engine may run. */
 export function assertLocalWritesEnabled(): void {
@@ -57,6 +62,21 @@ export function assertLocalWritesEnabled(): void {
  */
 export function assertBusinessWritesEnabled(): never {
   throw new LocalMutationError("BUSINESS_WRITES_DISABLED", BUSINESS_WRITES_MESSAGE);
+}
+
+/**
+ * Gate for a Phase 5B master-data procedure. Throws unless the flags allow a
+ * local write AND the table is classified SAFE_LOCAL — a transactional table
+ * is refused here, before any row is built.
+ */
+export function assertMasterDataWritesEnabled(table: string): void {
+  assertLocalWritesEnabled();
+  if (!MASTER_DATA_WRITES_ENABLED || classifyTable(table) !== "SAFE_LOCAL") {
+    throw new LocalMutationError(
+      "BUSINESS_WRITES_DISABLED",
+      `${BUSINESS_WRITES_MESSAGE} "${table}" must be written through the cloud repository.`,
+    );
+  }
 }
 
 export { isLocalSqliteEnabled };

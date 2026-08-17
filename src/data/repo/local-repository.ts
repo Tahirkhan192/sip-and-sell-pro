@@ -56,7 +56,7 @@ export const REQUIRED_LOCAL_PROCEDURES = [
 ] as const;
 
 export const READ_ONLY_MESSAGE =
-  "LocalRepository is read-only until Phase 5B (local business writes)";
+  "LocalRepository is read-only for transactional data (Phase 5B covers master/reference writes only)";
 
 function readOnly(what: string): never {
   throw new Error(
