@@ -114,3 +114,17 @@ export function listMoneyMovementSubcategories(
 export function readSettingsColumns<T = Row>(columns: string): Promise<T | null> {
   return readOne<T>("settings", { columns, filter: { eq: { id: 1 } } });
 }
+
+/* ---------------- expenses (PHASE 5E) ---------------- */
+
+/**
+ * The Expenses screen list. Routed so an expense created offline is visible
+ * immediately: when the local mirror is healthy this reads SQLite (which
+ * already holds the new row), otherwise it reads the cloud exactly as before.
+ */
+export function listExpenses(): Promise<Row[]> {
+  return read("expenses", {
+    filter: { ...LIVE },
+    order: [{ column: "date", ascending: false }],
+  });
+}
