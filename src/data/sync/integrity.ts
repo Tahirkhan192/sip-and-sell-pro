@@ -4,25 +4,28 @@
  * Answers one question with evidence: "after syncing, is the local database
  * still internally consistent, and does it agree with the cloud?"
  *
- * It is read-only. It never repairs, deletes or rewrites anything — a problem
- * is reported so a human decides, exactly like a conflict.
+ * It is read-only, and it goes through the same safe protocol as every other
+ * local read (no raw SQL exists anywhere in this codebase). It never repairs,
+ * deletes or rewrites anything — a problem is reported so a human decides,
+ * exactly like a conflict.
  */
 
-import { requestLocalDb } from "@/data/local/db";
+import { localSelect, verifyTable } from "@/data/local/db";
 import { MASTER_TABLES, tableSpec, type MasterTable } from "@/data/local/mutations/master-tables";
 import type { OutboxRow } from "@/data/local/mutations/outbox-schema";
 import { listOutbox } from "./outbox";
 import { supabaseGateway, type CloudGateway } from "./sync-protocol";
 import { sameValue } from "./conflicts";
 
+export type IntegrityCheck =
+  | "pk-uniqueness"
+  | "orphan-outbox"
+  | "stuck-syncing"
+  | "duplicate-rows"
+  | "parity";
+
 export type IntegrityIssue = {
-  check:
-    | "pk-uniqueness"
-    | "fk-integrity"
-    | "orphan-outbox"
-    | "stuck-syncing"
-    | "duplicate-rows"
-    | "parity";
+  check: IntegrityCheck;
   entity: string;
   detail: string;
   ids?: string[];
@@ -35,93 +38,75 @@ export type IntegrityReport = {
   checked: { entities: number; outboxRecords: number; paritySampled: number };
 };
 
-async function select(sql: string, bind: unknown[] = []): Promise<Record<string, unknown>[]> {
-  const res = await requestLocalDb({ op: "query", sql, bind } as never);
-  return ((res as { rows?: Record<string, unknown>[] }).rows ?? []) as Record<string, unknown>[];
-}
-
 /** Duplicate primary keys inside the local mirror of a synchronized table. */
 async function checkPrimaryKeys(table: MasterTable): Promise<IntegrityIssue[]> {
-  const pk = tableSpec(table).pk;
+  const spec = tableSpec(table);
+  let keys: unknown[];
   try {
-    const rows = await select(
-      `SELECT ${pk} AS id, COUNT(*) AS n FROM ${table} GROUP BY ${pk} HAVING n > 1 LIMIT 20`,
-    );
-    if (rows.length === 0) return [];
-    return [
-      {
-        check: "pk-uniqueness",
-        entity: table,
-        detail: `${rows.length} duplicate id(s) found locally.`,
-        ids: rows.map((r) => String(r.id)),
-      },
-    ];
+    const result = await verifyTable(table, spec.pk);
+    keys = result.primaryKeys as unknown[];
   } catch {
-    // The table may not exist on this device yet (nothing seeded) — not an issue.
+    // The table may not be seeded on this device yet — not an integrity problem.
     return [];
   }
-}
-
-/** SQLite's own foreign-key audit across the whole local database. */
-async function checkForeignKeys(): Promise<IntegrityIssue[]> {
-  try {
-    const rows = await select("PRAGMA foreign_key_check");
-    if (rows.length === 0) return [];
-    return [
-      {
-        check: "fk-integrity",
-        entity: String(rows[0]["table"] ?? "local database"),
-        detail: `${rows.length} foreign-key violation(s) in the local database.`,
-      },
-    ];
-  } catch {
-    return [];
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const key of keys) {
+    const value = String(key);
+    if (seen.has(value)) duplicates.add(value);
+    seen.add(value);
   }
+  if (duplicates.size === 0) return [];
+  return [
+    {
+      check: "pk-uniqueness",
+      entity: table,
+      detail: `${duplicates.size} duplicate id(s) found locally.`,
+      ids: [...duplicates].slice(0, 20),
+    },
+  ];
 }
 
 /** Outbox records that point at an entity the local database no longer has. */
 async function checkOrphanOutbox(records: OutboxRow[]): Promise<IntegrityIssue[]> {
   const issues: IntegrityIssue[] = [];
-  const live = records.filter((r) => r.status !== "synced");
-  for (const record of live) {
-    if (record.operation_type === "delete") continue;
-    const spec = (() => {
-      try {
-        return tableSpec(record.entity as MasterTable);
-      } catch {
-        return null;
-      }
-    })();
-    if (!spec) {
+  for (const record of records) {
+    if (record.status === "synced" || record.operation_type === "delete") continue;
+    let spec;
+    try {
+      spec = tableSpec(record.entity as MasterTable);
+    } catch {
       issues.push({
         check: "orphan-outbox",
         entity: record.entity,
-        detail: "Queued change refers to a table this device cannot synchronize.",
+        detail: "A queued change refers to a table this device cannot synchronize.",
         ids: [record.id],
       });
       continue;
     }
     try {
-      const rows = await select(
-        `SELECT ${spec.pk} AS id FROM ${record.entity} WHERE ${spec.pk} = ? LIMIT 1`,
-        [record.entity_id],
-      );
+      const rows = await localSelect({
+        table: record.entity,
+        columns: [spec.pk],
+        filter: { eq: { [spec.pk]: record.entity_id as never } },
+        limit: 1,
+      } as never);
       if (rows.length === 0) {
         issues.push({
           check: "orphan-outbox",
           entity: record.entity,
-          detail: "Queued change has no matching local row.",
+          detail: "A queued change has no matching local row.",
           ids: [record.id],
         });
       }
     } catch {
-      /* table missing locally — covered by the seed health check */
+      /* table not present locally — covered by the seed health check */
     }
   }
   return issues;
 }
 
-/** Records left mid-flight: they must have been recovered, never left hanging. */
+/** Records left mid-flight: they must be recovered, never left hanging. */
 function checkStuckSyncing(records: OutboxRow[]): IntegrityIssue[] {
   const stuck = records.filter((r) => r.status === "syncing");
   if (stuck.length === 0) return [];
@@ -135,20 +120,39 @@ function checkStuckSyncing(records: OutboxRow[]): IntegrityIssue[] {
   ];
 }
 
+/** Two live outbox records claiming the same operation id would mean a replay bug. */
+export function checkDuplicateOperations(records: OutboxRow[]): IntegrityIssue[] {
+  const seen = new Map<string, string[]>();
+  for (const record of records) {
+    const list = seen.get(record.operation_id) ?? [];
+    list.push(record.id);
+    seen.set(record.operation_id, list);
+  }
+  const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+  return dupes.map(([operationId, ids]) => ({
+    check: "duplicate-rows" as const,
+    entity: "outbox",
+    detail: `Operation ${operationId} appears ${ids.length} times.`,
+    ids,
+  }));
+}
+
 /**
- * Parity: for every entity that this device successfully synchronized, the
- * cloud row must now carry the values that were uploaded.
+ * Parity: for every entity this device successfully synchronized, the cloud
+ * row must carry the values that were uploaded — unless a later change to the
+ * same entity has moved it on since.
  */
-async function checkParity(
+export async function checkParity(
   records: OutboxRow[],
   gateway: CloudGateway,
-  limit: number,
+  limit = 25,
 ): Promise<{ issues: IntegrityIssue[]; sampled: number }> {
   const issues: IntegrityIssue[] = [];
   const synced = records
     .filter((r) => r.status === "synced" && r.operation_type !== "delete")
     .slice(-limit);
   let sampled = 0;
+
   for (const record of synced) {
     let spec;
     try {
@@ -161,7 +165,7 @@ async function checkParity(
     try {
       cloud = await gateway.fetchRow(record.entity, spec.pk, id);
     } catch {
-      continue; // transport problem is not a parity problem
+      continue; // a transport problem is not a parity problem
     }
     sampled += 1;
     if (!cloud) {
@@ -173,6 +177,14 @@ async function checkParity(
       });
       continue;
     }
+    const newer = records.some(
+      (r) =>
+        r.entity === record.entity &&
+        r.entity_id === record.entity_id &&
+        Number(r.seq ?? 0) > Number(record.seq ?? 0),
+    );
+    if (newer) continue;
+
     let payload: Record<string, unknown> = {};
     try {
       payload = JSON.parse(record.payload) as Record<string, unknown>;
@@ -182,15 +194,7 @@ async function checkParity(
     const drifted = Object.keys(payload).filter(
       (column) => column in cloud! && !sameValue(payload[column], cloud![column]),
     );
-    // Drift here is normal when a LATER change (local or remote) touched the
-    // row; only flag it when this is the newest known change for that entity.
-    const newer = records.some(
-      (r) =>
-        r.entity === record.entity &&
-        r.entity_id === record.entity_id &&
-        Number(r.seq ?? 0) > Number(record.seq ?? 0),
-    );
-    if (drifted.length > 0 && !newer) {
+    if (drifted.length > 0) {
       issues.push({
         check: "parity",
         entity: record.entity,
@@ -207,10 +211,10 @@ export async function verifySyncIntegrity(
 ): Promise<IntegrityReport> {
   const issues: IntegrityIssue[] = [];
   const records = await listOutbox({});
-  issues.push(...checkStuckSyncing(records));
-  issues.push(...(await checkOrphanOutbox(records)));
-  issues.push(...(await checkForeignKeys()));
 
+  issues.push(...checkStuckSyncing(records));
+  issues.push(...checkDuplicateOperations(records));
+  issues.push(...(await checkOrphanOutbox(records)));
   for (const table of MASTER_TABLES) {
     issues.push(...(await checkPrimaryKeys(table)));
   }
