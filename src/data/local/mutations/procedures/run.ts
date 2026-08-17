@@ -108,6 +108,9 @@ export function buildInsertRow(
       `Invalid local mutation: ${table}.${column} has no value and no default.`,
     );
   }
+  // Cross-column rules run on the main thread too, so a bad row is rejected
+  // before it is ever handed to the worker (which re-checks them anyway).
+  assertRowInvariants(table, row, "insert");
   return row;
 }
 

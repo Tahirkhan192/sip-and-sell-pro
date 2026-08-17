@@ -54,6 +54,11 @@ export const MASTER_TABLES = [
   "recipes",
   "settings",
   "staff",
+  /**
+   * PHASE 5H — manual stock adjustments. Audited: no cloud trigger, no RPC,
+   * no derived column written server-side. See the spec below.
+   */
+  "stock_adjustments",
   "stock_items",
   "suppliers",
 ] as const;
@@ -77,7 +82,6 @@ export const CLOUD_ONLY_TABLES = [
   "staff_attendance",
   "staff_month_carry",
   "staff_payments",
-  "stock_adjustments",
   "stock_opening_snapshots",
   "stock_purchases",
   "stock_transfers",
@@ -520,6 +524,45 @@ export const MASTER_TABLE_SPECS: Record<MasterTable, MasterTableSpec> = {
       updated_at: UPDATED_AT,
     },
   },
+
+  /**
+   * PHASE 5H — manual stock adjustments.
+   *
+   * Audited before being added here: the cloud `stock_adjustments` table has
+   * NO triggers and NO stored procedure behind it. The Products screen writes
+   * one plain row (`scope`, `product_id`/`stock_item_id`, `quantity`, `reason`,
+   * `date`) and nothing else happens server-side — `products.current_stock` is
+   * NOT written by the cloud on adjustment; the Remaining figure the app shows
+   * is recomputed by the client inventory engine, which simply sums this
+   * ledger. That makes an adjustment a pure append-only ledger insert and the
+   * only inventory operation that can be reproduced locally without loss.
+   *
+   * Deliberately restricted: rows are insert-only (the app has no edit and no
+   * delete for an adjustment), and `created_by` is not writable — the cloud
+   * insert leaves it null too.
+   */
+  stock_adjustments: {
+    pk: "id",
+    pkKind: "uuid",
+    allowInsert: true,
+    allowHardDelete: false,
+    softDelete: true,
+    touchUpdatedAt: false,
+    unique: [],
+    columns: {
+      id: { kind: "uuid", writable: false },
+      scope: { kind: "text", writable: true, required: true, oneOf: ["product", "stock_item"] },
+      product_id: { kind: "uuid", nullable: true, writable: true, insertDefault: null },
+      stock_item_id: { kind: "uuid", nullable: true, writable: true, insertDefault: null },
+      quantity: { kind: "number", writable: true, required: true },
+      reason: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      notes: { kind: "text", nullable: true, writable: true, insertDefault: null },
+      date: { kind: "text", writable: true, required: true },
+      created_by: { kind: "uuid", nullable: true, writable: false, insertDefault: null },
+      deleted_at: DELETED_AT,
+      created_at: CREATED_AT,
+    },
+  },
 };
 
 /* ------------------------------------------------------------------ *
@@ -643,6 +686,7 @@ export function assertRowInvariants(
   mode: "insert" | "update",
 ): void {
   if (table === "expenses") return assertExpenseInvariants(row, mode);
+  if (table === "stock_adjustments") return assertStockAdjustmentInvariants(row, mode);
   if (table !== "recipes") return;
   const hasProduct = row.component_product_id !== undefined && row.component_product_id !== null;
   const hasStock =
@@ -661,6 +705,31 @@ export function assertRowInvariants(
     row.parent_product_id === row.component_product_id
   ) {
     fail("a product cannot be its own component.");
+  }
+}
+
+/**
+ * PHASE 5H — an adjustment names exactly one item, and the scope must match
+ * the column that is filled. The cloud CHECK only requires one of the two ids;
+ * the screen always sends a matching scope, and so must a local write.
+ */
+function assertStockAdjustmentInvariants(
+  row: Record<string, SqliteValue>,
+  mode: "insert" | "update",
+): void {
+  if (mode === "update") {
+    fail("a stock adjustment cannot be edited; record a new adjustment instead.");
+  }
+  const hasProduct = row.product_id !== undefined && row.product_id !== null;
+  const hasItem = row.stock_item_id !== undefined && row.stock_item_id !== null;
+  if (hasProduct === hasItem) {
+    fail("a stock adjustment needs exactly one target (product OR stock item).");
+  }
+  if (row.scope === "product" && !hasProduct) fail("scope \"product\" needs a product_id.");
+  if (row.scope === "stock_item" && !hasItem) fail("scope \"stock_item\" needs a stock_item_id.");
+  const qty = Number(row.quantity ?? 0);
+  if (!Number.isFinite(qty) || qty === 0) {
+    fail("stock_adjustments.quantity must be a non-zero number.");
   }
 }
 

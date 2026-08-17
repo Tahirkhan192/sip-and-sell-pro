@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveStockAdjustment } from "@/data/writes/inventory";
 import { saveProduct as saveProductWrite, deleteProduct as deleteProductWrite, setProductOpeningStock } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -71,11 +72,10 @@ function ProductsPage() {
 
   const adjust = useMutation({
     mutationFn: async ({ productId, qty, reason }: { productId: string; qty: number; reason: string }) => {
-      const ins = await (supabase as any).from("stock_adjustments").insert({
-        scope: "product", product_id: productId, quantity: qty,
+      await saveStockAdjustment({
+        scope: "product", productId, quantity: qty,
         reason: reason || null, date: businessToday(),
       });
-      if (ins.error) throw ins.error;
     },
     onSuccess: () => {
       setAdjustQty(""); setAdjustReason("");

@@ -32,6 +32,9 @@ export const LOCAL_READ_TABLES: TableName[] = [
   "recipes",
   "settings",
   "staff",
+  // PHASE 5H — manual stock adjustments: an append-only ledger row with no
+  // cloud trigger, RPC or derived column behind it.
+  "stock_adjustments",
   "stock_items",
   "suppliers",
 ];
@@ -197,6 +200,9 @@ export const LOCAL_WRITE_TABLES: TableName[] = [
   "recipes",
   "settings",
   "staff",
+  // PHASE 5H — manual stock adjustments: an append-only ledger row with no
+  // cloud trigger, RPC or derived column behind it.
+  "stock_adjustments",
   "stock_items",
   "suppliers",
 ];
