@@ -38,16 +38,22 @@ afterEach(async () => {
  * Feature flag                                                        *
  * ------------------------------------------------------------------ */
 describe("feature flag", () => {
-  it("is disabled by default", () => {
+  it("PHASE 10 — is enabled by default", () => {
     enableFlag(undefined);
-    expect(isLocalSqliteEnabled()).toBe(false);
+    expect(isLocalSqliteEnabled()).toBe(true);
+    enableFlag("");
+    expect(isLocalSqliteEnabled()).toBe(true);
   });
 
-  it("is disabled for any value other than 'true'", () => {
-    enableFlag("false");
-    expect(isLocalSqliteEnabled()).toBe(false);
-    enableFlag("1");
-    expect(isLocalSqliteEnabled()).toBe(false);
+  it("PHASE 10 — only an explicit opt-out turns it off", () => {
+    for (const off of ["false", "0", "off", "no", "disabled", "FALSE"]) {
+      enableFlag(off);
+      expect(isLocalSqliteEnabled()).toBe(false);
+    }
+    for (const on of ["true", "1", "yes"]) {
+      enableFlag(on);
+      expect(isLocalSqliteEnabled()).toBe(true);
+    }
   });
 
   it("does not start the worker or open SQLite when disabled", async () => {

@@ -43,12 +43,22 @@ export type LocalDbStatus = {
 
 export { LOCAL_DB_NAME, LOCAL_DB_POOL };
 
-/** Build-time flag. Defaults to disabled when unset or not exactly "true". */
+/** Values that switch a Phase 10 production flag back OFF. */
+export const FLAG_OFF_VALUES = new Set(["false", "0", "off", "no", "disabled"]);
+
+/**
+ * PHASE 10 cutover — the local database is ON by default and only an explicit
+ * opt-out ("false"/"0"/"off"/"no"/"disabled") turns it off. Enabling the flag
+ * never makes local data authoritative on its own: every read and write still
+ * has to pass the health gate in `src/data/repo/health.ts`.
+ */
 export function isLocalSqliteEnabled(): boolean {
   const fromVite = (import.meta as any).env?.VITE_ENABLE_LOCAL_SQLITE;
   const fromNode =
     typeof process !== "undefined" ? process.env?.VITE_ENABLE_LOCAL_SQLITE : undefined;
-  return String(fromVite ?? fromNode) === "true";
+  const raw = fromVite ?? fromNode;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return true;
+  return !FLAG_OFF_VALUES.has(String(raw).trim().toLowerCase());
 }
 
 export function emptyStatus(overrides: Partial<LocalDbStatus> = {}): LocalDbStatus {

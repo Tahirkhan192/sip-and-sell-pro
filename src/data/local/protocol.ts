@@ -119,6 +119,8 @@ export type LocalDbRequest =
   | { id: number; op: "backupCounts" }
   | { id: number; op: "backupStateRead" }
   | { id: number; op: "backupStateWrite"; patch: Partial<LocalBackupState> }
+  /* ---- Phase 10: database integrity probe (read-only PRAGMAs) ---- */
+  | { id: number; op: "integrityCheck" }
   /* ---- Phase 7: offline authentication (identity/session tables only) ---- */
   | ({ id: number } & AuthRequest);
 
@@ -131,6 +133,14 @@ export type MirrorStatus = {
   totalRows: number;
   seedMeta: SeedMetaRecord | null;
   transactionOpen: boolean;
+};
+
+/** PHASE 10 — read-only SQLite self-check used by the cutover health gate. */
+export type IntegrityReport = {
+  ok: boolean;
+  integrity: string;
+  foreignKeyViolations: number;
+  checkedAt: string;
 };
 
 export type VerifyTableResult = {
@@ -168,6 +178,7 @@ export type LocalDbResult =
   | { restore: RestoreOutcome }
   | { tableCounts: Record<string, number> }
   | { backupState: LocalBackupState }
+  | { integrity: IntegrityReport }
   | AuthResult;
 
 /**
@@ -365,6 +376,26 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           op: req.op,
           ok: true,
           result: { backupState: writeBackupState(db, req.patch) },
+        };
+      }
+      case "integrityCheck": {
+        const db = await openEngine();
+        const integrity = String(
+          (db.selectValues("PRAGMA integrity_check") as unknown[])[0] ?? "unknown",
+        );
+        const violations = (db.selectObjects("PRAGMA foreign_key_check") as unknown[]).length;
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: {
+            integrity: {
+              ok: integrity === "ok" && violations === 0,
+              integrity,
+              foreignKeyViolations: violations,
+              checkedAt: new Date().toISOString(),
+            },
+          },
         };
       }
       case "authStatus":

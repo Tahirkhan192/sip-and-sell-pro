@@ -197,3 +197,19 @@ What changed:
 * Parity is proven in `src/data/reads/report-inputs.test.ts`: the same fixture
   expressed as cloud rows and as flat mirror rows produces field-for-field
   identical `computeReport` output (compared with `calc-parity`).
+
+## Phase 10 — cutover
+
+* `VITE_ENABLE_LOCAL_SQLITE` and `VITE_ENABLE_LOCAL_WRITES` are **ON by
+  default**; only an explicit `false`/`0`/`off`/`no`/`disabled` turns them off.
+* `localReadHealth()` now additionally requires a passing SQLite
+  `integrity_check` + `foreign_key_check` and an authenticated device (live
+  cloud session or Phase 7 enrolled local identity). Any failure degrades to
+  the cloud repository — a corrupt or unauthenticated local database is never
+  authoritative.
+* `operations.ts` is the machine-readable audit: every table read/write, every
+  RPC, and every screen is classified `LOCAL`, `LOCAL+SYNC`, `CLOUD` or
+  `CLOUD-ONLY`, with a reason. `operations.test.ts` fails if anything is
+  missing or contradicts `entity-classification.ts`.
+* Settings → "Offline capability" renders that matrix plus the live health
+  gate, so owners can see exactly what works without Internet.

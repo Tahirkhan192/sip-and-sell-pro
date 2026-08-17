@@ -558,3 +558,15 @@ CREATE INDEX IF NOT EXISTS idx_cloud_cash_movements_date ON cloud_cash_movements
 CREATE INDEX IF NOT EXISTS idx_cloud_expenses_date ON cloud_expenses(date);
 CREATE INDEX IF NOT EXISTS idx_cloud_stock_purchases_date ON cloud_stock_purchases(date);
 CREATE INDEX IF NOT EXISTS idx_cloud_purchase_items_purchase ON cloud_purchase_items(purchase_id);
+
+/* PHASE 10 — cutover performance indexes for the hot report/list paths. */
+CREATE INDEX IF NOT EXISTS idx_cloud_sales_status ON cloud_sales(status);
+CREATE INDEX IF NOT EXISTS idx_cloud_sales_deleted ON cloud_sales(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_cloud_purchases_date ON cloud_purchases(date);
+CREATE INDEX IF NOT EXISTS idx_cloud_stock_purchases_product ON cloud_stock_purchases(product_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_stock_purchases_item ON cloud_stock_purchases(stock_item_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_stock_adjustments_date ON cloud_stock_adjustments(date);
+CREATE INDEX IF NOT EXISTS idx_cloud_stock_transfers_created ON cloud_stock_transfers(created_at);
+CREATE INDEX IF NOT EXISTS idx_cloud_production_batches_date ON cloud_production_batches(batch_date);
+CREATE INDEX IF NOT EXISTS idx_cloud_expenses_category ON cloud_expenses(category);
+CREATE INDEX IF NOT EXISTS idx_cloud_products_category ON cloud_products(category);
