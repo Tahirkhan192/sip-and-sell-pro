@@ -171,3 +171,29 @@ exact money/quantity round-trips.
 This is foundation only: it gates local UI/read access, never cloud
 authorization. Every cloud call still carries a real Supabase token and is
 still checked by RLS.
+
+## Phase 5J / 5K — derived calculations & offline reporting reads
+
+**Audit result:** none of the reporting SQL functions
+(`monthly_financial_summary`, `category_monthly_report`,
+`dashboard_category_cards`) is called by the UI. Every reported number is
+already computed client-side by `src/lib/report-engine.ts` from fourteen raw
+row sets, so no server calculation had to be ported.
+
+What changed:
+
+* `report-engine.ts` was split into `fetchCloudReportInputs()` (I/O) and
+  `computeReport()` (pure). **The formulas were not touched** — cloud and local
+  inputs run through the same function, so a report cannot differ by source.
+* `src/data/reads/report-inputs.ts` loads the same row sets out of the mirror,
+  rebuilds the PostgREST embeds (`sale_items → products`,
+  `production_batch_items`) and re-applies the exact WHERE clauses of the cloud
+  queries in `filterReportInputs()`.
+* **Online always reads the cloud.** Sales, purchases and stock movements are
+  still cloud writes, so the mirror can be behind. Local reporting is served
+  only when `navigator.onLine === false`, with a verified seed and every core
+  table (`sales`, `sale_items`, `products`) non-empty. The result carries
+  `source: "local"` and `asOf` (seed timestamp) so staleness is visible.
+* Parity is proven in `src/data/reads/report-inputs.test.ts`: the same fixture
+  expressed as cloud rows and as flat mirror rows produces field-for-field
+  identical `computeReport` output (compared with `calc-parity`).
