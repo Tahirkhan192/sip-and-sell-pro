@@ -1,20 +1,32 @@
 /**
- * BACKUP FORMAT — v2 (export / restore preparation only).
+ * BACKUP FORMAT — v2.
  *
- * Read-only with respect to the live cloud database. Nothing in this folder
- * writes, repairs, recalculates or deletes anything. It only reads every row
- * of every table and packages it verbatim so a future Windows/offline build
- * can import it into a local SQLite database, keeping the original IDs and
- * every relationship intact.
+ * v2 carries trustworthiness data: before/exported/after row counts, a
+ * deterministic row-count digest, provenance metadata and a SHA-256 checksum
+ * over a canonical serialization of the payload.
  *
- * v2 adds trustworthiness data: before/exported/after row counts, a
- * deterministic row-count digest, provenance metadata (authenticated user)
- * and a SHA-256 checksum over a canonical serialization of the payload.
+ * PHASE 8 extends — never replaces — that same v2 design so old cloud backups
+ * stay readable:
+ *
+ *   * `source` is now "cloud" | "local". A LOCAL backup is a snapshot of the
+ *     local SQLite database (the authoritative operational store for the
+ *     migrated operations); a CLOUD backup is the original read-only Supabase
+ *     export. Both share this one format and one validator.
+ *   * local backups additionally record `deviceId` and `schemaVersion`, so a
+ *     restore can refuse an incompatible database before touching anything.
+ *   * table ordering, primary keys and the redaction rules are unchanged.
  */
 
 import type { TableName } from "@/data/repo";
 
 export const BACKUP_FORMAT_VERSION = 2 as const;
+
+/** Where the rows in a backup came from. */
+export type BackupSource = "cloud" | "local";
+
+/** Transport-level compression of the backup bytes (never of the payload). */
+export type BackupCompression = "none" | "gzip";
+
 
 /**
  * Every table that is part of an application backup, in a dependency-safe
@@ -127,7 +139,7 @@ export type BackupFile = {
   masterBase: "7 August 4:15 PM — Fixed stock engine & POS Bugs";
   /** ISO timestamp of when the export ran (informational only). */
   createdAt: string;
-  source: "cloud";
+  source: BackupSource;
   /** true only when every table's before/exported/after counts matched. */
   complete: boolean;
   meta: BackupMeta;
@@ -136,7 +148,32 @@ export type BackupFile = {
   tables: BackupTable[];
   totals: { tables: number; rows: number };
   integrity: BackupIntegrity;
+  /* ---- PHASE 8: present on local snapshots only ---- */
+  /** Local SQLite schema revision the snapshot was taken from. */
+  schemaVersion?: number;
+  /** Stable local install id the snapshot came from. */
+  deviceId?: string;
 };
+
+/**
+ * A local backup always carries its provenance. Restore refuses anything that
+ * claims `source: "local"` without it.
+ */
+export type LocalBackupFile = BackupFile & {
+  source: "local";
+  schemaVersion: number;
+  deviceId: string;
+};
+
+/**
+ * Schema compatibility for restore: a backup may be restored into the same
+ * schema revision or a NEWER one (the local schema is additive), never into an
+ * older application build that does not know the newer tables/columns.
+ */
+export function isSchemaCompatible(backupSchema: number, localSchema: number): boolean {
+  return Number.isInteger(backupSchema) && backupSchema > 0 && backupSchema <= localSchema;
+}
+
 
 /** Everything that is hashed. `integrity` itself is deliberately excluded. */
 export type BackupPayload = Omit<BackupFile, "integrity">;
@@ -198,4 +235,60 @@ export function redactRow(table: string, row: Record<string, any>): Record<strin
     copy[f] = REDACTED;
   }
   return copy ?? row;
+}
+
+/* ------------------------------------------------------------------ *
+ * PHASE 8 — credential guard                                          *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Column names that must never appear in a backup at all, in any table.
+ * `SENSITIVE_FIELDS` redacts known secret columns; this is the belt-and-braces
+ * check that runs over the finished payload before it is hashed or uploaded.
+ */
+export const FORBIDDEN_KEY_PATTERN =
+  /(access_token|refresh_token|id_token|service_role|client_secret|private_key|api_key|apikey|password|secret_hash)/i;
+
+/** Value shapes that are always a credential, whatever the column is called. */
+export const FORBIDDEN_VALUE_PATTERNS: RegExp[] = [
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./, // JWT (Supabase access/refresh)
+  /\bsb_(secret|publishable)_[A-Za-z0-9_-]{8,}/, // new-format Supabase keys
+  /\bya29\.[A-Za-z0-9_-]{10,}/, // Google OAuth access token
+  /\bGOCSPX-[A-Za-z0-9_-]{8,}/, // Google OAuth client secret
+  /\bEAA[A-Za-z0-9]{20,}/, // WhatsApp / Meta graph token
+];
+
+export class BackupCredentialError extends Error {
+  constructor(what: string) {
+    super(`Refusing to produce a backup that contains credentials (${what}).`);
+    this.name = "BackupCredentialError";
+  }
+}
+
+/**
+ * Walks the whole payload and throws when a credential-shaped key or value is
+ * found. Called on every backup before checksum and before upload, so no
+ * password, Supabase key, OAuth token or WhatsApp token can ever leave the
+ * device inside a backup file.
+ */
+export function assertNoCredentials(value: unknown, path = "$"): void {
+  if (value === null || value === undefined) return;
+  if (typeof value === "string") {
+    if (value === REDACTED) return;
+    for (const re of FORBIDDEN_VALUE_PATTERNS) {
+      if (re.test(value)) throw new BackupCredentialError(`${path} looks like a token`);
+    }
+    return;
+  }
+  if (typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => assertNoCredentials(v, `${path}[${i}]`));
+    return;
+  }
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEY_PATTERN.test(k) && v !== null && v !== "" && v !== REDACTED) {
+      throw new BackupCredentialError(`${path}.${k}`);
+    }
+    assertNoCredentials(v, `${path}.${k}`);
+  }
 }

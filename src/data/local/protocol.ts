@@ -57,6 +57,17 @@ import {
 } from "./mutations/engine-mutations";
 import { runCount, runSelect, type LocalFilter, type SelectSpec } from "./query";
 import { handleAuthRequest, type AuthRequest, type AuthResult } from "../auth/auth-worker";
+import {
+  localTableCounts,
+  readBackupState,
+  restoreLocal,
+  snapshotLocal,
+  writeBackupState,
+  type LocalBackupState,
+  type LocalSnapshot,
+  type RestoreOutcome,
+} from "../backup/local-snapshot";
+import type { BackupTable } from "../backup/format";
 import type { SqliteValue } from "./seed-format";
 
 export type LocalDbRequest =
@@ -102,6 +113,12 @@ export type LocalDbRequest =
   | { id: number; op: "mutationEvents"; ids?: string[] }
   | { id: number; op: "mutationCounts" }
   | { id: number; op: "mutationClearTest"; ids: string[]; mutationIds: string[] }
+  /* ---- Phase 8: local backup snapshot / transactional restore ---- */
+  | { id: number; op: "backupSnapshot" }
+  | { id: number; op: "backupRestore"; tables: BackupTable[] }
+  | { id: number; op: "backupCounts" }
+  | { id: number; op: "backupStateRead" }
+  | { id: number; op: "backupStateWrite"; patch: Partial<LocalBackupState> }
   /* ---- Phase 7: offline authentication (identity/session tables only) ---- */
   | ({ id: number } & AuthRequest);
 
@@ -147,6 +164,10 @@ export type LocalDbResult =
   | { records: OutboxRow[] }
   | { byStatus: Record<string, number> }
   | { removed: number }
+  | { snapshot: LocalSnapshot }
+  | { restore: RestoreOutcome }
+  | { tableCounts: Record<string, number> }
+  | { backupState: LocalBackupState }
   | AuthResult;
 
 /**
@@ -314,6 +335,36 @@ export async function handleLocalDbRequest(req: LocalDbRequest): Promise<LocalDb
           op: req.op,
           ok: true,
           result: { removed: clearTestArtifacts(db, req.ids, req.mutationIds) },
+        };
+      }
+      case "backupSnapshot": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { snapshot: snapshotLocal(db) } };
+      }
+      case "backupRestore": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { restore: restoreLocal(db, req.tables) },
+        };
+      }
+      case "backupCounts": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { tableCounts: localTableCounts(db) } };
+      }
+      case "backupStateRead": {
+        const db = await openEngine();
+        return { id: req.id, op: req.op, ok: true, result: { backupState: readBackupState(db) } };
+      }
+      case "backupStateWrite": {
+        const db = await openEngine();
+        return {
+          id: req.id,
+          op: req.op,
+          ok: true,
+          result: { backupState: writeBackupState(db, req.patch) },
         };
       }
       case "authStatus":
