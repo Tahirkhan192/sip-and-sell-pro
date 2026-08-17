@@ -21,7 +21,14 @@ import {
   type MasterTable,
 } from "@/data/local/mutations/master-tables";
 import type { OutboxRow } from "@/data/local/mutations/outbox-schema";
-import { conflictDetails, detectConflict, parseSnapshot, sameValue } from "./conflicts";
+import {
+  conflictDetails,
+  detectConflict,
+  isTombstoned,
+  parseSnapshot,
+  sameValue,
+  updateGuard,
+} from "./conflicts";
 
 export type CloudRow = Record<string, unknown>;
 

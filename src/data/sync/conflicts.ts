@@ -152,3 +152,32 @@ export function conflictDetails(input: {
     detectedAt: input.detectedAt,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * PHASE 9 — tombstones and conditional updates                        *
+ * ------------------------------------------------------------------ */
+
+/**
+ * True when a row is soft-deleted in the cloud. Every synchronized master
+ * table uses `deleted_at`; a row without the column can never be tombstoned.
+ */
+export function isTombstoned(row: Record<string, unknown> | null): boolean {
+  if (!row) return false;
+  const value = row.deleted_at;
+  return value !== null && value !== undefined && String(value) !== "";
+}
+
+/**
+ * Builds the WHERE guard for a conditional cloud update from the baseline.
+ * `updated_at` is used where the table has it; tables without it fall back to
+ * the field comparison already performed by `detectConflict`.
+ */
+export function updateGuard(
+  base: Record<string, unknown> | null,
+): { column: string; value: unknown } | null {
+  if (!base) return null;
+  if (!("updated_at" in base)) return null;
+  const value = base.updated_at;
+  if (value === undefined) return null;
+  return { column: "updated_at", value };
+}
