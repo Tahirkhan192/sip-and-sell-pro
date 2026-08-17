@@ -25,11 +25,30 @@ import { conflictDetails, detectConflict, parseSnapshot, sameValue } from "./con
 
 export type CloudRow = Record<string, unknown>;
 
+/**
+ * PHASE 9 — the smallest safe server-side mechanism for a conditional update.
+ *
+ * The cloud schema has no row-version column, and adding one to 30+ live
+ * tables would be a large, risky migration. Instead the UPDATE itself carries
+ * the baseline: `UPDATE ... WHERE id = $1 AND updated_at = <baseline>`,
+ * returning the affected rows. If zero rows come back, another device wrote
+ * first and we have a conflict — decided by the DATABASE, not by a read that
+ * could be stale. No migration, no RLS change, no data change.
+ */
+export type UpdateGuard = { column: string; value: unknown } | null;
+
 /** The narrow cloud surface the sync engine needs — injectable for tests. */
 export type CloudGateway = {
   fetchRow: (table: string, pk: string, id: unknown) => Promise<CloudRow | null>;
   insertRow: (table: string, row: CloudRow) => Promise<void>;
-  updateRow: (table: string, pk: string, id: unknown, values: CloudRow) => Promise<void>;
+  /** Returns the number of rows actually updated (0 = the guard did not match). */
+  updateRow: (
+    table: string,
+    pk: string,
+    id: unknown,
+    values: CloudRow,
+    guard?: UpdateGuard,
+  ) => Promise<number>;
 };
 
 export type ApplyResult =
@@ -50,12 +69,21 @@ export async function supabaseGateway(): Promise<CloudGateway> {
       const { error } = await client.from(table).insert(row);
       if (error) throw error;
     },
-    async updateRow(table, pk, id, values) {
-      const { error } = await client.from(table).update(values).eq(pk, id);
+    async updateRow(table, pk, id, values, guard) {
+      let query = client.from(table).update(values).eq(pk, id);
+      if (guard) {
+        query =
+          guard.value === null || guard.value === undefined
+            ? query.is(guard.column, null)
+            : query.eq(guard.column, guard.value);
+      }
+      const { data, error } = await query.select(pk);
       if (error) throw error;
+      return Array.isArray(data) ? data.length : 0;
     },
   };
 }
+
 
 /**
  * Decodes one stored payload value back to its cloud representation.
