@@ -15,13 +15,18 @@ import {
  * Diagnostics only. Initializing the local database here does NOT import
  * cloud data, modify any production table, start synchronization, restore a
  * backup, or change where the application reads and writes its data.
+ *
+ * SQLite runs inside the dedicated worker (src/data/local/sqlite.worker.ts);
+ * this card only speaks the diagnostic RPC protocol.
  */
 export function LocalDbCard() {
   const [status, setStatus] = useState<LocalDbStatus>(() => emptyStatus());
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    getLocalDbStatus().then(setStatus).catch(() => {});
+    getLocalDbStatus()
+      .then(setStatus)
+      .catch(() => {});
   }, []);
 
   const run = async () => {
@@ -32,7 +37,8 @@ export function LocalDbCard() {
       setStatus(next);
       if (next.error) toast.error(`Local database: ${next.error}`);
       else if (!next.enabled) toast.message("Local database is disabled by feature flag.");
-      else toast.success("Local database initialized and verified");
+      else if (next.persistent) toast.success("Local database initialized — OPFS (persistent)");
+      else toast.warning("Local database initialized — memory only (not persistent)");
     } finally {
       setBusy(false);
     }
@@ -41,14 +47,26 @@ export function LocalDbCard() {
   const rows: [string, string][] = [
     ["Feature flag", status.enabled ? "Enabled" : "Disabled"],
     ["State", status.initialized ? "Initialized" : "Not initialized"],
-    ["Storage", status.storage === "opfs" ? "OPFS (persistent)" : status.storage === "memory" ? "Memory (not persistent)" : "—"],
+    [
+      "Storage",
+      status.storage === "opfs" ? "OPFS" : status.storage === "memory" ? "Memory" : "—",
+    ],
+    ["Persistent", status.initialized ? (status.persistent ? "Yes" : "No") : "—"],
+    ["Worker", `${status.worker}${status.workerKind ? ` (${status.workerKind})` : ""}`],
     ["Database", status.databaseName],
+    ["VFS / pool", status.initialized ? `${status.vfs ?? "—"} / ${status.poolName}` : status.poolName],
     ["SQLite version", status.sqliteVersion ?? "—"],
-    ["Schema version", status.initialized ? `${status.schemaVersion} (expected ${status.expectedSchemaVersion})` : "—"],
+    [
+      "Schema version",
+      status.initialized ? `${status.schemaVersion} (expected ${status.expectedSchemaVersion})` : "—",
+    ],
     ["Device ID", status.deviceId || "—"],
     ["Tables", status.initialized ? String(status.tableCount) : "—"],
     ["Local rows", status.initialized ? status.totalRows.toLocaleString() : "—"],
-    ["Last initialized", status.lastInitializedAt ? new Date(status.lastInitializedAt).toLocaleString() : "—"],
+    [
+      "Last initialized",
+      status.lastInitializedAt ? new Date(status.lastInitializedAt).toLocaleString() : "—",
+    ],
   ];
 
   return (
@@ -58,8 +76,9 @@ export function LocalDbCard() {
           <div>
             <Label className="text-base">Local database (diagnostics)</Label>
             <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-              Verifies the offline SQLite/OPFS storage engine. Diagnostic only — it does not copy
-              cloud data, change any record, or affect how the app reads and writes today.
+              Verifies the offline SQLite/OPFS storage engine running in a background worker.
+              Diagnostic only — it does not copy cloud data, change any record, or affect how the
+              app reads and writes today.
             </p>
           </div>
           <Button variant="outline" onClick={run} disabled={busy || !isLocalSqliteEnabled()}>
@@ -75,6 +94,13 @@ export function LocalDbCard() {
 
         {status.error && <p className="text-xs text-destructive">{status.error}</p>}
 
+        {status.initialized && !status.persistent && (
+          <p className="text-xs text-amber-600">
+            Memory fallback in use — this browser context could not open OPFS storage, so local
+            data would not survive a reload.
+          </p>
+        )}
+
         <div className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
           {rows.map(([k, v]) => (
             <div key={k} className="flex justify-between gap-3 border-b border-dashed py-1">
@@ -87,3 +113,5 @@ export function LocalDbCard() {
     </Card>
   );
 }
+
+export default LocalDbCard;

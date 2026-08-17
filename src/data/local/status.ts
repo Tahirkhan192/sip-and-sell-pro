@@ -1,19 +1,23 @@
 /**
- * Local SQLite activation + diagnostics — Phase 2.
+ * Local SQLite activation + diagnostics — Phase 2B.
  *
  * The local database is only ever opened when the build-time feature flag
- * `VITE_ENABLE_LOCAL_SQLITE` is exactly "true". It is NEVER used as the
- * application's data source in this phase: nothing reads business data from
- * it, nothing writes business data to it, and Supabase remains authoritative.
+ * `VITE_ENABLE_LOCAL_SQLITE` is exactly "true", and it is always opened
+ * inside the dedicated SQLite worker. It is NEVER the application's data
+ * source in this phase: nothing reads business data from it, nothing writes
+ * business data to it, and Supabase remains authoritative.
  */
 
 import {
+  LOCAL_DB_NAME,
+  LOCAL_DB_POOL,
   LOCAL_SCHEMA_VERSION,
-  getDeviceId,
-  getSchemaVersion,
-  localDbFacts,
-  openLocalDb,
-  type LocalDb,
+  closeLocalDb,
+  engineStatus,
+  initEngine,
+  probePersistence,
+  workerStatus,
+  type WorkerState,
 } from "./db";
 
 export type LocalDbStatus = {
@@ -22,7 +26,11 @@ export type LocalDbStatus = {
   /** true only when the database is OPFS-backed and survives a reload. */
   persistent: boolean;
   storage: "opfs" | "memory" | "none";
+  vfs: string | null;
   databaseName: string;
+  poolName: string;
+  worker: WorkerState;
+  workerKind: "worker" | "inline" | null;
   sqliteVersion: string | null;
   schemaVersion: number;
   expectedSchemaVersion: number;
@@ -33,23 +41,28 @@ export type LocalDbStatus = {
   error: string | null;
 };
 
-export const LOCAL_DB_NAME = "/kdf-pos.sqlite3";
-export const LOCAL_DB_POOL = "kdf-pos-pool";
+export { LOCAL_DB_NAME, LOCAL_DB_POOL };
 
 /** Build-time flag. Defaults to disabled when unset or not exactly "true". */
 export function isLocalSqliteEnabled(): boolean {
   const fromVite = (import.meta as any).env?.VITE_ENABLE_LOCAL_SQLITE;
-  const fromNode = typeof process !== "undefined" ? process.env?.VITE_ENABLE_LOCAL_SQLITE : undefined;
+  const fromNode =
+    typeof process !== "undefined" ? process.env?.VITE_ENABLE_LOCAL_SQLITE : undefined;
   return String(fromVite ?? fromNode) === "true";
 }
 
 export function emptyStatus(overrides: Partial<LocalDbStatus> = {}): LocalDbStatus {
+  const w = workerStatus();
   return {
     enabled: isLocalSqliteEnabled(),
     initialized: false,
     persistent: false,
     storage: "none",
+    vfs: null,
     databaseName: LOCAL_DB_NAME,
+    poolName: LOCAL_DB_POOL,
+    worker: w.state,
+    workerKind: w.kind,
     sqliteVersion: null,
     schemaVersion: 0,
     expectedSchemaVersion: LOCAL_SCHEMA_VERSION,
@@ -62,43 +75,9 @@ export function emptyStatus(overrides: Partial<LocalDbStatus> = {}): LocalDbStat
   };
 }
 
-/** Names of every user table in the local database (excludes sqlite internals). */
-export function localTableNames(db: LocalDb): string[] {
-  return db.selectValues(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-  ) as string[];
-}
-
-function countAllRows(db: LocalDb, tables: string[]): number {
-  let total = 0;
-  for (const t of tables) {
-    if (t.startsWith("_")) continue; // metadata tables are not business rows
-    const rows = db.selectValues(`SELECT COUNT(*) FROM "${t}"`) as number[];
-    total += Number(rows[0] ?? 0);
-  }
-  return total;
-}
-
-/** Diagnostic snapshot of an already-open (or freshly opened) local database. */
-export function describeLocalDb(db: LocalDb): LocalDbStatus {
-  const facts = localDbFacts();
-  const tables = localTableNames(db);
-  return emptyStatus({
-    initialized: true,
-    persistent: facts.storageMode === "opfs",
-    storage: facts.storageMode ?? "memory",
-    sqliteVersion: facts.sqliteVersion,
-    schemaVersion: getSchemaVersion(db),
-    deviceId: getDeviceId(db),
-    tableCount: tables.length,
-    totalRows: countAllRows(db, tables),
-    lastInitializedAt: facts.initializedAt,
-  });
-}
-
 /**
- * Initialize the local database when the flag allows it. Idempotent: repeated
- * calls reuse the same instance (openLocalDb caches the promise).
+ * Initialize the local database (through the worker) when the flag allows it.
+ * Idempotent: repeated calls reuse the same worker and connection.
  *
  * Diagnostics only — this never imports cloud data, never modifies any
  * production table, and never switches the application repository.
@@ -108,8 +87,22 @@ export async function initLocalDatabase(): Promise<LocalDbStatus> {
     return emptyStatus({ error: null });
   }
   try {
-    const db = await openLocalDb();
-    return describeLocalDb(db);
+    const s = await initEngine();
+    const w = workerStatus();
+    return emptyStatus({
+      initialized: s.initialized,
+      persistent: s.persistent,
+      storage: s.storage,
+      vfs: s.vfs,
+      worker: w.state,
+      workerKind: w.kind,
+      sqliteVersion: s.sqliteVersion,
+      schemaVersion: s.schemaVersion,
+      deviceId: s.deviceId,
+      tableCount: s.tableCount,
+      totalRows: s.totalRows,
+      lastInitializedAt: s.lastInitializedAt,
+    });
   } catch (e: any) {
     return emptyStatus({ error: e?.message ?? String(e) });
   }
@@ -117,7 +110,32 @@ export async function initLocalDatabase(): Promise<LocalDbStatus> {
 
 /** Status without forcing initialization (safe to call any time). */
 export async function getLocalDbStatus(): Promise<LocalDbStatus> {
-  const facts = localDbFacts();
-  if (!isLocalSqliteEnabled() || !facts.opened) return emptyStatus();
+  if (!isLocalSqliteEnabled() || workerStatus().state !== "running") return emptyStatus();
+  try {
+    await engineStatus();
+  } catch {
+    return emptyStatus();
+  }
   return initLocalDatabase();
+}
+
+/**
+ * Diagnostic persistence check used by the browser test and the settings
+ * card: writes an isolated probe row, closes the worker, restarts it, and
+ * reports whether the value survived. Touches only `_diagnostic_probe`.
+ */
+export async function runPersistenceProbe(key = "phase2b"): Promise<{
+  wrote: string;
+  read: string | null;
+  survived: boolean;
+  before: LocalDbStatus;
+  after: LocalDbStatus;
+}> {
+  const value = `probe-${Date.now()}`;
+  const before = await initLocalDatabase();
+  await probePersistence("write", key, value);
+  await closeLocalDb();
+  const after = await initLocalDatabase();
+  const read = await probePersistence("read", key);
+  return { wrote: value, read, survived: read === value, before, after };
 }
