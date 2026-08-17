@@ -247,10 +247,7 @@ export function probeWrite(db: LocalDb, key: string, value: string): void {
 /** Reads a diagnostic probe value, or null when absent. */
 export function probeRead(db: LocalDb, key: string): string | null {
   ensureProbeTable(db);
-  const rows = db.selectValues({
-    sql: `SELECT value FROM ${PROBE_TABLE} WHERE key = ?`,
-    bind: [key],
-  } as any) as string[];
+  const rows = db.selectValues(`SELECT value FROM ${PROBE_TABLE} WHERE key = ?`, [key]) as string[];
   return rows.length ? String(rows[0]) : null;
 }
 
