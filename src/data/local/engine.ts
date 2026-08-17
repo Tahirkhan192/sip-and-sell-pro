@@ -122,6 +122,9 @@ export function openEngine(): Promise<LocalDb> {
 
     // Apply schema (idempotent — uses IF NOT EXISTS everywhere). Never drops.
     db.exec(schemaSql);
+    // Phase 3: the cloud-faithful `cloud_*` mirror tables (also additive).
+    const { applyMirrorSchema } = await import("./mirror");
+    applyMirrorSchema(db);
     // Foreign keys are per-connection, so re-assert after opening.
     db.exec("PRAGMA foreign_keys = ON");
 
