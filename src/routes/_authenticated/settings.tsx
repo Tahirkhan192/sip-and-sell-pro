@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveBusinessSettings, saveAllowNegativeStock, savePinSettings } from "@/data/writes/master";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -100,14 +101,11 @@ function BusinessSettings() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("settings" as any).upsert({
-        id: 1,
+      await saveBusinessSettings({
         timezone: tz,
         business_day_start_time: startTime.length === 5 ? `${startTime}:00` : startTime,
         business_month_start_day: monthStart,
-        updated_at: new Date().toISOString(),
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       // Apply immediately, then refresh all reports/dashboard/sales/etc.
@@ -170,8 +168,7 @@ function SettingsPage() {
 
   const save = useMutation({
     mutationFn: async (v: boolean) => {
-      const { error } = await supabase.from("settings" as any).upsert({ id: 1, allow_negative_stock: v, updated_at: new Date().toISOString() });
-      if (error) throw error;
+      await saveAllowNegativeStock(v);
     },
     onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["settings"] }); },
     onError: (e: any) => toast.error(e.message),
@@ -270,13 +267,7 @@ function PinLockCard() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("settings" as any).upsert({
-        id: 1,
-        pin_locks: locks,
-        staff_invoice_color: color,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) throw error;
+      await savePinSettings({ pin_locks: locks, staff_invoice_color: color });
     },
     onSuccess: () => {
       toast.success("PIN protection settings saved");

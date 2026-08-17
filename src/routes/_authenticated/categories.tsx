@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveCategory as saveCategoryWrite, setCategoryActive as setCategoryActiveWrite, deleteCategory as deleteCategoryWrite } from "@/data/writes/master";
 import { listCategories } from "@/data/reads/reference";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,10 +57,7 @@ function Page() {
         sort_order: p.sort_order ?? 0,
         active: p.active,
       };
-      const res = p.id
-        ? await supabase.from("categories" as any).update(payload).eq("id", p.id)
-        : await supabase.from("categories" as any).insert(payload);
-      if (res.error) throw res.error;
+      await saveCategoryWrite({ id: p.id, ...payload });
     },
     onSuccess: () => { invalidateAll(); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message?.includes("duplicate") ? "Category name already exists" : e.message),
@@ -67,8 +65,7 @@ function Page() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("categories" as any).update({ active }).eq("id", id);
-      if (error) throw error;
+      await setCategoryActiveWrite(id, active);
     },
     onSuccess: () => invalidateAll(),
   });
@@ -82,12 +79,10 @@ function Page() {
       ]);
       if ((prodCount ?? 0) > 0 || (stockCount ?? 0) > 0) {
         // mark inactive instead
-        const { error } = await supabase.from("categories" as any).update({ active: false }).eq("id", c.id);
-        if (error) throw error;
+        await setCategoryActiveWrite(c.id, false);
         return { softened: true };
       }
-      const { error } = await supabase.from("categories" as any).update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
-      if (error) throw error;
+      await deleteCategoryWrite(c.id);
       return { softened: false };
     },
     onSuccess: (r: any) => {

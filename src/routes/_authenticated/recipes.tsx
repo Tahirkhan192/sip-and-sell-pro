@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { saveRecipe as saveRecipeWrite, deleteRecipe as deleteRecipeWrite } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,10 +74,7 @@ function RecipesPage() {
         unit: r.unit,
         applies_to: r.applies_to,
       };
-      const res = r.id
-        ? await supabase.from("recipes" as any).update(payload).eq("id", r.id)
-        : await supabase.from("recipes" as any).insert(payload);
-      if (res.error) throw res.error;
+      await saveRecipeWrite({ id: r.id, ...(payload as any) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Saved"); setOpen(false); },
     onError: (e: any) => toast.error(e.message),
@@ -84,8 +82,7 @@ function RecipesPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("recipes" as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      await deleteRecipeWrite(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); toast.success("Deleted"); },
     onError: (e: any) => toast.error(e.message),
