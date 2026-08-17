@@ -10,7 +10,7 @@
  * the isolated Phase 5A test infrastructure.
  */
 
-import { isLocalSqliteEnabled } from "../status";
+import { FLAG_OFF_VALUES, isLocalSqliteEnabled } from "../status";
 import { LocalMutationError } from "./errors";
 import { classifyTable } from "./master-tables";
 
@@ -21,9 +21,16 @@ function readFlag(name: string): string | undefined {
   return v === undefined || v === null ? undefined : String(v);
 }
 
-/** Build-time flag. Exactly "true" enables the local mutation engine. */
+/**
+ * PHASE 10 cutover — local writes are ON by default; an explicit
+ * "false"/"0"/"off"/"no"/"disabled" turns them off again. The flag only opens
+ * the pipeline: the per-table gate (`canWriteLocally`) still decides whether
+ * any particular mutation may run locally.
+ */
 export function isLocalWritesEnabled(): boolean {
-  return readFlag("VITE_ENABLE_LOCAL_WRITES") === "true";
+  const raw = readFlag("VITE_ENABLE_LOCAL_WRITES");
+  if (raw === undefined || raw.trim() === "") return true;
+  return !FLAG_OFF_VALUES.has(raw.trim().toLowerCase());
 }
 
 /**

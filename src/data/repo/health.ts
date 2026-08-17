@@ -12,7 +12,15 @@
  * empty local database can therefore never mask cloud data.
  */
 
-import { LOCAL_SCHEMA_VERSION, engineStatus, mirrorStatus, workerStatus } from "@/data/local/db";
+import {
+  LOCAL_SCHEMA_VERSION,
+  engineStatus,
+  mirrorStatus,
+  requestLocalDb,
+  workerStatus,
+} from "@/data/local/db";
+import type { IntegrityReport } from "@/data/local/protocol";
+import { localAuthStatus } from "@/data/auth/local-auth";
 import { isLocalSqliteEnabled } from "@/data/local/status";
 import { isLocalWritesEnabled } from "@/data/local/mutations/flags";
 import { isMasterTable } from "@/data/local/mutations/master-tables";
@@ -36,6 +44,10 @@ export type LocalHealth = {
     seedPresent: boolean;
     seedVerified: boolean;
     notInvalidated: boolean;
+    /** PHASE 10 — SQLite self-check (integrity_check + foreign_key_check). */
+    integrityOk: boolean;
+    /** PHASE 10 — a real enrolled identity exists locally (online or offline). */
+    authenticated: boolean;
   };
   seededTables: Record<string, number>;
   seededAt: string | null;
@@ -53,6 +65,8 @@ const FAILED = (reason: string, checks: Partial<LocalHealth["checks"]> = {}): Lo
     seedPresent: false,
     seedVerified: false,
     notInvalidated: !invalidated,
+    integrityOk: false,
+    authenticated: false,
     ...checks,
   },
   seededTables: {},
@@ -83,6 +97,43 @@ export function cachedLocalHealth(): LocalHealth | null {
   return cached;
 }
 
+/** Read-only SQLite self-check. Any failure resolves to "not ok". */
+async function localIntegrity(): Promise<IntegrityReport> {
+  try {
+    const res = (await requestLocalDb({ op: "integrityCheck" } as any)) as {
+      integrity: IntegrityReport;
+    };
+    return res.integrity;
+  } catch (e: any) {
+    return {
+      ok: false,
+      integrity: e?.message ?? String(e),
+      foreignKeyViolations: 0,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * True when this device is authenticated: a live cloud session, or a Phase 7
+ * enrolled local identity with read access. Local data alone never counts.
+ */
+async function hasLocalIdentity(): Promise<boolean> {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data } = await supabase.auth.getSession();
+    if (data?.session) return true;
+  } catch {
+    /* fall through to the offline identity */
+  }
+  try {
+    const snap = await localAuthStatus();
+    return Boolean(snap.identity) && snap.can.read;
+  } catch {
+    return false;
+  }
+}
+
 async function evaluate(): Promise<LocalHealth> {
   if (invalidated) return FAILED("Local database was invalidated.");
   if (!isLocalSqliteEnabled()) return FAILED("VITE_ENABLE_LOCAL_SQLITE is not enabled.");
@@ -98,6 +149,8 @@ async function evaluate(): Promise<LocalHealth> {
       seedPresent: false,
       seedVerified: false,
       notInvalidated: true,
+      integrityOk: false,
+      authenticated: false,
     };
     if (!checks.workerRunning) return FAILED("SQLite worker is not running.", checks);
     if (!checks.persistent) return FAILED("Local SQLite storage is not persistent OPFS.", checks);
@@ -119,6 +172,24 @@ async function evaluate(): Promise<LocalHealth> {
       meta.schemaVersion === LOCAL_SCHEMA_VERSION;
     if (!checks.seedVerified) {
       return FAILED("The local seed did not complete verification.", checks);
+    }
+
+    // PHASE 10 — a partially corrupted database must never become authoritative.
+    const integrity = await localIntegrity();
+    checks.integrityOk = integrity.ok;
+    if (!checks.integrityOk) {
+      return FAILED(
+        `Local database failed its integrity check (${integrity.integrity}, ` +
+          `${integrity.foreignKeyViolations} FK violations).`,
+        checks,
+      );
+    }
+
+    // PHASE 10 — data alone authenticates nobody: an enrolled identity with a
+    // live local session (or a reconciled online session) must exist.
+    checks.authenticated = await hasLocalIdentity();
+    if (!checks.authenticated) {
+      return FAILED("No enrolled local identity — local data is not authoritative.", checks);
     }
 
     return {

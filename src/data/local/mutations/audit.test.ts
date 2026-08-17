@@ -8,7 +8,7 @@
  * local write path can execute.
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { compareCalculation, compareRowSets, compareValues } from "@/data/repo/calc-parity";
 import { READ_ONLY_MESSAGE, LocalRepository } from "@/data/repo/local-repository";
@@ -249,12 +249,15 @@ describe("Phase 5A — error classification", () => {
 });
 
 describe("Phase 5A — safety gates (default flags)", () => {
-  it("keeps local writes disabled by default", () => {
-    expect(isLocalWritesEnabled()).toBe(false);
+  it("PHASE 10 — keeps local writes enabled by default", () => {
+    expect(isLocalWritesEnabled()).toBe(true);
   });
 
-  it("refuses to start the mutation engine", () => {
+  it("refuses to start the mutation engine when explicitly opted out", () => {
+    vi.stubEnv("VITE_ENABLE_LOCAL_WRITES", "false");
+    expect(isLocalWritesEnabled()).toBe(false);
     expect(() => assertLocalWritesEnabled()).toThrow(LocalMutationError);
+    vi.unstubAllEnvs();
   });
 
   it("blocks real business mutations even if the flags were on", () => {
