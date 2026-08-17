@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { listExpenseCategories } from "@/data/reads/reference";
 
 export type ExpenseCategoryRow = {
   id: string;
@@ -13,15 +14,9 @@ export function useExpenseCategories(opts: { activeOnly?: boolean } = { activeOn
   return useQuery({
     queryKey: ["expense_categories", opts.activeOnly ?? true],
     queryFn: async () => {
-      let q = (supabase as any)
-        .from("expense_categories")
-        .select("id, name, active, sort_order")
-        .is("deleted_at", null)
-        .order("sort_order")
-        .order("name");
-      if (opts.activeOnly) q = q.eq("active", true);
-      const { data } = await q;
-      return (data ?? []) as ExpenseCategoryRow[];
+      return (await listExpenseCategories({
+        activeOnly: opts.activeOnly,
+      })) as ExpenseCategoryRow[];
     },
     staleTime: 30_000,
   });

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePinGate } from "@/lib/pin-locks";
 
 import { supabase } from "@/integrations/supabase/client";
+import { readSettingsColumns } from "@/data/reads/reference";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -110,7 +111,9 @@ function Page() {
   const { guard, dialog } = usePinGate();
   const { data: staffColorSetting } = useQuery({
     queryKey: ["settings", "staff-invoice-color"],
-    queryFn: async () => ((await (supabase as any).from("settings").select("staff_invoice_color").eq("id", 1).maybeSingle()).data?.staff_invoice_color ?? "#DBEAFE") as string,
+    queryFn: async () =>
+      ((await readSettingsColumns<{ staff_invoice_color: string }>("staff_invoice_color"))
+        ?.staff_invoice_color ?? "#DBEAFE") as string,
     staleTime: 60_000,
   });
   const staffColor = staffColorSetting ?? "#DBEAFE";

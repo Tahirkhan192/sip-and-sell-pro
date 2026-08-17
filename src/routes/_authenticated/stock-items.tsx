@@ -16,6 +16,7 @@ import { money, num, today } from "@/lib/format";
 import { useStockItemAvailable } from "@/components/StockAvailability";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
+import { listSuppliers } from "@/data/reads/reference";
 import { toast } from "sonner";
 import { StockPinDialog } from "@/components/StockPinDialog";
 
@@ -66,7 +67,7 @@ function Page() {
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
-    queryFn: async () => (await supabase.from("suppliers").select("id, name").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: () => listSuppliers(),
   });
 
   const save = useMutation({

@@ -23,6 +23,7 @@ import type {
   VerifyTableResult,
 } from "./protocol";
 import type { MirrorColumn, SeedMetaRecord } from "./mirror";
+import type { LocalFilter, LocalOrder, SelectSpec } from "./query";
 import type { SqliteValue } from "./seed-format";
 
 export type { EngineFacts, EngineStatus, LocalDb, LocalStorageMode };
@@ -213,6 +214,22 @@ export async function verifyTable(table: string, pk: string): Promise<VerifyTabl
 
 export async function writeSeedMeta(meta: SeedMetaRecord): Promise<void> {
   unwrap(await request({ op: "writeSeedMeta", meta }));
+}
+
+export type { LocalFilter, LocalOrder, SelectSpec };
+
+/* ------------------------------------------------------------------ *
+ * Phase 4 — read-only queries against the seeded mirror.              *
+ * ------------------------------------------------------------------ */
+
+/** Runs a declarative SELECT inside the worker. Read-only, parameterized. */
+export async function localSelect(spec: SelectSpec): Promise<Record<string, SqliteValue>[]> {
+  return unwrap<{ rows: Record<string, SqliteValue>[] }>(await request({ op: "select", spec })).rows;
+}
+
+/** Counts matching rows inside the worker. */
+export async function localCount(table: string, filter?: LocalFilter): Promise<number> {
+  return unwrap<{ count: number }>(await request({ op: "countRows", table, filter })).count;
 }
 
 /** Test-only alias kept for Phase 2 callers. */

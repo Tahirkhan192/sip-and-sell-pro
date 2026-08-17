@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { listCategories } from "@/data/reads/reference";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["categories", "admin"],
-    queryFn: async () => (await supabase.from("categories" as any).select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
+    queryFn: async () => (await listCategories()) as any[],
   });
 
   const invalidateAll = () => {
