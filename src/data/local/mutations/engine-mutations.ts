@@ -17,6 +17,16 @@
 
 import type { LocalDb } from "../engine";
 import { LOCAL_SCHEMA_VERSION } from "../engine";
+import { mirrorTable } from "../mirror";
+import type { SqliteValue } from "../seed-format";
+import {
+  MasterDataError,
+  assertRowInvariants,
+  assertWritable,
+  encodeColumnValue,
+  tableSpec,
+  type MasterTable,
+} from "./master-tables";
 import {
   EVENT_TABLE,
   MUTATION_OPERATIONS,
@@ -51,16 +61,31 @@ export type LocalMutationEventRow = {
 };
 
 /**
- * The complete vocabulary of a local transaction in Phase 5A. Note that no
- * step carries a table name or SQL text.
+ * The complete vocabulary of a local transaction.
+ *
+ * Phase 5A steps carry no table name at all. The Phase 5B master-data steps
+ * carry a table name, but it is validated against `MASTER_TABLE_SPECS` here,
+ * inside the worker, before a single statement is prepared — a transactional
+ * table (sales, purchases, cash movements…) is rejected, and so is any column
+ * that is derived or unknown. There is still no SQL text in a step.
  */
 export type MutationStep =
   | { kind: "testInsert"; row: LocalTestRow }
   | { kind: "testDelete"; id: string }
   | { kind: "event"; event: LocalMutationEventRow }
   | { kind: "eventStatus"; mutationId: string; status: MutationStatus }
+  /* ---- Phase 5B: master/reference data only ---- */
+  | { kind: "masterInsert"; table: MasterTable; row: Record<string, SqliteValue> }
+  | {
+      kind: "masterUpdate";
+      table: MasterTable;
+      id: SqliteValue;
+      values: Record<string, SqliteValue>;
+    }
+  | { kind: "masterDelete"; table: MasterTable; id: SqliteValue }
   /** Test-only: forces the transaction to fail so rollback can be proven. */
   | { kind: "failDeliberately"; message: string };
+
 
 export type MutationTxOutcome =
   | { committed: true; applied: number }
@@ -118,6 +143,173 @@ function validateEvent(e: LocalMutationEventRow): LocalMutationEventRow {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * PHASE 5B — master/reference data steps                              *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Re-validates a master-data row inside the worker: allowed table, allowed
+ * columns, allowed values, cross-column invariants. The main thread already
+ * did this; doing it again here means a hand-crafted message can never write
+ * something the contract forbids.
+ */
+function validateMasterRow(
+  table: MasterTable,
+  values: Record<string, SqliteValue>,
+  mode: "insert" | "update",
+): Record<string, SqliteValue> {
+  const spec = tableSpec(table);
+  const out: Record<string, SqliteValue> = {};
+
+  for (const [column, value] of Object.entries(values)) {
+    if (column === spec.pk) {
+      if (mode === "update") {
+        throw new MasterDataError(`Invalid local mutation: ${table}.${spec.pk} cannot be changed.`);
+      }
+      out[column] = value;
+      continue;
+    }
+    // created_at / updated_at / deleted_at are stamped by the procedure layer.
+    if (column === "created_at" || column === "updated_at") {
+      out[column] = value;
+      continue;
+    }
+    if (column !== "deleted_at") {
+      const col = spec.columns[column];
+      const baseline = col?.insertDefault ?? null;
+      // A derived column (stock, balances, credentials) may appear in an insert
+      // ONLY at its baseline value — it can never carry a caller-chosen number.
+      const derivedAtBaseline = mode === "insert" && col && !col.writable && value === baseline;
+      if (!derivedAtBaseline) assertWritable(table, column, mode);
+    }
+    out[column] = encodeColumnValue(table, column, value);
+
+  }
+
+  if (mode === "insert") {
+    for (const [column, col] of Object.entries(spec.columns)) {
+      if (column in out) continue;
+      if (col.nullable) {
+        out[column] = null;
+        continue;
+      }
+      throw new MasterDataError(
+        `Invalid local mutation: ${table}.${column} is required and was not provided.`,
+      );
+    }
+  }
+
+  assertRowInvariants(table, out, mode);
+  return out;
+}
+
+/** Enforces the cloud UNIQUE constraints against live (not soft-deleted) rows. */
+function assertUnique(
+  db: LocalDb,
+  table: MasterTable,
+  values: Record<string, SqliteValue>,
+  excludeId: SqliteValue | null,
+): void {
+  const spec = tableSpec(table);
+  for (const cols of spec.unique) {
+    if (!cols.some((c) => c in values)) continue;
+    const where: string[] = [];
+    const bind: SqliteValue[] = [];
+    for (const c of cols) {
+      const v = values[c];
+      if (v === undefined) return; // partial key on update: nothing to check
+      where.push(`lower(CAST("${c}" AS TEXT)) = lower(CAST(? AS TEXT))`);
+      bind.push(v);
+    }
+    if (spec.softDelete) where.push(`"deleted_at" IS NULL`);
+    if (excludeId !== null) {
+      where.push(`"${spec.pk}" <> ?`);
+      bind.push(excludeId);
+    }
+    const rows = db.selectValues(
+      `SELECT COUNT(*) FROM "${mirrorTable(table)}" WHERE ${where.join(" AND ")}`,
+      bind as any[],
+    ) as number[];
+    if (Number(rows[0] ?? 0) > 0) {
+      throw new MasterDataError(
+        `Invalid local mutation: ${table} already has a row with the same ${cols.join(" + ")}.`,
+      );
+    }
+  }
+}
+
+function rowExists(db: LocalDb, table: MasterTable, id: SqliteValue): boolean {
+  const spec = tableSpec(table);
+  const v = db.selectValues(
+    `SELECT COUNT(*) FROM "${mirrorTable(table)}" WHERE "${spec.pk}" = ?`,
+    [id] as any[],
+  ) as number[];
+  return Number(v[0] ?? 0) > 0;
+}
+
+function applyMasterInsert(db: LocalDb, table: MasterTable, raw: Record<string, SqliteValue>): void {
+  const spec = tableSpec(table);
+  if (!spec.allowInsert) {
+    throw new MasterDataError(`Invalid local mutation: rows cannot be created in "${table}".`);
+  }
+  const row = validateMasterRow(table, raw, "insert");
+  const id = row[spec.pk];
+  if (id === undefined || id === null) {
+    throw new MasterDataError(`Invalid local mutation: ${table}.${spec.pk} is missing.`);
+  }
+  if (rowExists(db, table, id)) {
+    throw new MasterDataError(`Invalid local mutation: ${table} row "${String(id)}" already exists.`);
+  }
+  assertUnique(db, table, row, null);
+
+  const columns = Object.keys(row);
+  db.exec({
+    sql: `INSERT INTO "${mirrorTable(table)}"(${columns.map((c) => `"${c}"`).join(", ")})
+          VALUES (${columns.map(() => "?").join(", ")})`,
+    bind: columns.map((c) => row[c]) as any[],
+  });
+}
+
+function applyMasterUpdate(
+  db: LocalDb,
+  table: MasterTable,
+  id: SqliteValue,
+  raw: Record<string, SqliteValue>,
+): void {
+  const spec = tableSpec(table);
+  if (id === undefined || id === null) {
+    throw new MasterDataError(`Invalid local mutation: ${table} update needs a primary key.`);
+  }
+  const values = validateMasterRow(table, raw, "update");
+  const columns = Object.keys(values);
+  if (columns.length === 0) {
+    throw new MasterDataError(`Invalid local mutation: ${table} update has no columns.`);
+  }
+  if (!rowExists(db, table, id)) {
+    throw new MasterDataError(`Invalid local mutation: ${table} row "${String(id)}" does not exist.`);
+  }
+  assertUnique(db, table, values, id);
+
+  db.exec({
+    sql: `UPDATE "${mirrorTable(table)}" SET ${columns.map((c) => `"${c}" = ?`).join(", ")}
+          WHERE "${spec.pk}" = ?`,
+    bind: [...columns.map((c) => values[c]), id] as any[],
+  });
+}
+
+function applyMasterDelete(db: LocalDb, table: MasterTable, id: SqliteValue): void {
+  const spec = tableSpec(table);
+  if (!spec.allowHardDelete) {
+    throw new MasterDataError(
+      `Invalid local mutation: "${table}" rows are soft-deleted (deleted_at), never removed.`,
+    );
+  }
+  db.exec({
+    sql: `DELETE FROM "${mirrorTable(table)}" WHERE "${spec.pk}" = ?`,
+    bind: [id] as any[],
+  });
+}
+
 function applyStep(db: LocalDb, step: MutationStep): void {
   switch (step.kind) {
     case "testInsert": {
@@ -168,6 +360,18 @@ function applyStep(db: LocalDb, step: MutationStep): void {
         sql: `UPDATE ${EVENT_TABLE} SET status = ? WHERE mutation_id = ?`,
         bind: [step.status, requireString(step.mutationId, "mutationId")],
       });
+      return;
+    }
+    case "masterInsert": {
+      applyMasterInsert(db, step.table, step.row);
+      return;
+    }
+    case "masterUpdate": {
+      applyMasterUpdate(db, step.table, step.id, step.values);
+      return;
+    }
+    case "masterDelete": {
+      applyMasterDelete(db, step.table, step.id);
       return;
     }
     case "failDeliberately": {

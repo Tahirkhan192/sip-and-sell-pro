@@ -1,9 +1,10 @@
 /**
- * PHASE 5A — local mutation foundation (public surface).
+ * PHASE 5A/5B — local mutation foundation + master-data procedures.
  *
- * Nothing exported here is used by a production write path. POS, sales,
+ * Nothing exported here is used by a production write path yet. POS, sales,
  * purchases, expenses, stock, staff, production, transfers and closing all
- * continue to write to Lovable Cloud exactly as before.
+ * continue to write to Lovable Cloud exactly as before; Phase 5B adds local
+ * procedures for master/reference data only.
  */
 
 export * from "./errors";
@@ -52,3 +53,4 @@ export {
   runLocalTestMutation,
   type TestMutationOutcome,
 } from "./test-api";
+export * from "./procedures";
