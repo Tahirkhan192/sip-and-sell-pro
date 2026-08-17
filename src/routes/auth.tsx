@@ -7,19 +7,29 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Coffee } from "lucide-react";
+import { Coffee, WifiOff } from "lucide-react";
+import {
+  enrolThisDevice,
+  isOnline,
+  localAuthStatus,
+  resolveAccess,
+  unlockThisDevice,
+  type AuthSnapshot,
+} from "@/data/auth/local-auth";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({
     next: typeof s.next === "string" ? s.next : undefined,
   }),
 
+  // PHASE 7 — a cloud session OR a valid enrolled local session sends the user
+  // straight into the app. An online user who has not enrolled this device
+  // stays here to choose a device unlock code first.
   beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (data.session) {
-      const dest = search.next && search.next.startsWith("/") && !search.next.startsWith("//") ? search.next : "/";
-
+    const dest = search.next && search.next.startsWith("/") && !search.next.startsWith("//") ? search.next : "/";
+    const access = await resolveAccess();
+    if (access.mode === "offline" || (access.mode === "online" && access.enrolled)) {
       throw redirect({ href: dest });
     }
   },
@@ -37,14 +47,34 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /** Local device state: enrolment prompt (online) or offline unlock. */
+  const [snapshot, setSnapshot] = useState<AuthSnapshot | null>(null);
+  const [needsEnrolment, setNeedsEnrolment] = useState(false);
+  const [unlockCode, setUnlockCode] = useState("");
+  const [unlockConfirm, setUnlockConfirm] = useState("");
+  const [forceUnlock, setForceUnlock] = useState(false);
+  const online = isOnline() && !forceUnlock;
+
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (session) {
-        window.location.href = safeNext(next);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const snap = await localAuthStatus();
+        if (cancelled) return;
+        setSnapshot(snap);
+        if (snap.identity && !snap.identity.revoked_at) setEmail((e) => e || snap.identity!.email);
+        const access = await resolveAccess();
+        if (!cancelled && access.mode === "online" && !access.enrolled) setNeedsEnrolment(true);
+      } catch {
+        // no local database yet — plain online login still works
       }
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [navigate, next]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const enrolledEmail = snapshot?.identity && !snapshot.identity.revoked_at ? snapshot.identity.email : null;
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +86,7 @@ function AuthPage() {
         return;
       }
       if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
-        const msg = "Authentication is not configured (missing Supabase environment variables).";
+        const msg = "Authentication is not configured (missing environment variables).";
         console.error(msg);
         toast.error(msg);
         return;
@@ -69,6 +99,12 @@ function AuthPage() {
       }
       if (!data.session) {
         toast.error("Sign in failed: no session returned");
+        return;
+      }
+      const access = await resolveAccess();
+      if (access.mode === "online" && !access.enrolled) {
+        setNeedsEnrolment(true);
+        toast.success("Signed in — set a device unlock code to work offline");
         return;
       }
       toast.success("Welcome back");
@@ -107,6 +143,44 @@ function AuthPage() {
     }
   }
 
+  async function handleEnrol(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    if (unlockCode.length < 4) {
+      toast.error("Use an unlock code of at least 4 characters");
+      return;
+    }
+    if (unlockCode !== unlockConfirm) {
+      toast.error("The two unlock codes do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      await enrolThisDevice(unlockCode);
+      toast.success("This device can now be used offline");
+      window.location.href = safeNext(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Enrolment failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUnlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    try {
+      await unlockThisDevice(email || enrolledEmail || "", unlockCode);
+      toast.success("Unlocked — working offline");
+      window.location.href = safeNext(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unlock failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-secondary/40 to-background">
       <Card className="w-full max-w-md shadow-xl">
@@ -115,41 +189,112 @@ function AuthPage() {
             <Coffee className="h-6 w-6" />
           </div>
           <CardTitle className="text-2xl">Khyber Delicious Food</CardTitle>
-          <CardDescription>Sign in to manage your café</CardDescription>
+          <CardDescription>
+            {needsEnrolment
+              ? "Set a device unlock code for offline use"
+              : online
+                ? "Sign in to manage your café"
+                : "You are offline — unlock this device"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Sign up</TabsTrigger>
-            </TabsList>
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-3 pt-4">
-                <div className="space-y-2"><Label>Email</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" required value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
-                <Button className="w-full" type="submit" disabled={loading}>
-                  {loading ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      Signing in…
-                    </span>
-                  ) : (
-                    "Sign in"
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-3 pt-4">
-                <div className="space-y-2"><Label>Email</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
-                <Button className="w-full" type="submit" disabled={loading}>{loading?"…":"Create account"}</Button>
-                <p className="text-xs text-muted-foreground text-center">The first account created becomes Admin.</p>
-              </form>
-            </TabsContent>
-          </Tabs>
+          {needsEnrolment ? (
+            <form onSubmit={handleEnrol} className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                The unlock code is stored only as a one-way hash on this device. It is never your
+                account password and never leaves this machine.
+              </p>
+              <div className="space-y-2">
+                <Label>Unlock code</Label>
+                <Input type="password" minLength={4} required value={unlockCode} onChange={(e) => setUnlockCode(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirm unlock code</Label>
+                <Input type="password" minLength={4} required value={unlockConfirm} onChange={(e) => setUnlockConfirm(e.target.value)} />
+              </div>
+              <Button className="w-full" type="submit" disabled={loading}>
+                {loading ? "…" : "Enrol this device"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => (window.location.href = safeNext(next))}
+              >
+                Skip — stay online only
+              </Button>
+            </form>
+          ) : !online && enrolledEmail ? (
+            <form onSubmit={handleUnlock} className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                <WifiOff className="h-4 w-4" /> No internet — signing in with the local device code.
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Unlock code</Label>
+                <Input type="password" required value={unlockCode} onChange={(e) => setUnlockCode(e.target.value)} />
+              </div>
+              <Button className="w-full" type="submit" disabled={loading}>
+                {loading ? "…" : "Unlock offline"}
+              </Button>
+            </form>
+          ) : (
+            <Tabs defaultValue="signin">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign in</TabsTrigger>
+                <TabsTrigger value="signup">Sign up</TabsTrigger>
+              </TabsList>
+              <TabsContent value="signin">
+                <form onSubmit={handleSignIn} className="space-y-3 pt-4">
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Password</Label><Input type="password" required value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
+                  <Button className="w-full" type="submit" disabled={loading}>
+                    {loading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Signing in…
+                      </span>
+                    ) : (
+                      "Sign in"
+                    )}
+                  </Button>
+                  {enrolledEmail ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setEmail(enrolledEmail);
+                        setNeedsEnrolment(false);
+                        void handleUnlockFallback();
+                      }}
+                    >
+                      Use device unlock code instead
+                    </Button>
+                  ) : null}
+                </form>
+              </TabsContent>
+              <TabsContent value="signup">
+                <form onSubmit={handleSignUp} className="space-y-3 pt-4">
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
+                  <Button className="w-full" type="submit" disabled={loading}>{loading?"…":"Create account"}</Button>
+                  <p className="text-xs text-muted-foreground text-center">The first account created becomes Admin.</p>
+                </form>
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>
   );
+
+  /** Lets an enrolled user choose the local unlock code even while online. */
+  function handleUnlockFallback() {
+    setUnlockCode("");
+    setForceUnlock(true);
+  }
 }
