@@ -571,6 +571,21 @@ export function computeReport(inputs: ReportInputs, range: ReportRangeInput, see
   };
 }
 
+/**
+ * Report for one range. Inputs come from the cloud whenever it is reachable;
+ * the local SQLite mirror is used only while offline (see
+ * `src/data/reads/report-inputs.ts`). The calculation itself is the same in
+ * both cases.
+ */
+export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
+  const local = await tryLocalReportInputs(range);
+  if (local) {
+    return { ...computeReport(local.inputs, range, seedCategories), source: "local", asOf: local.seededAt };
+  }
+  const inputs = await fetchCloudReportInputs(range);
+  return { ...computeReport(inputs, range, seedCategories), source: "cloud", asOf: null };
+}
+
 /** Change returned to the customer for one sale row. */
 export function changeReturnedOf(sale: any): number {
   const grand = num(sale.grand_total);
