@@ -17,6 +17,7 @@ import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
 import { LocalDbCard } from "@/components/LocalDbCard";
 import { CloudSeedCard } from "@/components/CloudSeedCard";
+import { SyncStatusCard } from "@/components/SyncStatusCard";
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
@@ -198,6 +199,7 @@ function SettingsPage() {
 
       <LocalDbCard />
       <CloudSeedCard />
+      <SyncStatusCard />
 
       <MenuVisibilityCard />
 
