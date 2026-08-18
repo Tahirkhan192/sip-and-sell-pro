@@ -14,7 +14,7 @@
     "format": "prettier --write .",
     "desktop:setup": "npm install --no-save electron@^34.0.0 electron-builder@^25.1.8 png-to-ico@^2.1.8",
     "desktop:dev": "node electron/dev.cjs",
-    "desktop:build:web": "cross-env-shim DESKTOP_BUILD=1 vite build",
+    "desktop:build:web": "node electron/build.cjs --web-only",
     "desktop:build": "node electron/build.cjs"
   },
 
