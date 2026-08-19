@@ -17,33 +17,10 @@ import { computeStockPosition, type ProductStockRow, type StockItemStockRow, typ
 
 export type Period = { from: string; to: string; startUTC: string; endExclusiveUTC: string };
 
-export type InventoryRow = {
-  id: string;
-  name: string;
-  opening: number;
-  purchases: number;
-  transferIn: number;
-  production: number;
-  recipeUsage: number;
-  directSales: number;
-  transferOut: number;
-  manualAdjustment: number;
-  remaining: number;
-  auto: boolean;
-  /** Stock Tracking switch — false means unlimited stock, never validated. */
-  tracked: boolean;
-};
+export type InventoryRow = Omit<ProductStockRow, "category" | "salePrice" | "value">;
 
-
-
-
-export type ProductInventoryRow = InventoryRow & { category: string; salePrice: number; value: number };
-export type StockItemInventoryRow = InventoryRow & {
-  unit: string;
-  avgPrice: number;
-  manual: boolean;
-  value: number;
-};
+export type ProductInventoryRow = ProductStockRow;
+export type StockItemInventoryRow = StockItemStockRow;
 
 export type InventorySnapshot = {
   products: ProductInventoryRow[];
