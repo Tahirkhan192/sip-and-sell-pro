@@ -13,45 +13,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { num } from "@/lib/format";
+import { computeStockPosition, type ProductStockRow, type StockItemStockRow, type StockSale } from "@/lib/stock-position";
 
 export type Period = { from: string; to: string; startUTC: string; endExclusiveUTC: string };
 
-export type InventoryRow = {
-  id: string;
-  name: string;
-  opening: number;
-  purchases: number;
-  transferIn: number;
-  production: number;
-  recipeUsage: number;
-  directSales: number;
-  transferOut: number;
-  manualAdjustment: number;
-  remaining: number;
-  auto: boolean;
-  /** Stock Tracking switch — false means unlimited stock, never validated. */
-  tracked: boolean;
-};
+export type InventoryRow = Omit<ProductStockRow, "category" | "salePrice" | "value">;
 
-
-
-
-export type ProductInventoryRow = InventoryRow & { category: string; salePrice: number; value: number };
-export type StockItemInventoryRow = InventoryRow & {
-  unit: string;
-  avgPrice: number;
-  manual: boolean;
-  value: number;
-};
+export type ProductInventoryRow = ProductStockRow;
+export type StockItemInventoryRow = StockItemStockRow;
 
 export type InventorySnapshot = {
   products: ProductInventoryRow[];
   stockItems: StockItemInventoryRow[];
-};
-
-const add = (m: Record<string, number>, k: string | null | undefined, v: number) => {
-  if (!k) return;
-  m[k] = (m[k] ?? 0) + v;
 };
 
 /** PostgREST caps a request at 1000 rows — page through everything. */
@@ -83,11 +56,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     consumptionRows,
     saleItemRows,
     recipeRows,
-    expCatRows,
     adjustRows,
   ] = await Promise.all([
     fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").is("deleted_at", null).order("name")),
-    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,category,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
     fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).order("item_id")),
     fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
     fetchAllPaged(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
@@ -100,180 +72,36 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     fetchAllPaged(() => sb.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden,order_type)")
       .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC).order("id")),
     fetchAllPaged(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
-    fetchAllPaged(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
     fetchAllPaged(() => sb.from("stock_adjustments").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
   ]);
-  const prodsRes = { data: prods };
 
-  const itemsRes = { data: items };
-  const openRes = { data: openRows };
-  const purRes = { data: purRows };
-  const batchRes = { data: batchRows };
-  const batchItemRes = { data: batchItemRows };
-  const transferRes = { data: transferRows };
-  const consumptionRes = { data: consumptionRows };
-  const saleItemRes = { data: saleItemRows };
-  const recipeRes = { data: recipeRows };
-  const expCatRes = { data: expCatRows };
-  const adjustRes = { data: adjustRows };
+  const openingSnapshot: Record<string, number> = {};
+  for (const r of openRows as any[]) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
+  // One sale-item row per invoice line; normalise to the shared sale shape.
+  const sales: StockSale[] = (saleItemRows as any[])
+    .filter((it) => it.sales && !it.sales.deleted_at)
+    .map((it) => ({
+      status: it.sales.status,
+      deleted_at: it.sales.deleted_at,
+      hidden: it.sales.hidden,
+      order_type: it.sales.order_type,
+      items: [{ product_id: it.product_id, quantity: it.quantity }],
+    }));
 
-
-  // ---- Opening (locked monthly snapshot wins over live opening_stock)
-  const openings: Record<string, number> = {};
-  for (const r of (openRes.data ?? []) as any[]) openings[`${r.scope}:${r.item_id}`] = num(r.quantity);
-
-  // ---- Purchases
-  const purchaseProd: Record<string, number> = {};
-  const purchaseItem: Record<string, number> = {};
-  for (const r of (purRes.data ?? []) as any[]) {
-    add(purchaseProd, r.product_id, num(r.quantity));
-    add(purchaseItem, r.stock_item_id, num(r.quantity));
-  }
-
-  // ---- Production (finished products produced by recipe batches)
-  const productionProd: Record<string, number> = {};
-  for (const b of (batchRes.data ?? []) as any[]) add(productionProd, b.product_id, num(b.quantity));
-
-  // ---- Recipe usage via production batches (components consumed)
-  const recipeProd: Record<string, number> = {};
-  const recipeItem: Record<string, number> = {};
-  for (const r of (batchItemRes.data ?? []) as any[]) {
-    if (r.production_batches?.deleted_at) continue;
-    add(recipeProd, r.component_product_id, num(r.quantity));
-    add(recipeItem, r.component_stock_item_id, num(r.quantity));
-  }
-
-  // ---- Sales (non-deleted, non-hidden; completed AND pending both reduce stock)
-  const soldByProduct: Record<string, number> = {};
-  const soldByProductAndType: Record<string, Record<string, number>> = {};
-  for (const it of (saleItemRes.data ?? []) as any[]) {
-    const s = it.sales;
-    if (!s || s.deleted_at || s.hidden) continue;
-    if (s.status !== "completed" && s.status !== "pending") continue;
-    const q = num(it.quantity);
-    add(soldByProduct, it.product_id, q);
-    const t = (s.order_type ?? "walk_in") as string;
-    const bucket = (soldByProductAndType[it.product_id] ??= {});
-    bucket[t] = (bucket[t] ?? 0) + q;
-  }
-
-  // ---- Recipe usage via POS sales: recipe qty × sold qty of the parent product
-  const parentsWithRecipe = new Set<string>();
-  for (const r of (recipeRes.data ?? []) as any[]) {
-    parentsWithRecipe.add(r.parent_product_id);
-    const byType = soldByProductAndType[r.parent_product_id];
-    if (!byType) continue;
-    const applies: string[] = Array.isArray(r.applies_to) ? r.applies_to : [];
-    let soldQty = 0;
-    for (const [type, qty] of Object.entries(byType)) {
-      if (applies.length === 0 || applies.includes(type)) soldQty += qty;
-    }
-    if (soldQty === 0) continue;
-    const used = soldQty * num(r.quantity);
-    add(recipeProd, r.component_product_id, used);
-    add(recipeItem, r.component_stock_item_id, used);
-  }
-
-  // ---- Transfers OUT: category → category moves AND stock moved to Expenses
-  // (wastage, staff food, testing…). Both are reported as Transfer Out.
-  const transferOutProd: Record<string, number> = {};
-  const transferOutItem: Record<string, number> = {};
-  for (const r of (transferRes.data ?? []) as any[]) {
-    const q = num(r.quantity);
-    add(transferOutProd, r.product_id, q);
-    add(transferOutItem, r.stock_item_id, q);
-  }
-  for (const e of (consumptionRes.data ?? []) as any[]) {
-    const q = num(e.source_quantity);
-    add(transferOutProd, e.source_product_id, q);
-    add(transferOutItem, e.source_stock_item_id, q);
-  }
-
-  // ---- Manual stock adjustments (signed: +increase / −decrease)
-  const adjProd: Record<string, number> = {};
-  const adjItem: Record<string, number> = {};
-  for (const a of (adjustRes.data ?? []) as any[]) {
-    const q = num(a.quantity);
-    add(adjProd, a.product_id, q);
-    add(adjItem, a.stock_item_id, q);
-  }
-
-  const round = (n: number) => Math.round(n * 1e6) / 1e6;
-
-  const products: ProductInventoryRow[] = ((prodsRes.data ?? []) as any[]).map((r) => {
-    const tracked = r.track_stock !== false;
-    const auto = r.auto_calc === true;
-    const salePrice = num(r.sale_price);
-    const base = {
-      id: r.id as string,
-      name: r.name as string,
-      category: (r.category ?? "—") as string,
-      tracked,
-      auto,
-      salePrice,
-    };
-    // Stock Tracking OFF → unlimited stock, excluded from every calculation.
-    if (!tracked) {
-      return {
-        ...base,
-        opening: 0, purchases: 0, transferIn: 0, production: 0,
-        recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
-        remaining: 0, value: 0,
-      };
-    }
-    const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
-    const purchases = purchaseProd[r.id] ?? 0;
-    const production = productionProd[r.id] ?? 0;
-    const recipeUsage = round(recipeProd[r.id] ?? 0);
-    // A product built from a recipe is consumed through its ingredients;
-    // only products without a recipe are deducted directly on sale.
-    const sold = soldByProduct[r.id] ?? 0;
-    const directSales = parentsWithRecipe.has(r.id) ? 0 : sold;
-    const transferOut = transferOutProd[r.id] ?? 0;
-    const manualAdjustment = adjProd[r.id] ?? 0;
-    // Auto Calculation OFF → keep the manually maintained Current Stock.
-    const remaining = auto
-      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
-      : num(r.current_stock);
-    return {
-      ...base,
-      opening, purchases, transferIn: 0, production,
-      recipeUsage, directSales, transferOut, manualAdjustment,
-      remaining, value: remaining * salePrice,
-    };
+  return computeStockPosition({
+    products: prods as any[],
+    stockItems: items as any[],
+    openingSnapshot,
+    purchases: purRows as any[],
+    production: batchRows as any[],
+    batchItems: (batchItemRows as any[]).filter((r) => !r.production_batches?.deleted_at),
+    transfers: transferRows as any[],
+    transferExpenses: consumptionRows as any[],
+    adjustments: adjustRows as any[],
+    recipes: recipeRows as any[],
+    sales,
   });
-
-  const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
-    const auto = r.auto_calc === true;
-    const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
-    const purchases = purchaseItem[r.id] ?? 0;
-    const production = 0; // stock items are not produced by batches
-    const recipeUsage = round(recipeItem[r.id] ?? 0);
-    const directSales = 0; // stock items are never sold directly on an invoice
-    const transferOut = transferOutItem[r.id] ?? 0;
-    const manualAdjustment = adjItem[r.id] ?? 0;
-    // Auto Calculation OFF → keep the manually maintained Current Stock.
-    const remaining = auto
-      ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
-      : num(r.current_stock);
-    const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
-    const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
-    return {
-      id: r.id,
-      name: r.name,
-      unit: r.unit ?? "pcs",
-      tracked: true,
-      opening, purchases, transferIn: 0, production,
-      recipeUsage, directSales, transferOut, manualAdjustment,
-      remaining, auto, avgPrice, manual, value: remaining * avgPrice,
-    };
-  });
-
-
-
-
-  return { products, stockItems };
 }
 
 export function useInventoryEngine(period: Period) {
