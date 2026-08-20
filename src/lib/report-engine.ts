@@ -245,6 +245,7 @@ export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<R
     transfers: (transferRows ?? []) as any[],
     production: (productionRows ?? []) as any[],
     transferExpenses: (transferExpenseRows ?? []) as any[],
+    adjustments: (adjustmentRows ?? []) as any[],
     overrides: ((overridesQ as any).data ?? []) as any[],
     snapshot: ((snapshotQ as any).data ?? []) as any[],
     staff: ((staffQ as any).data ?? []) as any[],
