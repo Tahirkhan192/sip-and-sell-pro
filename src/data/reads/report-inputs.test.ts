@@ -49,8 +49,8 @@ const flatBatches = [
   { id: "b2", target_category: "Food", total_cost: 700, batch_date: "2026-01-07" },
 ];
 const flatBatchItems = [
-  { id: "bi1", batch_id: "b1", source_category: "Raw", total_cost: 400 },
-  { id: "bi2", batch_id: "b2", source_category: "Raw", total_cost: 700 },
+  { id: "bi1", batch_id: "b1", source_category: "Raw", total_cost: 400, component_product_id: null, component_stock_item_id: "s1", quantity: 2 },
+  { id: "bi2", batch_id: "b2", source_category: "Raw", total_cost: 700, component_product_id: null, component_stock_item_id: "s1", quantity: 3 },
 ];
 
 const allExpenses = [
@@ -189,7 +189,7 @@ describe("offline report inputs", () => {
 
   it("rebuilds the embedded production_batch_items shape", () => {
     expect(assembleProduction(flatBatches, flatBatchItems)[0].production_batch_items).toEqual([
-      { source_category: "Raw", total_cost: 400 },
+      { source_category: "Raw", total_cost: 400, component_product_id: null, component_stock_item_id: "s1", quantity: 2 },
     ]);
     expect(assembleProduction([{ id: "b9" }], [])[0].production_batch_items).toEqual([]);
   });
