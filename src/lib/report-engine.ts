@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
 import { tryLocalReportInputs, type ReportInputs } from "@/data/reads/report-inputs";
-import { closingStockTotals, computeStockPosition, type StockSale } from "@/lib/stock-position";
+import { closingStockTotals, computeStockPosition, type StockPosition, type StockSale } from "@/lib/stock-position";
 
 export type { ReportInputs };
 
@@ -64,6 +64,10 @@ export type ReportResult = {
   totalReceived: number;
 
   totalClosing: number;
+  /** Closing Stock split by pool - products and stock items are independent. */
+  closingProductValue: number;
+  closingStockItemValue: number;
+  stockPosition: StockPosition;
   totalCogs: number;
   grossProfit: number;
   businessProfit: number;
