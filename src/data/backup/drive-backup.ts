@@ -21,10 +21,23 @@ import { checkRestorable } from "./local-backup";
 import { isBackupFile, sortNewestFirst, type DriveBackupProps, type DriveClient, type DriveFile } from "./drive";
 import type { BackupFile, LocalBackupFile } from "./format";
 
+/** How many of the newest backups are always kept, whatever their age. */
 export const DEFAULT_KEEP = 10;
-export const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
-export const RETRY_BASE_MS = 60 * 1000;
+/** Backup cadence: every minute, and only when something actually changed. */
+export const BACKUP_INTERVAL_MS = 60 * 1000;
+export const RETRY_BASE_MS = 15 * 1000;
 export const MAX_ATTEMPTS = 5;
+
+/**
+ * Tiered retention. Minute-level backups would otherwise wipe out yesterday's
+ * history within ten minutes, so older backups are thinned instead of deleted:
+ *   * the newest `keep` files, always;
+ *   * one per hour for the last 24 hours;
+ *   * one per day for the last 14 days;
+ * everything else is removed.
+ */
+export const HOURLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const DAILY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type BackupCycleReason = "scheduled" | "manual" | "retry";
 
@@ -153,8 +166,52 @@ async function safeState(patch: Parameters<typeof writeLocalBackupState>[0]) {
   }
 }
 
+function timeOf(f: DriveFile): number {
+  const raw = f.appProperties?.createdAt ?? f.createdTime ?? "";
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+}
+
 /**
- * Keeps the `keep` newest backups. The just-verified upload is always kept,
+ * Pure retention decision: which backups survive. Newest first in, newest
+ * first out. Never returns an empty keep-set while any file exists.
+ */
+export function selectRetained(files: DriveFile[], keep: number, now: Date): DriveFile[] {
+  const ordered = sortNewestFirst(files);
+  const nowMs = now.getTime();
+  const retained: DriveFile[] = [];
+  const hourSeen = new Set<number>();
+  const daySeen = new Set<number>();
+
+  ordered.forEach((f, index) => {
+    if (index < Math.max(1, keep)) {
+      retained.push(f);
+      return;
+    }
+    const t = timeOf(f);
+    const age = nowMs - t;
+    if (age <= HOURLY_WINDOW_MS) {
+      const bucket = Math.floor(t / (60 * 60 * 1000));
+      if (!hourSeen.has(bucket)) {
+        hourSeen.add(bucket);
+        retained.push(f);
+      }
+      return;
+    }
+    if (age <= DAILY_WINDOW_MS) {
+      const bucket = Math.floor(t / (24 * 60 * 60 * 1000));
+      if (!daySeen.has(bucket)) {
+        daySeen.add(bucket);
+        retained.push(f);
+      }
+    }
+  });
+
+  return retained;
+}
+
+/**
+ * Applies the tiered retention above. The just-verified upload is always kept,
  * and nothing is deleted unless a newer verified backup exists — so the newest
  * valid backup can never be rotated away.
  */
@@ -162,6 +219,7 @@ export async function rotate(
   client: DriveClient,
   keep: number,
   protectId: string,
+  now: Date = new Date(),
 ): Promise<string[]> {
   let files: DriveFile[];
   try {
@@ -169,8 +227,8 @@ export async function rotate(
   } catch {
     return []; // rotation is best-effort; never fail a good backup over it
   }
-  const ordered = sortNewestFirst(files);
-  const stale = ordered.slice(keep).filter((f) => f.id !== protectId);
+  const retained = new Set(selectRetained(files, keep, now).map((f) => f.id));
+  const stale = files.filter((f) => !retained.has(f.id) && f.id !== protectId);
   const deleted: string[] = [];
   for (const f of stale) {
     try {
