@@ -113,7 +113,7 @@ export function computeStockPosition(input: StockPositionInputs): StockPosition 
     const t = (s.order_type ?? "walk_in") as string;
     for (const it of s.items ?? []) {
       if (!it?.product_id) continue;
-      const q = num(it.quantity);
+      const q = num(it.quantity as any);
       add(soldByProduct, it.product_id, q);
       const bucket = (soldByProductAndType[it.product_id] ??= {});
       bucket[t] = (bucket[t] ?? 0) + q;

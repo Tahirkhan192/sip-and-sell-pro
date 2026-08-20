@@ -49,8 +49,8 @@ const flatBatches = [
   { id: "b2", target_category: "Food", total_cost: 700, batch_date: "2026-01-07" },
 ];
 const flatBatchItems = [
-  { id: "bi1", batch_id: "b1", source_category: "Raw", total_cost: 400 },
-  { id: "bi2", batch_id: "b2", source_category: "Raw", total_cost: 700 },
+  { id: "bi1", batch_id: "b1", source_category: "Raw", total_cost: 400, component_product_id: null, component_stock_item_id: "s1", quantity: 2 },
+  { id: "bi2", batch_id: "b2", source_category: "Raw", total_cost: 700, component_product_id: null, component_stock_item_id: "s1", quantity: 3 },
 ];
 
 const allExpenses = [
@@ -121,8 +121,9 @@ function cloudInputs(): ReportInputs {
     stockItems,
     recipes,
     transfers: [allTransfers[0]],
-    production: [{ ...flatBatches[0], production_batch_items: [{ source_category: "Raw", total_cost: 400 }] }],
+    production: [{ ...flatBatches[0], production_batch_items: [{ source_category: "Raw", total_cost: 400, component_product_id: null, component_stock_item_id: "s1", quantity: 2 }] }],
     transferExpenses: [allExpenses[1]],
+    adjustments: [],
     overrides: [allOverrides[0]],
     snapshot: [allSnapshots[0]],
     staff,
@@ -147,6 +148,7 @@ function localInputsUnfiltered(): ReportInputs {
     transfers: allTransfers,
     production: assembleProduction(flatBatches, flatBatchItems),
     transferExpenses: allExpenses.filter((e) => e.is_stock_transfer === true),
+    adjustments: [],
     overrides: allOverrides,
     snapshot: allSnapshots,
     staff,
@@ -187,7 +189,7 @@ describe("offline report inputs", () => {
 
   it("rebuilds the embedded production_batch_items shape", () => {
     expect(assembleProduction(flatBatches, flatBatchItems)[0].production_batch_items).toEqual([
-      { source_category: "Raw", total_cost: 400 },
+      { source_category: "Raw", total_cost: 400, component_product_id: null, component_stock_item_id: "s1", quantity: 2 },
     ]);
     expect(assembleProduction([{ id: "b9" }], [])[0].production_batch_items).toEqual([]);
   });

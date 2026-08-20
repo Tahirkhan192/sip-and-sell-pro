@@ -38,6 +38,8 @@ export type ReportInputs = {
   transfers: Row[];
   production: Row[];
   transferExpenses: Row[];
+  /** stock_adjustments - manual (+/-) corrections feeding the stock position. */
+  adjustments: Row[];
   overrides: Row[];
   snapshot: Row[];
   staff: Row[];
@@ -64,6 +66,7 @@ export const REPORT_OPTIONAL_TABLES: TableName[] = [
   "stock_transfers",
   "production_batches",
   "production_batch_items",
+  "stock_adjustments",
   "monthly_stock_overrides",
   "stock_opening_snapshots",
   "staff",
@@ -128,7 +131,13 @@ export function assembleProduction(batches: Row[], items: Row[]): Row[] {
   const byBatch = new Map<string, Row[]>();
   for (const raw of items) {
     const key = String(raw.batch_id);
-    const entry = { source_category: raw.source_category ?? null, total_cost: raw.total_cost };
+    const entry = {
+      source_category: raw.source_category ?? null,
+      total_cost: raw.total_cost,
+      component_product_id: raw.component_product_id ?? null,
+      component_stock_item_id: raw.component_stock_item_id ?? null,
+      quantity: raw.quantity,
+    };
     const list = byBatch.get(key);
     if (list) list.push(entry);
     else byBatch.set(key, [entry]);
@@ -173,6 +182,7 @@ export function filterReportInputs(all: ReportInputs, range: ReportRangeFilter):
     transfers: all.transfers.filter((t) => inTimestampRange(t.created_at, startUTC, endExclusiveUTC)),
     production: all.production.filter((b) => inDateRange(b.batch_date, from, to)),
     transferExpenses: all.transferExpenses.filter((e) => inDateRange(e.date, from, to)),
+    adjustments: all.adjustments.filter((a) => inDateRange(a.date, from, to)),
     overrides: from ? all.overrides.filter(periodMatch) : [],
     snapshot: from ? all.snapshot.filter(periodMatch) : [],
     staff: all.staff,
@@ -204,6 +214,7 @@ export async function loadLocalReportInputs(repo = new LocalRepository()): Promi
     snapshot,
     staff,
     attendance,
+    adjustments,
   ] = await Promise.all([
     repo.list<Row>("sales", {
       filter: { ...LIVE, eq: { hidden: false } },
@@ -229,6 +240,7 @@ export async function loadLocalReportInputs(repo = new LocalRepository()): Promi
     repo.list<Row>("stock_opening_snapshots", {}),
     repo.list<Row>("staff", { filter: { ...LIVE } }),
     repo.list<Row>("staff_attendance", { filter: { eq: { status: "present" } } }),
+    repo.list<Row>("stock_adjustments", { filter: { ...LIVE } }),
   ]);
 
   return {
@@ -242,6 +254,7 @@ export async function loadLocalReportInputs(repo = new LocalRepository()): Promi
     transfers,
     production: assembleProduction(batches, batchItems),
     transferExpenses: expenses.filter((e) => e.is_stock_transfer === true),
+    adjustments,
     overrides,
     snapshot,
     staff,
