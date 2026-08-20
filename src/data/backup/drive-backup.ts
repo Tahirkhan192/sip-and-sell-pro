@@ -21,10 +21,23 @@ import { checkRestorable } from "./local-backup";
 import { isBackupFile, sortNewestFirst, type DriveBackupProps, type DriveClient, type DriveFile } from "./drive";
 import type { BackupFile, LocalBackupFile } from "./format";
 
+/** How many of the newest backups are always kept, whatever their age. */
 export const DEFAULT_KEEP = 10;
-export const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
-export const RETRY_BASE_MS = 60 * 1000;
+/** Backup cadence: every minute, and only when something actually changed. */
+export const BACKUP_INTERVAL_MS = 60 * 1000;
+export const RETRY_BASE_MS = 15 * 1000;
 export const MAX_ATTEMPTS = 5;
+
+/**
+ * Tiered retention. Minute-level backups would otherwise wipe out yesterday's
+ * history within ten minutes, so older backups are thinned instead of deleted:
+ *   * the newest `keep` files, always;
+ *   * one per hour for the last 24 hours;
+ *   * one per day for the last 14 days;
+ * everything else is removed.
+ */
+export const HOURLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const DAILY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type BackupCycleReason = "scheduled" | "manual" | "retry";
 
