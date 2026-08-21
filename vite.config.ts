@@ -15,6 +15,16 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    resolve: {
+      alias: [
+        // Offline build: every data call is served by the embedded local database.
+        {
+          find: /^@\/integrations\/supabase\/client$/,
+          replacement: new URL("./src/lib/local-db/client.ts", import.meta.url).pathname,
+        },
+      ],
+    },
+    optimizeDeps: { exclude: ["@electric-sql/pglite"] },
     plugins: [
       mcpPlugin(),
       VitePWA({
