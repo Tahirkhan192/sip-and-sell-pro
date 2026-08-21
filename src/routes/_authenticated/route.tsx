@@ -1,18 +1,16 @@
 import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { resolveAccess } from "@/data/auth/local-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useBusinessConfigLoader } from "@/lib/use-settings";
 import { isModuleVisible, moduleKeyForPath, useMenuVisibility } from "@/lib/menu-visibility";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  // PHASE 7 — online cloud session first; a valid enrolled local session is
-  // the only offline fallback. SQLite data alone never authenticates anyone.
   beforeLoad: async () => {
-    const access = await resolveAccess();
-    if (access.mode === "signed-out") throw redirect({ to: "/auth", search: {} });
-    return { access };
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw redirect({ to: "/auth", search: {} });
+    return { user: data.user };
   },
   component: AuthLayout,
 });

@@ -13,15 +13,7 @@
  * exactly one Purchase X.
  */
 
-import {
-  BACKUP_FORMAT_VERSION,
-  BACKUP_TABLES,
-  computeChecksum,
-  payloadOf,
-  primaryKeyOf,
-  type BackupFile,
-  type BackupValidation,
-} from "./format";
+import { BACKUP_FORMAT_VERSION, BACKUP_TABLES, primaryKeyOf, type BackupFile, type BackupValidation } from "./format";
 import type { TableName } from "@/data/repo";
 
 /** Parent → child relationships that must still resolve after import. */
@@ -47,11 +39,8 @@ export const RELATIONSHIPS: { child: TableName; column: string; parent: TableNam
   { child: "sales", column: "customer_id", parent: "customers" },
 ];
 
-/**
- * Structural + integrity + referential validation of a backup file, before any
- * import. Async because the SHA-256 checksum is recomputed with Web Crypto.
- */
-export async function validateBackup(input: unknown): Promise<BackupValidation> {
+/** Structural + referential validation of a backup file, before any import. */
+export function validateBackup(input: unknown): BackupValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
   const counts: Record<string, number> = {};
@@ -61,62 +50,22 @@ export async function validateBackup(input: unknown): Promise<BackupValidation> 
     return { ok: false, errors: ["File is not a recognised backup."], warnings, counts };
   }
   if (backup.formatVersion !== BACKUP_FORMAT_VERSION) {
-    return {
-      ok: false,
-      errors: [`Unsupported backup format version: ${String(backup.formatVersion)}`],
-      warnings,
-      counts,
-    };
+    errors.push(`Unsupported backup format version: ${backup.formatVersion}`);
   }
-  if (backup.complete !== true) {
-    errors.push("Backup is not marked complete — it failed verification during export.");
+  if (backup.complete === false) {
+    errors.push("Backup is marked incomplete — one or more tables were truncated during export.");
   }
-
-  // --- integrity metadata + checksum -------------------------------------
-  const integrity = backup.integrity;
-  if (!integrity || integrity.algorithm !== "SHA-256" || typeof integrity.checksum !== "string") {
-    errors.push("Backup has no valid integrity metadata.");
-  } else {
-    try {
-      const recomputed = await computeChecksum(payloadOf(backup));
-      if (recomputed !== integrity.checksum) {
-        errors.push("Checksum mismatch — the backup file is corrupt or was modified.");
-      }
-    } catch (e: any) {
-      errors.push(`Checksum could not be verified: ${e?.message ?? e}`);
-    }
-  }
-
-  const digest = backup.rowCountByTable;
-  if (!digest || typeof digest !== "object") {
-    errors.push("Backup has no row-count digest.");
-  }
-
-  const isCount = (n: unknown) => Number.isInteger(n) && (n as number) >= 0;
 
   const byTable = new Map<string, Record<string, any>[]>();
   for (const t of backup.tables) {
-    const rows = t.rows ?? [];
-    counts[t.table] = rows.length;
-    byTable.set(t.table, rows);
-
-    if (!isCount(t.countBefore) || !isCount(t.exportedCount) || !isCount(t.countAfter)) {
-      errors.push(`${t.table}: invalid row counts.`);
-    } else if (t.countBefore !== t.exportedCount || t.exportedCount !== t.countAfter) {
-      errors.push(
-        `${t.table}: row counts disagree (before: ${t.countBefore}, exported: ${t.exportedCount}, after: ${t.countAfter}).`,
-      );
+    counts[t.table] = t.rows?.length ?? 0;
+    byTable.set(t.table, t.rows ?? []);
+    if (t.exportedCount < t.expectedCount) {
+      errors.push(`${t.table}: exported ${t.exportedCount} of ${t.expectedCount} rows.`);
     }
-    if (t.exportedCount !== rows.length) {
-      errors.push(`${t.table}: exportedCount ${t.exportedCount} does not match ${rows.length} stored rows.`);
-    }
-    if (digest && digest[t.table] !== rows.length) {
-      errors.push(`${t.table}: row-count digest mismatch (${digest[t.table]} vs ${rows.length}).`);
-    }
-
     const pk = primaryKeyOf(t.table);
     const seen = new Set<any>();
-    for (const row of rows) {
+    for (const row of t.rows ?? []) {
       if (row[pk] === undefined || row[pk] === null) {
         errors.push(`${t.table}: a row has no ${pk}.`);
         break;
@@ -129,23 +78,8 @@ export async function validateBackup(input: unknown): Promise<BackupValidation> 
     }
   }
 
-  if (digest) {
-    for (const table of Object.keys(digest)) {
-      if (!byTable.has(table)) errors.push(`${table}: present in the row-count digest but not exported.`);
-    }
-  }
-
   for (const table of BACKUP_TABLES) {
-    if (!byTable.has(table)) errors.push(`${table}: required table missing from the backup.`);
-  }
-
-  for (const t of backup.meta?.rlsLimitedTables ?? []) {
-    warnings.push(
-      `${t}: limited by row-level security to rows visible to the backup's authenticated user — not a complete export.`,
-    );
-  }
-  for (const [table, fields] of Object.entries(backup.meta?.redactedFields ?? {})) {
-    warnings.push(`${table}: sensitive field(s) redacted in this backup — ${fields.join(", ")}.`);
+    if (!byTable.has(table)) warnings.push(`${table}: missing from the backup.`);
   }
 
   for (const rel of RELATIONSHIPS) {

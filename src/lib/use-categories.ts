@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { listCategories } from "@/data/reads/reference";
 import { CATEGORIES } from "@/lib/categories";
 
 export type CategoryRow = {
@@ -17,8 +16,15 @@ export function useCategories(opts: { activeOnly?: boolean } = { activeOnly: tru
   return useQuery({
     queryKey: ["categories", opts.activeOnly ?? true],
     queryFn: async () => {
-      const data = await listCategories({ activeOnly: opts.activeOnly });
-      const names = data.map((r) => r.name as string);
+      let q = supabase
+        .from("categories" as any)
+        .select("name, sort_order, active")
+        .is("deleted_at", null)
+        .order("sort_order")
+        .order("name");
+      if (opts.activeOnly) q = q.eq("active", true);
+      const { data } = await q;
+      const names = (data ?? []).map((r: any) => r.name as string);
       return names.length ? names : [...CATEGORIES];
     },
     staleTime: 60_000,
@@ -29,8 +35,13 @@ export function useCategoryRows() {
   return useQuery({
     queryKey: ["categories", "rows"],
     queryFn: async () => {
-      const data = await listCategories();
-      return data as unknown as CategoryRow[];
+      const { data } = await supabase
+        .from("categories" as any)
+        .select("*")
+        .is("deleted_at", null)
+        .order("sort_order")
+        .order("name");
+      return (data ?? []) as unknown as CategoryRow[];
     },
     staleTime: 30_000,
   });

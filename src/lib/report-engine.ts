@@ -2,10 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
-import { tryLocalReportInputs, type ReportInputs } from "@/data/reads/report-inputs";
-import { closingStockTotals, computeStockPosition, type StockPosition, type StockSale } from "@/lib/stock-position";
-
-export type { ReportInputs };
 
 export type ReportRangeInput = Partial<RangeResult> & { label?: string };
 
@@ -64,10 +60,6 @@ export type ReportResult = {
   totalReceived: number;
 
   totalClosing: number;
-  /** Closing Stock split by pool - products and stock items are independent. */
-  closingProductValue: number;
-  closingStockItemValue: number;
-  stockPosition: StockPosition;
   totalCogs: number;
   grossProfit: number;
   businessProfit: number;
@@ -95,10 +87,6 @@ export type ReportResult = {
   monthExp: number;
   monthDelExp: number;
   overall: number;
-  /** Where the raw rows came from: the cloud, or the offline SQLite mirror. */
-  source?: "cloud" | "local";
-  /** Seed timestamp when `source === "local"`, so staleness is visible. */
-  asOf?: string | null;
 };
 
 function reportKey(range: ReportRangeInput, categories: string[] = []) {
@@ -138,8 +126,7 @@ async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promis
   return out;
 }
 
-/** Loads the fourteen raw row sets the report is calculated from, from the cloud. */
-export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<ReportInputs> {
+export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
   const hasRange = Boolean(range.from && range.to && range.startUTC && range.endExclusiveUTC);
 
   const buildSales = () => {
@@ -168,24 +155,24 @@ export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<R
     if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
     return q;
   };
-  const buildProducts = () => (supabase as any).from("products").select("id, name, category, cost_price, sale_price, avg_price_override, opening_stock, current_stock, auto_calc, track_stock").is("deleted_at", null).order("name");
-  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, unit, purchase_price, avg_price_override, opening_stock, current_stock, auto_calc").is("deleted_at", null).order("name");
+  const buildProducts = () => (supabase as any).from("products").select("id, name, category, cost_price, avg_price_override, opening_stock, current_stock").is("deleted_at", null).order("name");
+  const buildStockItems = () => (supabase as any).from("stock_items").select("id, name, category, purchase_price, avg_price_override, opening_stock, current_stock").is("deleted_at", null).order("name");
   const buildRecipes = () => (supabase as any).from("recipes").select("parent_product_id, component_product_id, component_stock_item_id, quantity, applies_to").is("deleted_at", null);
   // Stock received into / sent out of a category by transfers, production and stock-to-expense moves.
   const buildTransfers = () => {
-    let q = (supabase as any).from("stock_transfers").select("from_category, to_category, total_cost, created_at, product_id, stock_item_id, quantity").is("deleted_at", null).order("created_at", { ascending: false });
+    let q = (supabase as any).from("stock_transfers").select("from_category, to_category, total_cost, created_at").is("deleted_at", null).order("created_at", { ascending: false });
     if (range.startUTC && range.endExclusiveUTC) q = q.gte("created_at", range.startUTC).lt("created_at", range.endExclusiveUTC);
     return q;
   };
   const buildProduction = () => {
-    let q = (supabase as any).from("production_batches").select("product_id, quantity, target_category, total_cost, batch_date, production_batch_items(source_category, total_cost, component_product_id, component_stock_item_id, quantity)").is("deleted_at", null).order("batch_date", { ascending: false });
+    let q = (supabase as any).from("production_batches").select("target_category, total_cost, batch_date, production_batch_items(source_category, total_cost)").is("deleted_at", null).order("batch_date", { ascending: false });
     if (range.from && range.to) q = q.gte("batch_date", range.from).lte("batch_date", range.to);
     return q;
   };
   const buildTransferExpenses = () => {
     let q = (supabase as any)
       .from("expenses")
-      .select("amount, source_product_id, source_stock_item_id, source_quantity")
+      .select("amount, source_product_id, source_stock_item_id")
       .is("deleted_at", null)
       .eq("is_stock_transfer", true)
       .order("date", { ascending: false });
@@ -204,18 +191,12 @@ export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<R
         .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const buildAdjustments = () => {
-    let q = (supabase as any).from("stock_adjustments").select("product_id, stock_item_id, quantity, date").is("deleted_at", null).order("date", { ascending: false });
-    if (range.from && range.to) q = q.gte("date", range.from).lte("date", range.to);
-    return q;
-  };
-
   const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
   const attendancePromise = range.from && range.to
     ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
     : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
 
-  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, adjustmentRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
+  const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
     fetchAllPaged<any>(buildExpenses),
     fetchAllPaged<any>(buildDeliveryExpenses),
@@ -226,7 +207,6 @@ export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<R
     fetchAllPaged<any>(buildTransfers),
     fetchAllPaged<any>(buildProduction),
     fetchAllPaged<any>(buildTransferExpenses),
-    fetchAllPaged<any>(buildAdjustments),
     overridesPromise,
     snapshotPromise,
     staffPromise,
@@ -234,56 +214,31 @@ export async function fetchCloudReportInputs(range: ReportRangeInput): Promise<R
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
 
-  return {
-    sales: salesRows as any[],
-    expenses: expensesRows as any[],
-    deliveryExpenses: deliveryExpensesRows as any[],
-    purchases: purchasesRows as any[],
-    products: productsRows as any[],
-    stockItems: (stockItemsRows ?? []) as any[],
-    recipes: (recipesRows ?? []) as any[],
-    transfers: (transferRows ?? []) as any[],
-    production: (productionRows ?? []) as any[],
-    transferExpenses: (transferExpenseRows ?? []) as any[],
-    adjustments: (adjustmentRows ?? []) as any[],
-    overrides: ((overridesQ as any).data ?? []) as any[],
-    snapshot: ((snapshotQ as any).data ?? []) as any[],
-    staff: ((staffQ as any).data ?? []) as any[],
-    attendance: ((attendanceQ as any).data ?? []) as any[],
-  };
-}
-
-/**
- * The ONE report calculation. Identical for cloud and local inputs — no
- * formula, rounding or default differs by source.
- */
-export function computeReport(inputs: ReportInputs, range: ReportRangeInput, seedCategories: string[] = []): ReportResult {
   // Opening quantities locked to this period, keyed "<scope>:<id>".
   const openingSnapshot: Record<string, number> = {};
-  for (const r of inputs.snapshot) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
+  for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
   // Part 3 — present staff accrue one daily salary (monthly ÷ 30) per present day.
   const salaryById: Record<string, number> = {};
-  for (const s of inputs.staff) salaryById[s.id] = num(s.monthly_salary) / 30;
+  for (const s of (((staffQ as any).data ?? []) as any[])) salaryById[s.id] = num(s.monthly_salary) / 30;
   let staffSalaryCost = 0;
-  for (const a of inputs.attendance) staffSalaryCost += salaryById[a.staff_id] ?? 0;
+  for (const a of (((attendanceQ as any).data ?? []) as any[])) staffSalaryCost += salaryById[a.staff_id] ?? 0;
   staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
 
 
-  const invoices = inputs.sales.filter((s) => inBusinessRange(s, range));
-  const expenses = inputs.expenses;
-  const deliveryExpenses = inputs.deliveryExpenses;
-  const purchases = inputs.purchases;
-  const products = inputs.products;
-  const stockItems = inputs.stockItems;
-  const recipes = inputs.recipes;
-  const transfers = inputs.transfers;
-  const production = inputs.production;
-  const transferExpenses = inputs.transferExpenses;
+  const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
+  const expenses = expensesRows as any[];
+  const deliveryExpenses = deliveryExpensesRows as any[];
+  const purchases = purchasesRows as any[];
+  const products = productsRows as any[];
+  const stockItems = (stockItemsRows ?? []) as any[];
+  const recipes = (recipesRows ?? []) as any[];
+  const transfers = (transferRows ?? []) as any[];
+  const production = (productionRows ?? []) as any[];
+  const transferExpenses = (transferExpenseRows ?? []) as any[];
 
 
-  const overrides = inputs.overrides;
-
+  const overrides = (overridesQ.data ?? []) as any[];
 
   const catMap: Record<string, ReportCategoryRow> = {};
   const productMap: Record<string, ReportProductRow> = {};
@@ -461,47 +416,22 @@ export function computeReport(inputs: ReportInputs, range: ReportRangeInput, see
     if (o.scope === "product" && o.product_id) prodOverride[o.product_id] = { opening: o.opening_value ?? undefined, closing: o.closing_value ?? undefined };
   }
 
-  // ---- Closing Stock = the ACTUAL available inventory position.
-  //
-  // It is produced by the shared stock-position calculation (the same authority
-  // behind the Stock Availability screen), never from the stored
-  // `current_stock` columns, which drift and can be negative.
-  // Products and stock items are two independent inventory pools, so both are
-  // included exactly once.
-  const stockSales: StockSale[] = invoices.map((s) => ({
-    status: s.status,
-    deleted_at: s.deleted_at,
-    hidden: s.hidden,
-    order_type: s.order_type,
-    items: ((s.sale_items ?? []) as any[]).filter(Boolean).map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
-  }));
-  const stockPosition = computeStockPosition({
-    products,
-    stockItems,
-    openingSnapshot,
-    purchases,
-    production,
-    batchItems: production.flatMap((b: any) => ((b.production_batch_items ?? []) as any[])),
-    transfers,
-    transferExpenses,
-    adjustments: inputs.adjustments ?? [],
-    recipes,
-    sales: stockSales,
-  });
-  const closingProducts = closingStockTotals(stockPosition).productValue;
-  const closingStockItems = closingStockTotals(stockPosition).stockItemValue;
-
-  for (const row of stockPosition.products) {
-    const cat = ensureCat(row.category);
-    // Opening is valued on the same basis as closing so COGS stays coherent.
-    cat.opening += prodOverride[row.id]?.opening ?? row.opening * row.salePrice;
-    cat.closing += prodOverride[row.id]?.closing ?? row.value;
-    cat.productPurchases += purchaseByProduct[row.id] ?? 0;
+  for (const p of products) {
+    const cat = ensureCat(p.category ?? "—");
+    // Owner override of the average purchase price is used for valuation only.
+    const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
+    const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
+    cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
+    cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
+    cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
-  for (const row of stockPosition.stockItems) {
-    const cat = ensureCat(row.category);
-    cat.opening += row.opening * row.avgPrice;
-    cat.closing += row.value;
+  // Include stock items in opening/closing valuation so Monthly Report reflects them.
+  for (const si of stockItems) {
+    const cat = ensureCat(si.category ?? "—");
+    const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
+    const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
+    cat.opening += openQty * price;
+    cat.closing += num(si.current_stock) * price;
   }
 
   for (const [category, override] of Object.entries(catOverride)) {
@@ -587,9 +517,6 @@ export function computeReport(inputs: ReportInputs, range: ReportRangeInput, see
     totalReceived,
 
     totalClosing,
-    closingProductValue: closingProducts,
-    closingStockItemValue: closingStockItems,
-    stockPosition,
     totalCogs,
     grossProfit,
     businessProfit,
@@ -617,21 +544,6 @@ export function computeReport(inputs: ReportInputs, range: ReportRangeInput, see
     monthDelExp: deliveryExpenseTotal,
     overall: netProfit,
   };
-}
-
-/**
- * Report for one range. Inputs come from the cloud whenever it is reachable;
- * the local SQLite mirror is used only while offline (see
- * `src/data/reads/report-inputs.ts`). The calculation itself is the same in
- * both cases.
- */
-export async function fetchReportEngine(range: ReportRangeInput, seedCategories: string[] = []): Promise<ReportResult> {
-  const local = await tryLocalReportInputs(range);
-  if (local) {
-    return { ...computeReport(local.inputs, range, seedCategories), source: "local", asOf: local.seededAt };
-  }
-  const inputs = await fetchCloudReportInputs(range);
-  return { ...computeReport(inputs, range, seedCategories), source: "cloud", asOf: null };
 }
 
 /** Change returned to the customer for one sale row. */

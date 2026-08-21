@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { listPurchasesWithItems } from "@/data/reads/purchases";
 import { formatBusinessTime, businessDateOf } from "@/lib/business-date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,9 +74,12 @@ function Page() {
   });
   const { data = [] } = useQuery({
     queryKey: ["purchases_v2"],
-    // PHASE 5G — served from local SQLite when every purchase table is
-    // seeded and healthy, otherwise the identical cloud query as before.
-    queryFn: () => listPurchasesWithItems(),
+    queryFn: async () => (await (supabase as any)
+      .from("purchases")
+      .select("*, purchase_items(*, products(name,unit), stock_items(name,unit))")
+      .is("deleted_at", null)
+      .order("date", { ascending: false })
+      .range(0, 99999)).data ?? [],
   });
 
   const invalidateAll = () => {

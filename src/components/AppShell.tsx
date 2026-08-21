@@ -24,6 +24,7 @@ import {
   BookOpen,
   Banknote,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -40,8 +41,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { isModuleVisible, useMenuVisibility } from "@/lib/menu-visibility";
-import { signOutEverywhere } from "@/data/auth/local-auth";
-import { SyncIndicator } from "@/components/SyncIndicator";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const NAV: NavItem[] = [
@@ -132,9 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggle } = useTheme();
 
   async function signOut() {
-    // PHASE 7: local session first, then the cloud — no offline re-entry
-    // without the device unlock code. Business data is never deleted.
-    await signOutEverywhere();
+    await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
 
@@ -148,7 +145,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
             <div className="flex-1" />
-            <SyncIndicator />
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>

@@ -8,7 +8,6 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { startSyncEngine } from "@/data/sync/sync-engine";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -128,10 +127,6 @@ function RootComponent() {
   useEffect(() => {
     void registerAppServiceWorker();
   }, []);
-
-  // PHASE 5D — start the master-data sync engine once, for the whole app.
-  useEffect(() => startSyncEngine(), []);
-
 
   return (
     <QueryClientProvider client={queryClient}>

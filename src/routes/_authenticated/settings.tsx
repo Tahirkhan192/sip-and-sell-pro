@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { saveBusinessSettings, saveAllowNegativeStock, savePinSettings } from "@/data/writes/master";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -15,12 +14,6 @@ import { changeStockPin } from "@/lib/stock-pin";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
-import { LocalDbCard } from "@/components/LocalDbCard";
-import { LocalBackupCard } from "@/components/LocalBackupCard";
-import { CloudSeedCard } from "@/components/CloudSeedCard";
-import { SyncStatusCard } from "@/components/SyncStatusCard";
-import { SyncConflicts } from "@/components/SyncConflicts";
-import { OfflineCapabilityCard } from "@/components/OfflineCapabilityCard";
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
@@ -105,11 +98,14 @@ function BusinessSettings() {
 
   const save = useMutation({
     mutationFn: async () => {
-      await saveBusinessSettings({
+      const { error } = await supabase.from("settings" as any).upsert({
+        id: 1,
         timezone: tz,
         business_day_start_time: startTime.length === 5 ? `${startTime}:00` : startTime,
         business_month_start_day: monthStart,
+        updated_at: new Date().toISOString(),
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       // Apply immediately, then refresh all reports/dashboard/sales/etc.
@@ -172,7 +168,8 @@ function SettingsPage() {
 
   const save = useMutation({
     mutationFn: async (v: boolean) => {
-      await saveAllowNegativeStock(v);
+      const { error } = await supabase.from("settings" as any).upsert({ id: 1, allow_negative_stock: v, updated_at: new Date().toISOString() });
+      if (error) throw error;
     },
     onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["settings"] }); },
     onError: (e: any) => toast.error(e.message),
@@ -198,15 +195,7 @@ function SettingsPage() {
 
       <StockPinCard />
 
-      <LocalBackupCard />
-
       <BackupCard />
-
-      <LocalDbCard />
-      <CloudSeedCard />
-      <SyncStatusCard />
-      <SyncConflicts />
-      <OfflineCapabilityCard />
 
       <MenuVisibilityCard />
 
@@ -276,7 +265,13 @@ function PinLockCard() {
 
   const save = useMutation({
     mutationFn: async () => {
-      await savePinSettings({ pin_locks: locks, staff_invoice_color: color });
+      const { error } = await supabase.from("settings" as any).upsert({
+        id: 1,
+        pin_locks: locks,
+        staff_invoice_color: color,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("PIN protection settings saved");

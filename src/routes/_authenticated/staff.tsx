@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { saveStaff as saveStaffWrite, deleteStaff as deleteStaffWrite } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,7 +133,13 @@ function StaffPage() {
         opening_katha: n(f.opening_katha),
       };
       if (!payload.name) throw new Error("Name is required");
-      await saveStaffWrite({ id: f.id, ...(payload as any) });
+      if (f.id) {
+        const { error } = await supabase.from("staff" as any).update(payload).eq("id", f.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("staff" as any).insert({ ...payload, katha_balance: n(f.opening_katha) });
+        if (error) throw error;
+      }
     },
     onSuccess: () => { toast.success("Staff saved"); setForm(null); qc.invalidateQueries({ queryKey: ["staff"] }); },
     onError: (e: any) => toast.error(e.message),
@@ -142,7 +147,8 @@ function StaffPage() {
 
   const removeStaff = useMutation({
     mutationFn: async (id: string) => {
-      await deleteStaffWrite(id);
+      const { error } = await supabase.from("staff" as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => { toast.success("Staff deleted"); qc.invalidateQueries({ queryKey: ["staff"] }); },
     onError: (e: any) => toast.error(e.message),

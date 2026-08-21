@@ -31,7 +31,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { openEngine, getDeviceId, type LocalDb } from "./engine";
+import { openLocalDb, getDeviceId, type LocalDb } from "./db";
 
 /* ------------------------------------------------------------------ */
 /* Table order — parents before children, so FKs resolve on COMMIT.    */
@@ -140,7 +140,7 @@ export interface MigrationReport {
 
 export async function migrateCloudToLocal(): Promise<MigrationReport> {
   const startedAt = new Date();
-  const db = await openEngine();
+  const db = await openLocalDb();
   const deviceId = getDeviceId(db);
 
   const report: MigrationReport = {
@@ -245,7 +245,7 @@ async function migrateCloudToLocalInternal(order: readonly TableName[]) {
   // Simple duplication of the loop above with a custom order to keep the
   // public entry point signature clean.
   const startedAt = new Date();
-  const db = await openEngine();
+  const db = await openLocalDb();
   const deviceId = getDeviceId(db);
   const report: MigrationReport = {
     startedAt: startedAt.toISOString(),
@@ -304,7 +304,7 @@ async function migrateCloudToLocalInternal(order: readonly TableName[]) {
  * counts for every mapped table and returns the mismatches.
  */
 export async function verifyMigration(): Promise<MigrationReport> {
-  const db = await openEngine();
+  const db = await openLocalDb();
   const startedAt = new Date();
   const report: MigrationReport = {
     startedAt: startedAt.toISOString(),

@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { createExpenseCategoryWrite, renameExpenseCategoryWrite, setExpenseCategoryActiveWrite, deleteExpenseCategoryWrite } from "@/data/writes/master";
 import { toast } from "sonner";
-import { listExpenseCategories } from "@/data/reads/reference";
 
 export type ExpenseCategoryRow = {
   id: string;
@@ -15,9 +13,15 @@ export function useExpenseCategories(opts: { activeOnly?: boolean } = { activeOn
   return useQuery({
     queryKey: ["expense_categories", opts.activeOnly ?? true],
     queryFn: async () => {
-      return (await listExpenseCategories({
-        activeOnly: opts.activeOnly,
-      })) as ExpenseCategoryRow[];
+      let q = (supabase as any)
+        .from("expense_categories")
+        .select("id, name, active, sort_order")
+        .is("deleted_at", null)
+        .order("sort_order")
+        .order("name");
+      if (opts.activeOnly) q = q.eq("active", true);
+      const { data } = await q;
+      return (data ?? []) as ExpenseCategoryRow[];
     },
     staleTime: 30_000,
   });
@@ -29,27 +33,31 @@ export function useExpenseCategoryMutations() {
 
   const add = useMutation({
     mutationFn: async (name: string) => {
-      await createExpenseCategoryWrite(name);
+      const { error } = await (supabase as any).from("expense_categories").insert({ name: name.trim() });
+      if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Category added"); },
     onError: (e: any) => toast.error(e.message),
   });
   const rename = useMutation({
     mutationFn: async (p: { id: string; name: string }) => {
-      await renameExpenseCategoryWrite(p.id, p.name);
+      const { error } = await (supabase as any).from("expense_categories").update({ name: p.name.trim() }).eq("id", p.id);
+      if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Renamed"); },
     onError: (e: any) => toast.error(e.message),
   });
   const toggle = useMutation({
     mutationFn: async (p: { id: string; active: boolean }) => {
-      await setExpenseCategoryActiveWrite(p.id, p.active);
+      const { error } = await (supabase as any).from("expense_categories").update({ active: p.active }).eq("id", p.id);
+      if (error) throw error;
     },
     onSuccess: () => invalidate(),
   });
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      await deleteExpenseCategoryWrite(id);
+      const { error } = await (supabase as any).from("expense_categories").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Deleted"); },
   });

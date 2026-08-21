@@ -2,8 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { saveCategory as saveCategoryWrite, setCategoryActive as setCategoryActiveWrite, deleteCategory as deleteCategoryWrite } from "@/data/writes/master";
-import { listCategories } from "@/data/reads/reference";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +35,7 @@ function Page() {
 
   const { data = [] } = useQuery({
     queryKey: ["categories", "admin"],
-    queryFn: async () => (await listCategories()) as any[],
+    queryFn: async () => (await supabase.from("categories" as any).select("*").is("deleted_at", null).order("sort_order").order("name")).data ?? [],
   });
 
   const invalidateAll = () => {
@@ -57,7 +55,10 @@ function Page() {
         sort_order: p.sort_order ?? 0,
         active: p.active,
       };
-      await saveCategoryWrite({ id: p.id, ...payload });
+      const res = p.id
+        ? await supabase.from("categories" as any).update(payload).eq("id", p.id)
+        : await supabase.from("categories" as any).insert(payload);
+      if (res.error) throw res.error;
     },
     onSuccess: () => { invalidateAll(); toast.success("Saved"); },
     onError: (e: any) => toast.error(e.message?.includes("duplicate") ? "Category name already exists" : e.message),
@@ -65,7 +66,8 @@ function Page() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      await setCategoryActiveWrite(id, active);
+      const { error } = await supabase.from("categories" as any).update({ active }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => invalidateAll(),
   });
@@ -79,10 +81,12 @@ function Page() {
       ]);
       if ((prodCount ?? 0) > 0 || (stockCount ?? 0) > 0) {
         // mark inactive instead
-        await setCategoryActiveWrite(c.id, false);
+        const { error } = await supabase.from("categories" as any).update({ active: false }).eq("id", c.id);
+        if (error) throw error;
         return { softened: true };
       }
-      await deleteCategoryWrite(c.id);
+      const { error } = await supabase.from("categories" as any).update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
+      if (error) throw error;
       return { softened: false };
     },
     onSuccess: (r: any) => {

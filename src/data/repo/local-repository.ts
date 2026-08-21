@@ -1,25 +1,20 @@
 /**
- * Local (SQLite) implementation of `DataRepository` — PHASE 4: READ-ONLY.
+ * Local (SQLite) implementation of `DataRepository` — SKELETON ONLY.
  *
- * What this does
- *   * `list`, `getById`, `findOne` and `count` read the verified `cloud_*`
- *     mirror tables produced by the Phase 3 seed, through the typed worker
- *     protocol. No raw SQL crosses the main-thread boundary and every value
- *     is bound as a parameter.
- *   * Rows come back in the cloud's shape: booleans restored from 0/1, json
- *     and array columns parsed, everything else verbatim — same ids, same
- *     timestamps, same nulls, same soft-delete markers, same numbers.
+ * Deliberately unimplemented. It exists so the future offline conversion is a
+ * drop-in replacement performed in Visual Studio, not a rewrite:
  *
- * What this deliberately does NOT do
- *   * No writes. Every mutation throws; nothing is queued, no outbox exists,
- *     and no conflict resolution is attempted. Business writes stay on the
- *     cloud repository, which remains authoritative.
- *   * No local RPCs. The cloud stored procedures have no local twin yet.
+ *   setRepository(new LocalRepository(await openLocalDb()))
+ *
+ * Rules this implementation must follow when it is completed:
+ *   - Preserve every existing ID and foreign key exactly (no regeneration).
+ *   - Reproduce cloud semantics exactly; no new calculations, no data repair.
+ *   - Every cloud RPC gets a TypeScript/SQLite twin with identical output.
+ *   - No automatic two-way sync. Cloud never overwrites local, local never
+ *     overwrites cloud. Any transfer is a deliberate, manual operation.
  */
 
-import { hydrateRows } from "@/data/local/column-types";
-import { localCount, localSelect } from "@/data/local/db";
-import type { LocalFilter, LocalOrder } from "@/data/local/db";
+import type { LocalDb } from "@/data/local/db";
 import type { DataRepository, Filter, Row, SelectOptions, TableName } from "./types";
 
 /** Cloud RPCs that need a local twin before the offline switch-over. */
@@ -55,107 +50,42 @@ export const REQUIRED_LOCAL_PROCEDURES = [
   "has_role",
 ] as const;
 
-export const READ_ONLY_MESSAGE =
-  "LocalRepository is read-only for transactional data (Phase 5B covers master/reference writes only)";
-
-function readOnly(what: string): never {
+function notReady(what: string): never {
   throw new Error(
-    `${READ_ONLY_MESSAGE}: ${what}() is not available locally. ` +
-      `Business writes must go through the cloud repository. ` +
-      `Phase 5A only adds the local transaction/audit foundation, not business mutations.`,
+    `LocalRepository.${what}() is not implemented yet. The application still runs on the cloud repository.`,
   );
-}
-
-
-/** `SelectOptions.columns` is a PostgREST projection string ("a,b,c"). */
-function parseColumns(columns?: string): string[] | undefined {
-  if (!columns || columns.trim() === "*") return undefined;
-  const list = columns
-    .split(",")
-    .map((c) => c.trim())
-    .filter(Boolean);
-  if (list.some((c) => c.includes("(") || c.includes(":") || c === "*")) {
-    // Embedded/renamed PostgREST selects have no faithful local equivalent.
-    throw new Error(
-      `${READ_ONLY_MESSAGE}: projection "${columns}" is not supported locally (Phase 4 limitation).`,
-    );
-  }
-  return list;
-}
-
-function toLocalFilter(filter?: Filter): LocalFilter | undefined {
-  if (!filter) return undefined;
-  return {
-    eq: filter.eq,
-    neq: filter.neq,
-    gte: filter.gte,
-    lte: filter.lte,
-    in: filter.in,
-    is: filter.is,
-  } as LocalFilter;
-}
-
-function toLocalOrder(options?: SelectOptions): LocalOrder[] | undefined {
-  const order = options?.order;
-  if (!order) return undefined;
-  const list = Array.isArray(order) ? order : [order];
-  return list.map((o) => ({ column: o.column, ascending: o.ascending ?? true }));
 }
 
 export class LocalRepository implements DataRepository {
   readonly kind = "local" as const;
 
-  async list<T = Row>(table: TableName, options: SelectOptions = {}): Promise<T[]> {
-    const rows = await localSelect({
-      table,
-      columns: parseColumns(options.columns),
-      filter: toLocalFilter(options.filter),
-      order: toLocalOrder(options),
-      limit: options.limit,
-    });
-    return hydrateRows<T>(table, rows);
+  constructor(private readonly db: LocalDb) {}
+
+  list<T = Row>(_table: TableName, _options?: SelectOptions): Promise<T[]> {
+    return notReady("list");
   }
-
-  async getById<T = Row>(table: TableName, id: string | number, columns = "*"): Promise<T | null> {
-    const rows = await localSelect({
-      table,
-      columns: parseColumns(columns),
-      filter: { eq: { id } },
-      limit: 1,
-    });
-    return rows.length ? hydrateRows<T>(table, rows)[0] : null;
+  getById<T = Row>(_table: TableName, _id: string | number, _columns?: string): Promise<T | null> {
+    return notReady("getById");
   }
-
-  async findOne<T = Row>(table: TableName, options: SelectOptions = {}): Promise<T | null> {
-    const rows = await localSelect({
-      table,
-      columns: parseColumns(options.columns),
-      filter: toLocalFilter(options.filter),
-      order: toLocalOrder(options),
-      limit: 1,
-    });
-    return rows.length ? hydrateRows<T>(table, rows)[0] : null;
+  findOne<T = Row>(_table: TableName, _options?: SelectOptions): Promise<T | null> {
+    return notReady("findOne");
   }
-
-  async count(table: TableName, filter?: Filter): Promise<number> {
-    return localCount(table, toLocalFilter(filter));
+  count(_table: TableName, _filter?: Filter): Promise<number> {
+    return notReady("count");
   }
-
-  /* ---------------- mutations: explicitly unavailable ---------------- */
-
   insert<T = Row>(_table: TableName, _values: Row | Row[]): Promise<T[]> {
-    return readOnly("insert");
+    return notReady("insert");
   }
   update<T = Row>(_table: TableName, _values: Row, _filter: Filter): Promise<T[]> {
-    return readOnly("update");
+    return notReady("update");
   }
   upsert<T = Row>(_table: TableName, _values: Row | Row[], _onConflict?: string): Promise<T[]> {
-    return readOnly("upsert");
+    return notReady("upsert");
   }
   remove(_table: TableName, _filter: Filter): Promise<void> {
-    return readOnly("remove");
+    return notReady("remove");
   }
   rpc<T = any>(_fn: string, _args?: Record<string, any>): Promise<T> {
-    return readOnly("rpc");
+    return notReady("rpc");
   }
 }

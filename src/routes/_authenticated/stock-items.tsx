@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteStockItem as deleteStockItemWrite } from "@/data/writes/master";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +16,6 @@ import { money, num, today } from "@/lib/format";
 import { useStockItemAvailable } from "@/components/StockAvailability";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
-import { listSuppliers } from "@/data/reads/reference";
 import { toast } from "sonner";
 import { StockPinDialog } from "@/components/StockPinDialog";
 
@@ -68,7 +66,7 @@ function Page() {
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
-    queryFn: () => listSuppliers(),
+    queryFn: async () => (await supabase.from("suppliers").select("id, name").is("deleted_at", null).order("name")).data ?? [],
   });
 
   const save = useMutation({
@@ -110,7 +108,8 @@ function Page() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      await deleteStockItemWrite(id);
+      const { error } = await supabase.from("stock_items").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock_items"] }); toast.success("Deleted"); },
   });

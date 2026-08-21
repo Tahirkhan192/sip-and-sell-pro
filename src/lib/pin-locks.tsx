@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { readSettingsColumns } from "@/data/reads/reference";
 import { StockPinDialog } from "@/components/StockPinDialog";
 
 /** Every module the Owner can individually protect with the PIN. */
@@ -35,7 +34,7 @@ export function usePinLocks() {
   return useQuery({
     queryKey: ["settings", "pin-locks"],
     queryFn: async (): Promise<Record<string, boolean>> => {
-      const data = await readSettingsColumns<{ pin_locks: any }>("pin_locks");
+      const { data } = await (supabase as any).from("settings").select("pin_locks").eq("id", 1).maybeSingle();
       const raw = (data?.pin_locks ?? null) as Record<string, boolean> | null;
       if (!raw || Object.keys(raw).length === 0) return { ...DEFAULT_PIN_LOCKS };
       return raw;
