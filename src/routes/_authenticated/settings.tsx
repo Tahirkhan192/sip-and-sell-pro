@@ -199,6 +199,8 @@ function SettingsPage() {
 
       <MenuVisibilityCard />
 
+      <SignInPasscodeCard />
+
       <PinLockCard />
 
       <DuplicateInvoiceManager />
@@ -208,7 +210,46 @@ function SettingsPage() {
   );
 }
 
+/** The passcode used to open the app on this computer. No online sign-in exists. */
+function SignInPasscodeCard() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (next !== confirmPin) { toast.error("New passcode and confirmation don't match"); return; }
+    setBusy(true);
+    try {
+      const res = await changePasscode(current, next);
+      if (!res.ok) { toast.error(res.error); return; }
+      toast.success("Sign-in passcode updated");
+      setCurrent(""); setNext(""); setConfirmPin("");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div>
+          <Label className="text-base">Sign-in Passcode</Label>
+          <p className="text-xs text-muted-foreground mt-1">Used to unlock the app on this computer. Default passcode is <code>1234</code>. There is no online sign-in.</p>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="space-y-1"><Label>Current passcode</Label><Input type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(e.target.value)} /></div>
+          <div className="space-y-1"><Label>New passcode</Label><Input type="password" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Confirm new passcode</Label><Input type="password" inputMode="numeric" value={confirmPin} onChange={(e) => setConfirmPin(e.target.value)} /></div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={submit} disabled={busy || !current || !next || !confirmPin}>Update passcode</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StockPinCard() {
+
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
