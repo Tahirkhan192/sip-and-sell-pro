@@ -137,7 +137,7 @@ export async function runBackupCycle(
     return { status: "failed", reason: "verification failed", error, retryable: true };
   }
 
-  const deleted = await rotate(deps.client, keep, uploaded.id);
+  const deleted = await rotate(deps.client, keep, uploaded.id, now());
 
   await safeState({
     lastBackupAt: now().toISOString(),
