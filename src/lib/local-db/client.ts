@@ -20,7 +20,7 @@ function fail(err: unknown): { message: string; details?: string } {
 
 class QueryBuilder implements PromiseLike<Result> {
   private filters: Filter[] = [];
-  private order: OrderSpec[] = [];
+  private _order: OrderSpec[] = [];
   private _select = "*";
   private _limit?: number;
   private _offset?: number;
@@ -95,7 +95,7 @@ class QueryBuilder implements PromiseLike<Result> {
 
   order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean; referencedTable?: string }) {
     if (!opts?.referencedTable)
-      this.order.push({ col, ascending: opts?.ascending ?? true, nullsFirst: opts?.nullsFirst });
+      this._order.push({ col, ascending: opts?.ascending ?? true, nullsFirst: opts?.nullsFirst });
     return this;
   }
   limit(n: number) {
@@ -137,7 +137,7 @@ class QueryBuilder implements PromiseLike<Result> {
         table: this.table,
         select: this._select,
         filters: this.filters,
-        order: this.order,
+        order: this._order,
         limit: this._limit,
         offset: this._offset,
         count: this._count,
@@ -157,7 +157,7 @@ class QueryBuilder implements PromiseLike<Result> {
       const cols = Array.from(new Set(this.payload.flatMap((r) => Object.keys(r))));
       const ctx = new Ctx();
       const values = this.payload
-        .map((row) => `(${cols.map((c) => (row[c] === undefined ? "DEFAULT" : ctx.push(serialize(row[c])))).join(", ")})`)
+        .map((row) => `(${cols.map((c) => (row[c] === undefined ? "DEFAULT" : ctx.push(serialize(row[c], !!meta.arrayCols[this.table]?.[c])))).join(", ")})`)
         .join(", ");
       let sql = `INSERT INTO ${q(this.table)} (${cols.map(q).join(", ")}) VALUES ${values}`;
       if (this.mode === "upsert") {
@@ -175,7 +175,7 @@ class QueryBuilder implements PromiseLike<Result> {
     if (this.mode === "update") {
       const ctx = new Ctx();
       const patch = this.payload[0] ?? {};
-      const sets = Object.entries(patch).map(([k, v]) => `${q(k)} = ${ctx.push(serialize(v))}`);
+      const sets = Object.entries(patch).map(([k, v]) => `${q(k)} = ${ctx.push(serialize(v, !!meta.arrayCols[this.table]?.[k]))}`);
       if (!sets.length) return { data: [], error: null, count: null, status: 200 };
       const where = buildWhere(this.filters, this.table, ctx);
       const sql = `UPDATE ${q(this.table)} AS ${q(this.table)} SET ${sets.join(", ")}${where} RETURNING *`;
@@ -200,9 +200,11 @@ class QueryBuilder implements PromiseLike<Result> {
   }
 }
 
-function serialize(v: unknown) {
-  if (v !== null && typeof v === "object" && !(v instanceof Date)) return JSON.stringify(v);
+function serialize(v: unknown, isArrayColumn = false) {
   if (v instanceof Date) return v.toISOString();
+  // Postgres array columns take a real array; JSON/JSONB columns take text.
+  if (isArrayColumn && Array.isArray(v)) return v;
+  if (v !== null && typeof v === "object") return JSON.stringify(v);
   return v;
 }
 

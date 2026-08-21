@@ -131,7 +131,17 @@ async function seed(db: PGlite) {
   await db.exec("SELECT setval(pg_get_serial_sequence('public.sales','id'), 1, false) WHERE false;");
 }
 
+async function arrayColumns(db: PGlite, table: string): Promise<Set<string>> {
+  const res = await db.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = $1 AND data_type = 'ARRAY'`,
+    [table],
+  );
+  return new Set(res.rows.map((r) => r.column_name));
+}
+
 async function insertRows(db: PGlite, table: string, rows: Record<string, unknown>[]) {
+  const arrays = await arrayColumns(db, table);
   const cols = Object.keys(rows[0]);
   const quoted = cols.map((c) => `"${c}"`).join(", ");
   const CHUNK = 200;
@@ -142,7 +152,17 @@ async function insertRows(db: PGlite, table: string, rows: Record<string, unknow
       .map((row) => {
         const ph = cols.map((c) => {
           const v = row[c];
-          params.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v);
+          // Real Postgres arrays (text[], uuid[]…) must stay arrays; JSON columns are serialized.
+          if (arrays.has(c)) {
+            // Array columns accept a real array; exported values may arrive as JSON text.
+            let av: unknown = v;
+            if (typeof av === "string" && av.trim().startsWith("[")) {
+              try { av = JSON.parse(av); } catch { /* keep as-is */ }
+            }
+            params.push(av);
+          } else {
+            params.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v);
+          }
           return `$${params.length}`;
         });
         return `(${ph.join(", ")})`;
@@ -192,7 +212,14 @@ async function loadMeta(db: PGlite): Promise<Meta> {
   const pks: Record<string, string[]> = {};
   for (const r of pkRes.rows) pks[r.tbl] = r.cols;
 
-  return { fks, pks };
+  const colRes = await db.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND data_type = 'ARRAY'`,
+  );
+  const arrayCols: Record<string, Record<string, true>> = {};
+  for (const r of colRes.rows) (arrayCols[r.table_name] ??= {})[r.column_name] = true;
+
+  return { fks, pks, arrayCols };
 }
 
 async function loadFuncs(db: PGlite): Promise<Record<string, { retset: boolean }>> {

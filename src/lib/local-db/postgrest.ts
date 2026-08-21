@@ -20,6 +20,8 @@ export type FK = {
 export type Meta = {
   fks: FK[];
   pks: Record<string, string[]>;
+  /** table -> column -> true when the column is a Postgres array (e.g. text[]). */
+  arrayCols: Record<string, Record<string, true>>;
 };
 
 export type Filter =
