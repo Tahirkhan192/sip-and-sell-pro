@@ -131,7 +131,17 @@ async function seed(db: PGlite) {
   await db.exec("SELECT setval(pg_get_serial_sequence('public.sales','id'), 1, false) WHERE false;");
 }
 
+async function arrayColumns(db: PGlite, table: string): Promise<Set<string>> {
+  const res = await db.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = $1 AND data_type = 'ARRAY'`,
+    [table],
+  );
+  return new Set(res.rows.map((r) => r.column_name));
+}
+
 async function insertRows(db: PGlite, table: string, rows: Record<string, unknown>[]) {
+  const arrays = await arrayColumns(db, table);
   const cols = Object.keys(rows[0]);
   const quoted = cols.map((c) => `"${c}"`).join(", ");
   const CHUNK = 200;
