@@ -26,7 +26,14 @@ function run(cmd, args, env) {
   if (res.status !== 0) process.exit(res.status ?? 1);
 }
 
-run(npx, ["vite", "build"], { DESKTOP_BUILD: "1" });
+// The desktop app IS the offline app: pin the local-first flags on so a
+// packaged build can never silently fall back to cloud-only operation.
+run(npx, ["vite", "build"], {
+  DESKTOP_BUILD: "1",
+  VITE_DESKTOP: "1",
+  VITE_ENABLE_LOCAL_SQLITE: "true",
+  VITE_ENABLE_LOCAL_WRITES: "true",
+});
 
 const serverEntry = path.join(root, ".output", "server", "index.mjs");
 if (!fs.existsSync(serverEntry)) {
