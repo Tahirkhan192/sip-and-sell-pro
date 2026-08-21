@@ -20,7 +20,7 @@ function fail(err: unknown): { message: string; details?: string } {
 
 class QueryBuilder implements PromiseLike<Result> {
   private filters: Filter[] = [];
-  private order: OrderSpec[] = [];
+  private _order: OrderSpec[] = [];
   private _select = "*";
   private _limit?: number;
   private _offset?: number;
@@ -95,7 +95,7 @@ class QueryBuilder implements PromiseLike<Result> {
 
   order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean; referencedTable?: string }) {
     if (!opts?.referencedTable)
-      this.order.push({ col, ascending: opts?.ascending ?? true, nullsFirst: opts?.nullsFirst });
+      this._order.push({ col, ascending: opts?.ascending ?? true, nullsFirst: opts?.nullsFirst });
     return this;
   }
   limit(n: number) {
@@ -137,7 +137,7 @@ class QueryBuilder implements PromiseLike<Result> {
         table: this.table,
         select: this._select,
         filters: this.filters,
-        order: this.order,
+        order: this._order,
         limit: this._limit,
         offset: this._offset,
         count: this._count,
