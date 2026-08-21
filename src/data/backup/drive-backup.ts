@@ -334,11 +334,15 @@ export async function maybeRunBackup(
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/** Starts the hourly scheduler (plus a run when the device comes back online). */
+/**
+ * Starts the one-minute scheduler (plus a run when the device comes back
+ * online). A tick does nothing when nothing changed, a backup is still
+ * running, or the device is offline — so an idle café uploads nothing.
+ */
 export function startDriveBackupScheduler(deps: DriveBackupDeps): () => void {
   stopDriveBackupScheduler();
   const tick = () => void maybeRunBackup(deps, state.attempts > 0 ? "retry" : "scheduled");
-  timer = setInterval(tick, Math.min(BACKUP_INTERVAL_MS, 5 * 60 * 1000));
+  timer = setInterval(tick, BACKUP_INTERVAL_MS);
   const onOnline = () => void maybeRunBackup(deps, "scheduled");
   if (typeof window !== "undefined") window.addEventListener("online", onOnline);
   return () => {
