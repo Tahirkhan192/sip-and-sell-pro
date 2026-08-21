@@ -46,6 +46,12 @@ async function unregisterMatching() {
 export async function registerAppServiceWorker() {
   if (typeof window === "undefined") return;
   if (!("serviceWorker" in navigator)) return;
+  // The Electron desktop build already serves everything locally; a second
+  // caching layer would only add a stale-asset failure mode.
+  if ((window as any).__KDF_DESKTOP__?.isDesktop) {
+    await unregisterMatching();
+    return;
+  }
   if (!import.meta.env.PROD) {
     await unregisterMatching();
     return;

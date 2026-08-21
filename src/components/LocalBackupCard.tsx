@@ -161,8 +161,8 @@ export function LocalBackupCard() {
           <div>
             <h3 className="font-semibold">Local database backup</h3>
             <p className="text-sm text-muted-foreground">
-              Hourly encrypted-in-transit snapshot of the offline database, stored in a private
-              Google Drive app folder no other app can read.
+              Every minute, whenever something changed, the offline database is snapshotted and
+              stored in a private Google Drive app folder no other app can read.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -186,7 +186,7 @@ export function LocalBackupCard() {
             Checksum: <span className="font-mono text-xs">{local?.lastChecksum?.slice(0, 16) ?? "—"}</span>
           </div>
           <div>
-            Keeping the {keep} most recent verified backups
+            Keeping the {keep} newest backups, plus hourly for 24 hours and daily for 14 days
           </div>
         </div>
 
