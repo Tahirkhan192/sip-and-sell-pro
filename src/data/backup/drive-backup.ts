@@ -280,7 +280,7 @@ function emit() {
   for (const cb of listeners) cb(snapshot);
 }
 
-/** Backoff for a failed upload: 1, 2, 4, 8, 16 minutes, then give up until the next hour. */
+/** Backoff for a failed upload: 15s, 30s, 1m, 2m, 4m, then wait for a human. */
 export function retryDelayMs(attempt: number): number {
   return RETRY_BASE_MS * Math.pow(2, Math.max(0, attempt - 1));
 }
