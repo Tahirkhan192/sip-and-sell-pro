@@ -13,6 +13,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as ApiDriveRouteImport } from './routes/api/drive'
 import { Route as AuthenticatedStockTransferRouteImport } from './routes/_authenticated/stock-transfer'
 import { Route as AuthenticatedStockItemsRouteImport } from './routes/_authenticated/stock-items'
 import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
@@ -58,6 +59,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiDriveRoute = ApiDriveRouteImport.update({
+  id: '/api/drive',
+  path: '/api/drive',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedStockTransferRoute =
   AuthenticatedStockTransferRouteImport.update({
@@ -227,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
   '/stock-transfer': typeof AuthenticatedStockTransferRoute
+  '/api/drive': typeof ApiDriveRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/staff/$staffId': typeof AuthenticatedStaffStaffIdRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/stock': typeof AuthenticatedStockRoute
   '/stock-items': typeof AuthenticatedStockItemsRoute
   '/stock-transfer': typeof AuthenticatedStockTransferRoute
+  '/api/drive': typeof ApiDriveRoute
   '/': typeof AuthenticatedIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/stock-items': typeof AuthenticatedStockItemsRoute
   '/_authenticated/stock-transfer': typeof AuthenticatedStockTransferRoute
+  '/api/drive': typeof ApiDriveRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -324,6 +333,7 @@ export interface FileRouteTypes {
     | '/stock'
     | '/stock-items'
     | '/stock-transfer'
+    | '/api/drive'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/staff/$staffId'
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/stock'
     | '/stock-items'
     | '/stock-transfer'
+    | '/api/drive'
     | '/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -386,6 +397,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock'
     | '/_authenticated/stock-items'
     | '/_authenticated/stock-transfer'
+    | '/api/drive'
     | '/_authenticated/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiDriveRoute: typeof ApiDriveRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicWhatsappInvoiceRoute: typeof ApiPublicWhatsappInvoiceRoute
@@ -433,6 +446,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/drive': {
+      id: '/api/drive'
+      path: '/api/drive'
+      fullPath: '/api/drive'
+      preLoaderRoute: typeof ApiDriveRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/stock-transfer': {
       id: '/_authenticated/stock-transfer'
@@ -679,6 +699,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiDriveRoute: ApiDriveRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicWhatsappInvoiceRoute: ApiPublicWhatsappInvoiceRoute,

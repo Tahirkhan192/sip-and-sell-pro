@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
 import { changePasscode } from "@/lib/passcode";
+import { DriveSyncCard } from "@/components/DriveSyncCard";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
@@ -199,6 +200,8 @@ function SettingsPage() {
       <BackupCard />
 
       <MenuVisibilityCard />
+
+      <DriveSyncCard />
 
       <SignInPasscodeCard />
 

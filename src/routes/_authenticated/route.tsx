@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { useBusinessConfigLoader } from "@/lib/use-settings";
 import { isModuleVisible, moduleKeyForPath, useMenuVisibility } from "@/lib/menu-visibility";
+import { useDriveAutoSync } from "@/lib/drive-sync";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -33,6 +34,7 @@ function AuthLayout() {
   const [ready, setReady] = useState(true);
   useEffect(() => setReady(true), []);
   useBusinessConfigLoader();
+  useDriveAutoSync();
   useMenuGuard();
   if (!ready) return null;
   return (
