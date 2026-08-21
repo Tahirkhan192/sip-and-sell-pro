@@ -203,7 +203,14 @@ async function loadMeta(db: PGlite): Promise<Meta> {
   const pks: Record<string, string[]> = {};
   for (const r of pkRes.rows) pks[r.tbl] = r.cols;
 
-  return { fks, pks };
+  const colRes = await db.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND data_type = 'ARRAY'`,
+  );
+  const arrayCols: Record<string, Record<string, true>> = {};
+  for (const r of colRes.rows) (arrayCols[r.table_name] ??= {})[r.column_name] = true;
+
+  return { fks, pks, arrayCols };
 }
 
 async function loadFuncs(db: PGlite): Promise<Record<string, { retset: boolean }>> {
