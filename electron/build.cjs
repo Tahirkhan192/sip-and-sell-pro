@@ -26,14 +26,7 @@ function run(cmd, args, env) {
   if (res.status !== 0) process.exit(res.status ?? 1);
 }
 
-// The desktop app IS the offline app: pin the local-first flags on so a
-// packaged build can never silently fall back to cloud-only operation.
-run(npx, ["vite", "build"], {
-  DESKTOP_BUILD: "1",
-  VITE_DESKTOP: "1",
-  VITE_ENABLE_LOCAL_SQLITE: "true",
-  VITE_ENABLE_LOCAL_WRITES: "true",
-});
+run(npx, ["vite", "build"], { DESKTOP_BUILD: "1" });
 
 const serverEntry = path.join(root, ".output", "server", "index.mjs");
 if (!fs.existsSync(serverEntry)) {
@@ -53,8 +46,8 @@ if (webOnly) {
 
 if (!fs.existsSync(path.join(root, "electron", "icon.ico"))) {
   console.error(
-    "\nMissing electron/icon.ico (it is committed in this repository).\n" +
-      "Regenerate it with:  npx png-to-ico electron/icon.png > electron/icon.ico\n",
+    "\nMissing electron/icon.ico. Generate it once:\n" +
+      "  npx png-to-ico electron/icon.png > electron/icon.ico\n",
   );
   process.exit(1);
 }

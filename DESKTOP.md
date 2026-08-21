@@ -101,8 +101,8 @@ the cloud deployment is unchanged.
 
 ## Icon
 
-`electron/icon.png` (1024×1024) is the source; `electron/icon.ico`
-(16/24/32/48/64/128/256 px) is generated and committed. Regenerate with:
+`electron/icon.png` (1024×1024) is the source. Windows needs a multi-size
+`.ico`; generate it once on Windows and commit it:
 
 ```bash
 npx png-to-ico electron/icon.png > electron/icon.ico
@@ -121,6 +121,5 @@ migrations remain transactional and run through the existing worker path.
 - The Windows `.exe` cannot be compiled in the Lovable sandbox (no Windows
   toolchain, and the sandbox build always targets Cloudflare). Run the command
   above on Windows.
-- The desktop build pins `VITE_ENABLE_LOCAL_SQLITE=true` and
-  `VITE_ENABLE_LOCAL_WRITES=true`, and the renderer skips the browser service
-  worker inside Electron (`window.__KDF_DESKTOP__`).
+- `electron/icon.ico` must be generated once (see above) before the first
+  Windows build.

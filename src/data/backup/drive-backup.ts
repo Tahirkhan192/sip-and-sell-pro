@@ -21,23 +21,10 @@ import { checkRestorable } from "./local-backup";
 import { isBackupFile, sortNewestFirst, type DriveBackupProps, type DriveClient, type DriveFile } from "./drive";
 import type { BackupFile, LocalBackupFile } from "./format";
 
-/** How many of the newest backups are always kept, whatever their age. */
 export const DEFAULT_KEEP = 10;
-/** Backup cadence: every minute, and only when something actually changed. */
-export const BACKUP_INTERVAL_MS = 60 * 1000;
-export const RETRY_BASE_MS = 15 * 1000;
+export const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
+export const RETRY_BASE_MS = 60 * 1000;
 export const MAX_ATTEMPTS = 5;
-
-/**
- * Tiered retention. Minute-level backups would otherwise wipe out yesterday's
- * history within ten minutes, so older backups are thinned instead of deleted:
- *   * the newest `keep` files, always;
- *   * one per hour for the last 24 hours;
- *   * one per day for the last 14 days;
- * everything else is removed.
- */
-export const HOURLY_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const DAILY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type BackupCycleReason = "scheduled" | "manual" | "retry";
 
@@ -137,7 +124,7 @@ export async function runBackupCycle(
     return { status: "failed", reason: "verification failed", error, retryable: true };
   }
 
-  const deleted = await rotate(deps.client, keep, uploaded.id, now());
+  const deleted = await rotate(deps.client, keep, uploaded.id);
 
   await safeState({
     lastBackupAt: now().toISOString(),
@@ -166,52 +153,8 @@ async function safeState(patch: Parameters<typeof writeLocalBackupState>[0]) {
   }
 }
 
-function timeOf(f: DriveFile): number {
-  const raw = f.appProperties?.createdAt ?? f.createdTime ?? "";
-  const t = Date.parse(raw);
-  return Number.isFinite(t) ? t : 0;
-}
-
 /**
- * Pure retention decision: which backups survive. Newest first in, newest
- * first out. Never returns an empty keep-set while any file exists.
- */
-export function selectRetained(files: DriveFile[], keep: number, now: Date): DriveFile[] {
-  const ordered = sortNewestFirst(files);
-  const nowMs = now.getTime();
-  const retained: DriveFile[] = [];
-  const hourSeen = new Set<number>();
-  const daySeen = new Set<number>();
-
-  ordered.forEach((f, index) => {
-    if (index < Math.max(1, keep)) {
-      retained.push(f);
-      return;
-    }
-    const t = timeOf(f);
-    const age = nowMs - t;
-    if (age <= HOURLY_WINDOW_MS) {
-      const bucket = Math.floor(t / (60 * 60 * 1000));
-      if (!hourSeen.has(bucket)) {
-        hourSeen.add(bucket);
-        retained.push(f);
-      }
-      return;
-    }
-    if (age <= DAILY_WINDOW_MS) {
-      const bucket = Math.floor(t / (24 * 60 * 60 * 1000));
-      if (!daySeen.has(bucket)) {
-        daySeen.add(bucket);
-        retained.push(f);
-      }
-    }
-  });
-
-  return retained;
-}
-
-/**
- * Applies the tiered retention above. The just-verified upload is always kept,
+ * Keeps the `keep` newest backups. The just-verified upload is always kept,
  * and nothing is deleted unless a newer verified backup exists — so the newest
  * valid backup can never be rotated away.
  */
@@ -219,7 +162,6 @@ export async function rotate(
   client: DriveClient,
   keep: number,
   protectId: string,
-  now: Date = new Date(),
 ): Promise<string[]> {
   let files: DriveFile[];
   try {
@@ -227,8 +169,8 @@ export async function rotate(
   } catch {
     return []; // rotation is best-effort; never fail a good backup over it
   }
-  const retained = new Set(selectRetained(files, keep, now).map((f) => f.id));
-  const stale = files.filter((f) => !retained.has(f.id) && f.id !== protectId);
+  const ordered = sortNewestFirst(files);
+  const stale = ordered.slice(keep).filter((f) => f.id !== protectId);
   const deleted: string[] = [];
   for (const f of stale) {
     try {
@@ -280,7 +222,7 @@ function emit() {
   for (const cb of listeners) cb(snapshot);
 }
 
-/** Backoff for a failed upload: 15s, 30s, 1m, 2m, 4m, then wait for a human. */
+/** Backoff for a failed upload: 1, 2, 4, 8, 16 minutes, then give up until the next hour. */
 export function retryDelayMs(attempt: number): number {
   return RETRY_BASE_MS * Math.pow(2, Math.max(0, attempt - 1));
 }
@@ -334,15 +276,11 @@ export async function maybeRunBackup(
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/**
- * Starts the one-minute scheduler (plus a run when the device comes back
- * online). A tick does nothing when nothing changed, a backup is still
- * running, or the device is offline — so an idle café uploads nothing.
- */
+/** Starts the hourly scheduler (plus a run when the device comes back online). */
 export function startDriveBackupScheduler(deps: DriveBackupDeps): () => void {
   stopDriveBackupScheduler();
   const tick = () => void maybeRunBackup(deps, state.attempts > 0 ? "retry" : "scheduled");
-  timer = setInterval(tick, BACKUP_INTERVAL_MS);
+  timer = setInterval(tick, Math.min(BACKUP_INTERVAL_MS, 5 * 60 * 1000));
   const onOnline = () => void maybeRunBackup(deps, "scheduled");
   if (typeof window !== "undefined") window.addEventListener("online", onOnline);
   return () => {
