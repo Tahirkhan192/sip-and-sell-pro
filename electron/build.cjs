@@ -53,8 +53,8 @@ if (webOnly) {
 
 if (!fs.existsSync(path.join(root, "electron", "icon.ico"))) {
   console.error(
-    "\nMissing electron/icon.ico. Generate it once:\n" +
-      "  npx png-to-ico electron/icon.png > electron/icon.ico\n",
+    "\nMissing electron/icon.ico (it is committed in this repository).\n" +
+      "Regenerate it with:  npx png-to-ico electron/icon.png > electron/icon.ico\n",
   );
   process.exit(1);
 }
