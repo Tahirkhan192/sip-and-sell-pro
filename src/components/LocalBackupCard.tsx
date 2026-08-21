@@ -186,7 +186,7 @@ export function LocalBackupCard() {
             Checksum: <span className="font-mono text-xs">{local?.lastChecksum?.slice(0, 16) ?? "—"}</span>
           </div>
           <div>
-            Keeping the {keep} most recent verified backups
+            Keeping the {keep} newest backups, plus hourly for 24 hours and daily for 14 days
           </div>
         </div>
 
