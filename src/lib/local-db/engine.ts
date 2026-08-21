@@ -153,7 +153,16 @@ async function insertRows(db: PGlite, table: string, rows: Record<string, unknow
         const ph = cols.map((c) => {
           const v = row[c];
           // Real Postgres arrays (text[], uuid[]…) must stay arrays; JSON columns are serialized.
-          params.push(v !== null && typeof v === "object" && !arrays.has(c) ? JSON.stringify(v) : v);
+          if (arrays.has(c)) {
+            // Array columns accept a real array; exported values may arrive as JSON text.
+            let av: unknown = v;
+            if (typeof av === "string" && av.trim().startsWith("[")) {
+              try { av = JSON.parse(av); } catch { /* keep as-is */ }
+            }
+            params.push(av);
+          } else {
+            params.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v);
+          }
           return `$${params.length}`;
         });
         return `(${ph.join(", ")})`;
