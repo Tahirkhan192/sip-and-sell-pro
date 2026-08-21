@@ -137,7 +137,7 @@ export async function runBackupCycle(
     return { status: "failed", reason: "verification failed", error, retryable: true };
   }
 
-  const deleted = await rotate(deps.client, keep, uploaded.id);
+  const deleted = await rotate(deps.client, keep, uploaded.id, now());
 
   await safeState({
     lastBackupAt: now().toISOString(),
@@ -280,7 +280,7 @@ function emit() {
   for (const cb of listeners) cb(snapshot);
 }
 
-/** Backoff for a failed upload: 1, 2, 4, 8, 16 minutes, then give up until the next hour. */
+/** Backoff for a failed upload: 15s, 30s, 1m, 2m, 4m, then wait for a human. */
 export function retryDelayMs(attempt: number): number {
   return RETRY_BASE_MS * Math.pow(2, Math.max(0, attempt - 1));
 }
@@ -334,11 +334,15 @@ export async function maybeRunBackup(
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/** Starts the hourly scheduler (plus a run when the device comes back online). */
+/**
+ * Starts the one-minute scheduler (plus a run when the device comes back
+ * online). A tick does nothing when nothing changed, a backup is still
+ * running, or the device is offline — so an idle café uploads nothing.
+ */
 export function startDriveBackupScheduler(deps: DriveBackupDeps): () => void {
   stopDriveBackupScheduler();
   const tick = () => void maybeRunBackup(deps, state.attempts > 0 ? "retry" : "scheduled");
-  timer = setInterval(tick, Math.min(BACKUP_INTERVAL_MS, 5 * 60 * 1000));
+  timer = setInterval(tick, BACKUP_INTERVAL_MS);
   const onOnline = () => void maybeRunBackup(deps, "scheduled");
   if (typeof window !== "undefined") window.addEventListener("online", onOnline);
   return () => {

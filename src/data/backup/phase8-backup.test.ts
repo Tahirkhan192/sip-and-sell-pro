@@ -387,9 +387,9 @@ describe("backup cycle", () => {
   });
 
   it("backs off exponentially between retries", async () => {
-    expect(retryDelayMs(1)).toBe(60_000);
-    expect(retryDelayMs(2)).toBe(120_000);
-    expect(retryDelayMs(3)).toBe(240_000);
+    expect(retryDelayMs(1)).toBe(15_000);
+    expect(retryDelayMs(2)).toBe(30_000);
+    expect(retryDelayMs(3)).toBe(60_000);
   });
 
   it("only runs on a schedule when something changed locally", async () => {
