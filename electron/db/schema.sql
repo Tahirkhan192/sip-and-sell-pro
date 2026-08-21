@@ -1,3 +1,5 @@
+CREATE SEQUENCE IF NOT EXISTS public.invoice_seq START WITH 1000 INCREMENT BY 1 MINVALUE 1;
+SELECT setval('public.invoice_seq', 10598, true);
 -- Auto-generated from the production database. Runs inside PGlite (embedded Postgres).
 SET check_function_bodies = off;
 CREATE SCHEMA IF NOT EXISTS auth;

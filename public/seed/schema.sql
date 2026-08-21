@@ -12,6 +12,11 @@ CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $fn$ S
 CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $fn$ SELECT 'authenticated'::text $fn$;
 CREATE OR REPLACE FUNCTION auth.email() RETURNS text LANGUAGE sql STABLE AS $fn$ SELECT email FROM auth.users WHERE id = auth.uid() $fn$;
 CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $fn$ SELECT '{}'::jsonb $fn$;
+CREATE SEQUENCE IF NOT EXISTS public.invoice_seq START WITH 1000 INCREMENT BY 1 MINVALUE 1;
+SELECT setval('public.invoice_seq', 10598, true);
+-- Forward declarations: table DEFAULTs reference these before their real bodies appear below.
+CREATE OR REPLACE FUNCTION public.business_date_of(_ts timestamp with time zone) RETURNS date LANGUAGE sql STABLE AS $stub$ SELECT (_ts AT TIME ZONE 'UTC')::date $stub$;
+CREATE OR REPLACE FUNCTION public.business_date(ts timestamp with time zone) RETURNS date LANGUAGE sql STABLE AS $stub$ SELECT (ts AT TIME ZONE 'UTC')::date $stub$;
 DO $x$ BEGIN CREATE TYPE public.app_role AS ENUM ('admin','staff'); EXCEPTION WHEN duplicate_object THEN NULL; END $x$;
 DO $x$ BEGIN CREATE TYPE public.movement_type AS ENUM ('purchase','consumption','adjustment'); EXCEPTION WHEN duplicate_object THEN NULL; END $x$;
 CREATE TABLE IF NOT EXISTS public.audit_log ("id" uuid DEFAULT gen_random_uuid() NOT NULL, "user_id" uuid, "action" text NOT NULL, "entity" text, "entity_id" uuid, "details" jsonb, "created_at" timestamp with time zone DEFAULT now() NOT NULL);

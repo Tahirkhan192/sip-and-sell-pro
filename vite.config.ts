@@ -8,7 +8,12 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// OFFLINE_BUILD=1 produces the desktop (.exe) bundle that runs on a private
+// loopback port inside Electron; the normal build is unchanged.
+const offline = process.env.OFFLINE_BUILD === "1";
+
 export default defineConfig({
+  ...(offline ? { nitro: { preset: "node-server" as const } } : {}),
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
