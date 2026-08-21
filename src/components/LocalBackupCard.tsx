@@ -161,8 +161,8 @@ export function LocalBackupCard() {
           <div>
             <h3 className="font-semibold">Local database backup</h3>
             <p className="text-sm text-muted-foreground">
-              Hourly encrypted-in-transit snapshot of the offline database, stored in a private
-              Google Drive app folder no other app can read.
+              Every minute, whenever something changed, the offline database is snapshotted and
+              stored in a private Google Drive app folder no other app can read.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
