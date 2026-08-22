@@ -216,8 +216,10 @@ function CategoryReport() {
               <TableCell className="text-right">{money(c.opening)}</TableCell>
               <TableCell className="text-right">{money(c.productPurchases)}</TableCell>
               <TableCell className="text-right">{money(c.stockPurchases)}</TableCell>
-              <TableCell className="text-right">{money(c.received)}</TableCell>
+              <TableCell className="text-right">{money(c.receivedIn)}</TableCell>
+              <TableCell className="text-right">{money(c.transferOut)}</TableCell>
               <TableCell className="text-right">{money(c.closing)}</TableCell>
+
 
               <TableCell className="text-right">{money(c.cogs)}</TableCell>
               <TableCell className="text-right">{money(c.grossProfit)}</TableCell>
