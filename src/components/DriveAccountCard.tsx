@@ -191,6 +191,46 @@ export function DriveAccountCard() {
           </Button>
         </div>
 
+        {/* Simple Gmail flow: type an address, Google asks the owner to allow it,
+            then the app looks for the backup file on Drive. */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div>
+            <Label className="text-sm">Add a Gmail account</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Type the Gmail address that should reach this data. Google sends that person a request — once
+              they allow it, use “Find backup file” to pick up the data from Drive.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="email"
+              value={gmail}
+              onChange={(e) => setGmail(e.target.value)}
+              placeholder="name@gmail.com"
+              autoComplete="off"
+            />
+            <Button onClick={() => void invite()} disabled={inviting || !gmail.trim()}>
+              <Mail className="h-4 w-4 mr-2" /> Send request
+            </Button>
+          </div>
+
+          {people.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Already allowed: {people.map((p) => p.emailAddress).filter(Boolean).join(", ")}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => void findBackup()} disabled={inviting}>
+              <Search className="h-4 w-4 mr-2" /> Find backup file
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void loadBackup()} disabled={inviting}>
+              <Download className="h-4 w-4 mr-2" /> Load backup into this computer
+            </Button>
+          </div>
+          {found && <div className="text-xs text-muted-foreground">{found}</div>}
+        </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
             <DialogHeader>
