@@ -21,13 +21,13 @@ async function insertAndRemove(table: string, row: Record<string, unknown>, extr
   if (ins.error) throw new Error(ins.error.message);
   const id = ins.data?.id as string;
   if (!id) throw new Error("The record was not written.");
-  const back = await (supabase.from(table) as any).select("id").eq("id", id).maybeSingle();
+  const back = await db.from(table).select("id").eq("id", id).maybeSingle();
   if (back.error) throw new Error(back.error.message);
   if (!back.data) throw new Error("The record could not be read back.");
   try {
     await extra?.(id);
   } finally {
-    const del = await (supabase.from(table) as any).delete().eq("id", id);
+    const del = await db.from(table).delete().eq("id", id);
     if (del.error) throw new Error(`Cleanup failed: ${del.error.message}`);
   }
 }
@@ -35,11 +35,12 @@ async function insertAndRemove(table: string, row: Record<string, unknown>, extr
 const TEST_NOTE = "OFFLINE SELF-TEST — safe to ignore";
 
 function checks(productId: string | null): Check[] {
+  const db = supabase as any;
   return [
     {
       label: "POS sale",
       run: async () => {
-        const ins = await supabase
+        const ins = await db
           .from("sales")
           .insert({ grand_total: 1, cash_paid: 1, status: "completed", customer_name: TEST_NOTE })
           .select("id")
@@ -48,23 +49,23 @@ function checks(productId: string | null): Check[] {
         const saleId = (ins.data as any).id as string;
         try {
           if (productId) {
-            const item = await supabase
+            const item = await db
               .from("sale_items")
               .insert({ sale_id: saleId, product_id: productId, quantity: 1, price: 1, total: 1 })
               .select("id")
               .single();
             if (item.error) throw new Error(item.error.message);
-            await supabase.from("sale_items").delete().eq("sale_id", saleId);
+            await db.from("sale_items").delete().eq("sale_id", saleId);
           }
         } finally {
-          await supabase.from("sales").delete().eq("id", saleId);
+          await db.from("sales").delete().eq("id", saleId);
         }
       },
     },
     {
       label: "Purchase",
       run: async () => {
-        const ins = await supabase
+        const ins = await db
           .from("purchases")
           .insert({ supplier: TEST_NOTE, grand_total: 1, payment_status: "unpaid", notes: TEST_NOTE })
           .select("id")
@@ -72,16 +73,16 @@ function checks(productId: string | null): Check[] {
         if (ins.error) throw new Error(ins.error.message);
         const purchaseId = (ins.data as any).id as string;
         try {
-          const item = await supabase
+          const item = await db
             .from("purchase_items")
             .insert({ purchase_id: purchaseId, product_id: productId, quantity: 1, unit_cost: 1, total_cost: 1 })
             .select("id")
             .single();
           if (item.error) throw new Error(item.error.message);
-          await supabase.from("purchase_items").delete().eq("purchase_id", purchaseId);
+          await db.from("purchase_items").delete().eq("purchase_id", purchaseId);
         } finally {
-          await supabase.from("cash_movements").delete().eq("reference_id", purchaseId);
-          await supabase.from("purchases").delete().eq("id", purchaseId);
+          await db.from("cash_movements").delete().eq("reference_id", purchaseId);
+          await db.from("purchases").delete().eq("id", purchaseId);
         }
       },
     },
@@ -140,7 +141,7 @@ export async function runOfflineSelfTest(): Promise<SelfTestResult[]> {
   const results: SelfTestResult[] = [];
   let productId: string | null = null;
   try {
-    const p = await supabase.from("products").select("id").is("deleted_at", null).limit(1).maybeSingle();
+    const p = await (supabase as any).from("products").select("id").is("deleted_at", null).limit(1).maybeSingle();
     productId = (p.data as any)?.id ?? null;
   } catch {
     /* the sale test simply runs without an item line */
