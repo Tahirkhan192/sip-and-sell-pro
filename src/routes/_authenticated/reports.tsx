@@ -126,10 +126,13 @@ function MonthlyReport() {
             <TableRow className="font-medium"><TableCell>= Sales (engine total)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
-            <TableRow><TableCell>+ Received Stock (transfers &amp; production, net)</TableCell><TableCell className="text-right">{money(data?.totalReceived)}</TableCell></TableRow>
-            <TableRow><TableCell>− Closing Stock</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
+            <TableRow><TableCell className="pl-8 text-muted-foreground">Product Stock Value</TableCell><TableCell className="text-right text-muted-foreground">{money(data?.closingProductValue)}</TableCell></TableRow>
+            <TableRow><TableCell className="pl-8 text-muted-foreground">Stock Item Value</TableCell><TableCell className="text-right text-muted-foreground">{money(data?.closingStockItemValue)}</TableCell></TableRow>
+            <TableRow><TableCell>− Closing Stock (Products + Stock Items)</TableCell><TableCell className="text-right">{money(data?.totalClosing)}</TableCell></TableRow>
 
             <TableRow className="font-medium"><TableCell>= COGS</TableCell><TableCell className="text-right">{money(totalCogs)}</TableCell></TableRow>
+            <TableRow><TableCell className="text-muted-foreground">Stock Transfers (informational — not in COGS)</TableCell><TableCell className="text-right text-muted-foreground">In {money(data?.totalReceivedIn)} · Out {money(data?.totalTransferOut)}</TableCell></TableRow>
+
             <TableRow className="font-medium"><TableCell>Gross Profit (Sales − COGS)</TableCell><TableCell className={"text-right " + (grossProfit >= 0 ? "text-primary" : "text-destructive")}>{money(grossProfit)}</TableCell></TableRow>
             <TableRow><TableCell>+ Delivery Profit (Charges − Delivery Expenses)</TableCell><TableCell className={"text-right " + ((data?.deliveryProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.deliveryProfit)}</TableCell></TableRow>
             <TableRow><TableCell>− General Expenses</TableCell><TableCell className="text-right">{money(data?.generalExpenses)}</TableCell></TableRow>
