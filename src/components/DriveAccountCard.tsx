@@ -21,7 +21,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { UserCog, RefreshCw } from "lucide-react";
-import { driveAccount, readDriveAccountKey, writeDriveAccountKey, type DriveAccount } from "@/lib/drive-sync";
+import {
+  driveAccount,
+  driveHasSnapshot,
+  readDriveAccountKey,
+  switchDriveAccount,
+  type DriveAccount,
+} from "@/lib/drive-sync";
 
 export function DriveAccountCard() {
   const [account, setAccount] = useState<DriveAccount | null>(null);
