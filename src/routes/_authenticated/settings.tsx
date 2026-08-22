@@ -17,6 +17,8 @@ import { DriveAccountCard } from "@/components/DriveAccountCard";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
+import { OfflineSelfTestCard } from "@/components/OfflineSelfTestCard";
+
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
 
 
