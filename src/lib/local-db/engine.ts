@@ -61,11 +61,67 @@ async function init(): Promise<Engine> {
     await seed(db);
   }
 
+  await repairGeneratedMovements(db);
+
   const meta = await loadMeta(db);
   const funcs = await loadFuncs(db);
   report("Ready", 100);
   return { db, meta, funcs };
 }
+
+/**
+ * Runs a bulk restore with all business rules (triggers) switched off.
+ *
+ * Restoring a backup re-inserts rows that already carry their money movements,
+ * stock effects and links. Letting the triggers run again would create a second
+ * copy of every purchase / sale money movement, stamped with today's date.
+ */
+export async function withRestoreMode<T>(fn: () => Promise<T>): Promise<T> {
+  const { db } = await getEngine();
+  await db.exec("SET session_replication_role = replica;");
+  try {
+    return await fn();
+  } finally {
+    await db.exec("SET session_replication_role = origin;");
+    await repairGeneratedMovements(db);
+  }
+}
+
+/**
+ * Removes duplicated purchase money movements left behind by an earlier restore
+ * and re-points each purchase at the movement that matches its own date.
+ */
+async function repairGeneratedMovements(db: PGlite) {
+  await db.exec("SET session_replication_role = replica;");
+  try {
+    await db.exec(`
+      WITH ranked AS (
+        SELECT cm.id,
+               row_number() OVER (
+                 PARTITION BY cm.reference_id, cm.payment_source, cm.amount
+                 ORDER BY (cm.business_date = p.date) DESC, cm.created_at ASC
+               ) AS rn
+          FROM public.cash_movements cm
+          JOIN public.purchases p ON p.id = cm.reference_id
+         WHERE cm.reference_type = 'purchase' AND cm.deleted_at IS NULL
+      )
+      DELETE FROM public.cash_movements WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+
+      UPDATE public.purchases p
+         SET cash_movement_id = cm.id
+        FROM public.cash_movements cm
+       WHERE cm.reference_type = 'purchase'
+         AND cm.reference_id = p.id
+         AND cm.deleted_at IS NULL
+         AND p.cash_movement_id IS DISTINCT FROM cm.id;
+    `);
+  } catch {
+    /* repair is best-effort — never block the app from opening */
+  } finally {
+    await db.exec("SET session_replication_role = origin;");
+  }
+}
+
 
 async function installSchema(db: PGlite) {
   report("Creating local database…", 5);
@@ -106,7 +162,8 @@ async function seed(db: PGlite) {
       for (const key of ["created_by", "user_id", "updated_by"])
         if (typeof row[key] === "string" && /^[0-9a-f-]{36}$/i.test(row[key] as string)) userIds.add(row[key] as string);
 
-  await db.exec("BEGIN; SET LOCAL session_replication_role = replica;");
+  await db.exec("SET session_replication_role = replica;");
+  await db.exec("BEGIN;");
   try {
     for (const id of userIds) {
       await db.query("INSERT INTO auth.users(id) VALUES ($1) ON CONFLICT DO NOTHING", [id]);
@@ -122,7 +179,10 @@ async function seed(db: PGlite) {
   } catch (err) {
     await db.exec("ROLLBACK;");
     throw err;
+  } finally {
+    await db.exec("SET session_replication_role = origin;");
   }
+
 
   // Verify every table restored completely — never report success on a partial load.
   for (const table of manifest.order) {
