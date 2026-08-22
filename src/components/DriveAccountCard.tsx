@@ -34,6 +34,8 @@ export function DriveAccountCard() {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Access code waiting for a "which copy do we keep?" answer. */
+  const [choice, setChoice] = useState<string | null>(null);
 
   async function load() {
     setBusy(true);
