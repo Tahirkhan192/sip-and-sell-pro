@@ -155,7 +155,31 @@ export function DriveAccountCard() {
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => save(key)}>Save</Button>
+              <Button onClick={() => void beginSave(key)} disabled={busy}>
+                {busy ? "Working…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={choice !== null} onOpenChange={(o) => !o && setChoice(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>That account already has data</DialogTitle>
+              <DialogDescription>
+                Nothing on this computer is deleted either way. Choose which copy should be the shared one.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setChoice(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="outline" onClick={() => void save(choice ?? "", "pull")} disabled={busy}>
+                Load that account's data here
+              </Button>
+              <Button onClick={() => void save(choice ?? "", "push")} disabled={busy}>
+                Upload my data to this account
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
