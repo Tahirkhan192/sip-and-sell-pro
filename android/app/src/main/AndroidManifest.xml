@@ -6,7 +6,6 @@
 
     <application
         android:label="Khyber Delicious Food"
-        android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.KDF">
         <activity
