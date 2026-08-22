@@ -52,12 +52,55 @@ function hash(text: string): string {
   return String(h >>> 0);
 }
 
-export type DriveStatus = { connected: boolean; reason?: string; file?: { id: string; modifiedTime: string } | null };
+export type DriveStatus = {
+  connected: boolean;
+  reason?: string;
+  custom?: boolean;
+  file?: { id: string; modifiedTime: string } | null;
+};
+
+export type DriveAccount = {
+  connected: boolean;
+  custom?: boolean;
+  email?: string | null;
+  name?: string | null;
+  reason?: string;
+};
+
+/* ---------- which Google account this computer uses ---------- */
+
+const ACCOUNT_KEY = "kdf.driveAccountKey.v1";
+
+/** The Drive account key saved on this computer, if the owner set one. */
+export function readDriveAccountKey(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(ACCOUNT_KEY) ?? "";
+}
+
+/** Points this computer at another Google Drive account (empty = the default). */
+export function writeDriveAccountKey(key: string) {
+  const clean = key.trim();
+  if (clean) localStorage.setItem(ACCOUNT_KEY, clean);
+  else localStorage.removeItem(ACCOUNT_KEY);
+  writeSyncState({ lastHash: undefined, lastError: undefined });
+}
+
+function driveHeaders(extra: Record<string, string> = {}) {
+  const key = readDriveAccountKey();
+  return key ? { ...extra, "x-kdf-drive-key": key } : extra;
+}
 
 export async function driveStatus(): Promise<DriveStatus> {
-  const res = await fetch("/api/drive");
+  const res = await fetch("/api/drive", { headers: driveHeaders() });
   if (!res.ok) return { connected: false, reason: `Drive check failed (${res.status})` };
   return (await res.json()) as DriveStatus;
+}
+
+/** Which Google account currently holds the data file. */
+export async function driveAccount(): Promise<DriveAccount> {
+  const res = await fetch("/api/drive?about=1", { headers: driveHeaders() });
+  if (!res.ok) return { connected: false, reason: `Account check failed (${res.status})` };
+  return (await res.json()) as DriveAccount;
 }
 
 /** Uploads the whole local database to Drive. Skipped when nothing changed. */
@@ -69,7 +112,7 @@ export async function pushToDrive(force = false): Promise<{ pushed: boolean; rea
 
   const res = await fetch("/api/drive", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: driveHeaders({ "content-type": "application/json" }),
     body: payload,
   });
   if (!res.ok) {
@@ -80,20 +123,31 @@ export async function pushToDrive(force = false): Promise<{ pushed: boolean; rea
   return { pushed: true };
 }
 
-/** Downloads the Drive snapshot and merges it into the local database. */
-export async function pullFromDrive(): Promise<{ pulled: boolean; rows?: number; reason?: string }> {
-  const res = await fetch("/api/drive?download=1");
-  if (res.status === 404) return { pulled: false, reason: "No data on Google Drive yet" };
+/** Downloads the Drive snapshot without importing it (used by the phone viewer). */
+export async function fetchDriveSnapshot(): Promise<BackupFile | null> {
+  const res = await fetch("/api/drive?download=1", { headers: driveHeaders() });
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error((await res.text()) || `Download failed (${res.status})`);
-
   const backup = (await res.json()) as BackupFile;
   const check = validateBackup(backup);
   if (!check.ok) throw new Error(check.errors[0] ?? "The Drive file is not a valid backup.");
+  return backup;
+}
 
-  const { rows } = await applyBackup(backup);
+/** Downloads the Drive snapshot and merges it into the local database. */
+export async function pullFromDrive(
+  onProgress?: (p: { table: string; index: number; total: number }) => void,
+): Promise<{ pulled: boolean; rows?: number; reason?: string }> {
+  const backup = await fetchDriveSnapshot();
+  if (!backup) return { pulled: false, reason: "No data on Google Drive yet" };
+
+  const { rows } = await applyBackup(backup, (p) =>
+    onProgress?.({ table: p.table, index: p.index, total: p.total }),
+  );
   writeSyncState({ lastPullAt: new Date().toISOString(), lastError: undefined });
   return { pulled: true, rows };
 }
+
 
 /**
  * Background sync: one pull when the app opens, then a push every few minutes
