@@ -51,12 +51,42 @@ export function DriveAccountCard() {
     setKey(readDriveAccountKey());
   }, []);
 
-  function save(next: string) {
-    writeDriveAccountKey(next);
-    setKey(next);
-    setOpen(false);
-    void load();
-    toast.success(next ? "This computer now uses the other Google Drive account" : "Back to the default account");
+  async function save(next: string, keep: "push" | "pull" = "push") {
+    setBusy(true);
+    try {
+      const res = await switchDriveAccount(next, keep);
+      setKey(next);
+      setOpen(false);
+      setChoice(null);
+      toast.success(
+        res.mode === "pull"
+          ? "Loaded that account's data and uploaded the combined copy back"
+          : next
+            ? "Switched account — your data was uploaded to it"
+            : "Back to the default account — your data was uploaded to it",
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not switch account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Asks what to keep when the other account already has data. */
+  async function beginSave(next: string) {
+    setBusy(true);
+    try {
+      if (await driveHasSnapshot(next)) {
+        setChoice(next);
+        return;
+      }
+    } catch {
+      /* treat as empty */
+    } finally {
+      setBusy(false);
+    }
+    await save(next, "push");
   }
 
   return (
