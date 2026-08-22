@@ -85,6 +85,52 @@ export function writeDriveAccountKey(key: string) {
   writeSyncState({ lastHash: undefined, lastError: undefined });
 }
 
+/**
+ * Switches this computer to another Google Drive account.
+ *
+ * The data on this computer is never touched. After the switch the whole local
+ * database is uploaded to the new account, so the new Drive becomes a complete
+ * copy instead of appearing empty (or overwriting this computer on next pull).
+ *
+ * When the new account already holds a snapshot the caller decides what to keep:
+ *   - "push" (default): this computer's data is uploaded over it,
+ *   - "pull": the account's snapshot is merged into this computer.
+ */
+export async function switchDriveAccount(
+  key: string,
+  keep: "push" | "pull" = "push",
+): Promise<{ mode: "push" | "pull"; rows?: number }> {
+  const previous = readDriveAccountKey();
+  writeDriveAccountKey(key);
+  try {
+    if (keep === "pull") {
+      const res = await pullFromDrive();
+      if (!res.pulled) {
+        await pushToDrive(true);
+        return { mode: "push" };
+      }
+      await pushToDrive(true);
+      return { mode: "pull", rows: res.rows };
+    }
+    await pushToDrive(true);
+    return { mode: "push" };
+  } catch (err) {
+    // Keep the old account rather than leaving the computer pointed at a Drive
+    // that does not hold this data.
+    writeDriveAccountKey(previous);
+    throw err;
+  }
+}
+
+/** True when the account this computer points at already holds a data file. */
+export async function driveHasSnapshot(key: string): Promise<boolean> {
+  const headers: Record<string, string> = key.trim() ? { "x-kdf-drive-key": key.trim() } : {};
+  const res = await fetch("/api/drive", { headers });
+  if (!res.ok) return false;
+  const status = (await res.json()) as DriveStatus;
+  return Boolean(status.connected && status.file);
+}
+
 function driveHeaders(extra: Record<string, string> = {}) {
   const key = readDriveAccountKey();
   return key ? { ...extra, "x-kdf-drive-key": key } : extra;

@@ -45,7 +45,11 @@ async function init(): Promise<Engine> {
   if (typeof window === "undefined") throw new Error("Local database is only available in the app window");
   report("Starting local database…", 2);
   const { PGlite } = await import("@electric-sql/pglite");
-  const db = new PGlite(DATA_DIR);
+  // Postgres `date` columns must come back as plain "YYYY-MM-DD" strings, exactly
+  // like the cloud Data API returned them. Without this PGlite hands back Date
+  // objects that become full timestamps and every day-by-day screen (Daily
+  // Closing, reports, POS business date) stops matching.
+  const db = new PGlite(DATA_DIR, { parsers: { 1082: (value: string) => value } });
   await db.waitReady;
   await db.exec("SET TIME ZONE 'UTC';");
 

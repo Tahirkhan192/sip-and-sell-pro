@@ -21,13 +21,21 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { UserCog, RefreshCw } from "lucide-react";
-import { driveAccount, readDriveAccountKey, writeDriveAccountKey, type DriveAccount } from "@/lib/drive-sync";
+import {
+  driveAccount,
+  driveHasSnapshot,
+  readDriveAccountKey,
+  switchDriveAccount,
+  type DriveAccount,
+} from "@/lib/drive-sync";
 
 export function DriveAccountCard() {
   const [account, setAccount] = useState<DriveAccount | null>(null);
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Access code waiting for a "which copy do we keep?" answer. */
+  const [choice, setChoice] = useState<string | null>(null);
 
   async function load() {
     setBusy(true);
@@ -45,12 +53,42 @@ export function DriveAccountCard() {
     setKey(readDriveAccountKey());
   }, []);
 
-  function save(next: string) {
-    writeDriveAccountKey(next);
-    setKey(next);
-    setOpen(false);
-    void load();
-    toast.success(next ? "This computer now uses the other Google Drive account" : "Back to the default account");
+  async function save(next: string, keep: "push" | "pull" = "push") {
+    setBusy(true);
+    try {
+      const res = await switchDriveAccount(next, keep);
+      setKey(next);
+      setOpen(false);
+      setChoice(null);
+      toast.success(
+        res.mode === "pull"
+          ? "Loaded that account's data and uploaded the combined copy back"
+          : next
+            ? "Switched account — your data was uploaded to it"
+            : "Back to the default account — your data was uploaded to it",
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not switch account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Asks what to keep when the other account already has data. */
+  async function beginSave(next: string) {
+    setBusy(true);
+    try {
+      if (await driveHasSnapshot(next)) {
+        setChoice(next);
+        return;
+      }
+    } catch {
+      /* treat as empty */
+    } finally {
+      setBusy(false);
+    }
+    await save(next, "push");
   }
 
   return (
@@ -81,7 +119,7 @@ export function DriveAccountCard() {
             <RefreshCw className="h-4 w-4 mr-2" /> Check
           </Button>
           {readDriveAccountKey() && (
-            <Button variant="outline" onClick={() => save("")} disabled={busy}>
+            <Button variant="outline" onClick={() => void beginSave("")} disabled={busy}>
               Use default account
             </Button>
           )}
@@ -117,7 +155,31 @@ export function DriveAccountCard() {
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => save(key)}>Save</Button>
+              <Button onClick={() => void beginSave(key)} disabled={busy}>
+                {busy ? "Working…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={choice !== null} onOpenChange={(o) => !o && setChoice(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>That account already has data</DialogTitle>
+              <DialogDescription>
+                Nothing on this computer is deleted either way. Choose which copy should be the shared one.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setChoice(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="outline" onClick={() => void save(choice ?? "", "pull")} disabled={busy}>
+                Load that account's data here
+              </Button>
+              <Button onClick={() => void save(choice ?? "", "push")} disabled={busy}>
+                Upload my data to this account
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
