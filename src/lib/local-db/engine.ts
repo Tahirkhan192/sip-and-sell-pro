@@ -62,6 +62,7 @@ async function init(): Promise<Engine> {
   }
 
   await repairGeneratedMovements(db);
+  await syncInvoiceSequence(db);
 
   const meta = await loadMeta(db);
   const funcs = await loadFuncs(db);
@@ -84,6 +85,7 @@ export async function withRestoreMode<T>(fn: () => Promise<T>): Promise<T> {
   } finally {
     await db.exec("SET session_replication_role = origin;");
     await repairGeneratedMovements(db);
+    await syncInvoiceSequence(db);
   }
 }
 

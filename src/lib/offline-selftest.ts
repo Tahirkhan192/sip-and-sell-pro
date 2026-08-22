@@ -106,7 +106,7 @@ function checks(productId: string | null): Check[] {
           item_name: TEST_NOTE,
           from_category: "Test",
           to_category: "Test",
-          quantity: 0,
+          quantity: 0.001,
           unit_cost: 0,
           total_cost: 0,
           notes: TEST_NOTE,
