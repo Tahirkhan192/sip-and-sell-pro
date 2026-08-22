@@ -53,18 +53,66 @@ async function startServer() {
   throw new Error("The local application server did not start.");
 }
 
+/**
+ * Only this computer's own app server may be reached. Google Drive is allowed
+ * as well so the optional backup keeps working when the computer is online —
+ * nothing else is. Blocked addresses are written to a log file in the data
+ * folder so a problem can always be traced.
+ */
+const DRIVE_HOSTS = [
+  "https://www.googleapis.com",
+  "https://oauth2.googleapis.com",
+  "https://accounts.google.com",
+  "https://mcp.lovable.dev",
+];
+
 function blockNetwork() {
+  const fs = require("fs");
+  const logFile = path.join(DATA_DIR, "blocked-requests.log");
   session.defaultSession.webRequest.onBeforeRequest((details, cb) => {
-    const url = details.url;
-    const local =
-      url.startsWith(`http://127.0.0.1:${serverPort}`) ||
+    const url = details.url || "";
+    let local = false;
+    try {
+      const u = new URL(url);
+      local =
+        (u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "::1") &&
+        (u.protocol === "http:" || u.protocol === "https:" || u.protocol === "ws:" || u.protocol === "wss:");
+    } catch {
+      local = false;
+    }
+    const allowed =
+      local ||
       url.startsWith("devtools:") ||
       url.startsWith("blob:") ||
       url.startsWith("data:") ||
-      url.startsWith("file:");
-    cb({ cancel: !local });
+      url.startsWith("file:") ||
+      url.startsWith("chrome-extension:") ||
+      DRIVE_HOSTS.some((h) => url.startsWith(h));
+    if (!allowed) {
+      try {
+        fs.appendFileSync(logFile, `${new Date().toISOString()} blocked ${url}\n`);
+      } catch {
+        /* logging must never break the app */
+      }
+    }
+    cb({ cancel: !allowed });
   });
 }
+
+/**
+ * Removes any service worker and cached pages left by an earlier version, so
+ * the desktop app always runs the code inside this package (an old cached copy
+ * is what makes saving look like it needs internet).
+ */
+async function clearStaleWebCaches() {
+  try {
+    await session.defaultSession.clearStorageData({ storages: ["serviceworkers", "cachestorage", "shadercache"] });
+    await session.defaultSession.clearCache();
+  } catch {
+    /* best effort */
+  }
+}
+
 
 function buildMenu(win) {
   Menu.setApplicationMenu(
