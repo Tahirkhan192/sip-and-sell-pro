@@ -119,7 +119,7 @@ export function DriveAccountCard() {
             <RefreshCw className="h-4 w-4 mr-2" /> Check
           </Button>
           {readDriveAccountKey() && (
-            <Button variant="outline" onClick={() => save("")} disabled={busy}>
+            <Button variant="outline" onClick={() => void beginSave("")} disabled={busy}>
               Use default account
             </Button>
           )}
