@@ -15,7 +15,9 @@ export type SelfTestResult = { label: string; ok: boolean; error?: string };
 type Check = { label: string; run: () => Promise<void> };
 
 async function insertAndRemove(table: string, row: Record<string, unknown>, extra?: (id: string) => Promise<void>) {
-  const ins = await (supabase.from(table) as any).insert(row).select("id").single();
+  const db = supabase as any;
+  const ins = await db.from(table).insert(row).select("id").single();
+
   if (ins.error) throw new Error(ins.error.message);
   const id = ins.data?.id as string;
   if (!id) throw new Error("The record was not written.");
