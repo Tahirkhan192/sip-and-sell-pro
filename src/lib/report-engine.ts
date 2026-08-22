@@ -501,11 +501,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   const catRows = Object.values(catMap).map((c) => {
     c.purchases = c.productPurchases + c.stockPurchases;
-    // COGS = Opening + Purchases + Received Stock − Closing
-    c.cogs = c.opening + c.purchases + c.received - c.closing;
+    c.received = c.receivedIn - c.transferOut;
+    // Category COGS = Opening + Purchases + Stock Received − Transfer Out − Closing
+    c.cogs = c.opening + c.purchases + c.receivedIn - c.transferOut - c.closing;
     c.grossProfit = c.sales - c.cogs;
     c.allocatedExp = 0;
     c.deliveryProfit = 0;
+    // Category Net Profit = Sales − COGS
     c.netProfit = c.grossProfit;
     return c;
   }).sort((a, b) => b.sales - a.sales || a.category.localeCompare(b.category));
@@ -513,9 +515,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const productRows = Object.values(productMap).map((p) => ({ ...p, grossProfit: p.rev - p.cogs })).sort((a, b) => b.rev - a.rev || a.name.localeCompare(b.name));
   const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
   const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
-  const totalReceived = catRows.reduce((s, c) => s + c.received, 0);
-  const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-  const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
+  const totalReceivedIn = catRows.reduce((s, c) => s + c.receivedIn, 0);
+  const totalTransferOut = catRows.reduce((s, c) => s + c.transferOut, 0);
+  const totalReceived = totalReceivedIn - totalTransferOut;
+  const totalClosing = closingProductValue + closingStockItemValue;
+  // Monthly P&L COGS ignores internal stock transfers — they are informational only.
+  const totalCogs = totalOpening + totalPurch - totalClosing;
+
 
   const grossProfit = totalSales - totalCogs;
   const businessProfit = totalSales - totalCogs - generalExpenses - staffSalaryCost;
