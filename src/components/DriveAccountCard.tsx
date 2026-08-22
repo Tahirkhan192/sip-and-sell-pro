@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserCog, RefreshCw } from "lucide-react";
+import { UserCog, RefreshCw, Mail, Search, Download } from "lucide-react";
 import {
   driveAccount,
   driveHasSnapshot,
