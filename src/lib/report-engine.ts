@@ -15,7 +15,12 @@ export type ReportCategoryRow = {
   purchases: number;
   /** Net stock received from transfers / production (in − out), excluding purchases. */
   received: number;
+  /** Value of stock received INTO this category (transfers in, production output). */
+  receivedIn: number;
+  /** Value of stock transferred OUT of this category (transfers out, expenses, production usage). */
+  transferOut: number;
   closing: number;
+
 
   cogs: number;
   grossProfit: number;
