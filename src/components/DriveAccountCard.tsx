@@ -24,9 +24,14 @@ import { UserCog, RefreshCw } from "lucide-react";
 import {
   driveAccount,
   driveHasSnapshot,
+  driveInvitedAccounts,
+  driveStatus,
+  inviteDriveAccount,
+  pullFromDrive,
   readDriveAccountKey,
   switchDriveAccount,
   type DriveAccount,
+  type DrivePerson,
 } from "@/lib/drive-sync";
 
 export function DriveAccountCard() {
