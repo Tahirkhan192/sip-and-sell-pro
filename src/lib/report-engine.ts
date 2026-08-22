@@ -554,8 +554,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     totalOpening,
     totalPurch,
     totalReceived,
+    totalReceivedIn,
+    totalTransferOut,
 
+    closingProductValue,
+    closingStockItemValue,
     totalClosing,
+
     totalCogs,
     grossProfit,
     businessProfit,
