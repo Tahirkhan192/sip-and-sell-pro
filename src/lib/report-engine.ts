@@ -63,8 +63,15 @@ export type ReportResult = {
   totalOpening: number;
   totalPurch: number;
   totalReceived: number;
+  totalReceivedIn: number;
+  totalTransferOut: number;
 
+  /** Product stock value (inventory engine) — part of Closing Stock. */
+  closingProductValue: number;
+  /** Stock item value (inventory engine) — part of Closing Stock. */
+  closingStockItemValue: number;
   totalClosing: number;
+
   totalCogs: number;
   grossProfit: number;
   businessProfit: number;
