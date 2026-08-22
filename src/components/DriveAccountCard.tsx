@@ -41,11 +41,17 @@ export function DriveAccountCard() {
   const [busy, setBusy] = useState(false);
   /** Access code waiting for a "which copy do we keep?" answer. */
   const [choice, setChoice] = useState<string | null>(null);
+  /* ---- invite a Gmail address to the shared backup file ---- */
+  const [gmail, setGmail] = useState("");
+  const [people, setPeople] = useState<DrivePerson[]>([]);
+  const [inviting, setInviting] = useState(false);
+  const [found, setFound] = useState<string | null>(null);
 
   async function load() {
     setBusy(true);
     try {
       setAccount(await driveAccount());
+      setPeople(await driveInvitedAccounts().catch(() => []));
     } catch {
       setAccount({ connected: false, reason: "Google Drive is unreachable" });
     } finally {
