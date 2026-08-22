@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { businessDateOf, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
+import { fetchInventoryEngine } from "@/lib/inventory-engine";
+
 
 export type ReportRangeInput = Partial<RangeResult> & { label?: string };
 
@@ -15,7 +17,12 @@ export type ReportCategoryRow = {
   purchases: number;
   /** Net stock received from transfers / production (in − out), excluding purchases. */
   received: number;
+  /** Value of stock received INTO this category (transfers in, production output). */
+  receivedIn: number;
+  /** Value of stock transferred OUT of this category (transfers out, expenses, production usage). */
+  transferOut: number;
   closing: number;
+
 
   cogs: number;
   grossProfit: number;
@@ -58,8 +65,15 @@ export type ReportResult = {
   totalOpening: number;
   totalPurch: number;
   totalReceived: number;
+  totalReceivedIn: number;
+  totalTransferOut: number;
 
+  /** Product stock value (inventory engine) — part of Closing Stock. */
+  closingProductValue: number;
+  /** Stock item value (inventory engine) — part of Closing Stock. */
+  closingStockItemValue: number;
   totalClosing: number;
+
   totalCogs: number;
   grossProfit: number;
   businessProfit: number;
@@ -252,7 +266,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     stockPurchases: 0,
     purchases: 0,
     received: 0,
+    receivedIn: 0,
+    transferOut: 0,
     closing: 0,
+
 
     cogs: 0,
     grossProfit: 0,
@@ -416,13 +433,28 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     if (o.scope === "product" && o.product_id) prodOverride[o.product_id] = { opening: o.opening_value ?? undefined, closing: o.closing_value ?? undefined };
   }
 
+  // Closing Stock is taken from the Inventory Engine so the report always equals
+  // Grand Total Product Value + Grand Total Stock Item Value shown in Stock reports.
+  const invSnap = range.from && range.to && range.startUTC && range.endExclusiveUTC
+    ? await fetchInventoryEngine({ from: range.from, to: range.to, startUTC: range.startUTC, endExclusiveUTC: range.endExclusiveUTC }).catch(() => null)
+    : null;
+  const engineProductValue: Record<string, number> = {};
+  const engineItemValue: Record<string, number> = {};
+  for (const r of invSnap?.products ?? []) engineProductValue[r.id] = num(r.value);
+  for (const r of invSnap?.stockItems ?? []) engineItemValue[r.id] = num(r.value);
+
+  let closingProductValue = 0;
+  let closingStockItemValue = 0;
+
   for (const p of products) {
     const cat = ensureCat(p.category ?? "—");
     // Owner override of the average purchase price is used for valuation only.
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
     const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
     cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
-    cat.closing += prodOverride[p.id]?.closing ?? num(p.current_stock) * costPrice;
+    const closeVal = prodOverride[p.id]?.closing ?? engineProductValue[p.id] ?? num(p.current_stock) * costPrice;
+    cat.closing += closeVal;
+    closingProductValue += closeVal;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
   }
   // Include stock items in opening/closing valuation so Monthly Report reflects them.
@@ -431,7 +463,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
     const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
     cat.opening += openQty * price;
-    cat.closing += num(si.current_stock) * price;
+    const closeVal = engineItemValue[si.id] ?? num(si.current_stock) * price;
+    cat.closing += closeVal;
+    closingStockItemValue += closeVal;
   }
 
   for (const [category, override] of Object.entries(catOverride)) {
@@ -440,25 +474,26 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     if (override.closing !== undefined) cat.closing = override.closing;
   }
 
-  // Received Stock: value moved INTO a category (transfers in, production output) minus
-  // value moved OUT of it (transfers out, production consumption, stock-to-expense moves).
+  // Stock received INTO a category and stock transferred OUT of it, tracked separately
+  // so category reports can show both legs (and P&L can treat them as informational).
   for (const t of transfers) {
     const val = num(t.total_cost);
     if (!val) continue;
-    if (t.to_category) ensureCat(t.to_category).received += val;
-    if (t.from_category) ensureCat(t.from_category).received -= val;
+    if (t.to_category) ensureCat(t.to_category).receivedIn += val;
+    if (t.from_category) ensureCat(t.from_category).transferOut += val;
   }
   for (const b of production) {
-    if (b.target_category) ensureCat(b.target_category).received += num(b.total_cost);
+    if (b.target_category) ensureCat(b.target_category).receivedIn += num(b.total_cost);
     for (const bi of ((b.production_batch_items ?? []) as any[])) {
-      if (bi?.source_category) ensureCat(bi.source_category).received -= num(bi.total_cost);
+      if (bi?.source_category) ensureCat(bi.source_category).transferOut += num(bi.total_cost);
     }
   }
   for (const e of transferExpenses) {
     const src = e.source_product_id ? prodById[e.source_product_id] : e.source_stock_item_id ? stockById[e.source_stock_item_id] : null;
     if (!src) continue;
-    ensureCat(src.category ?? "—").received -= num(e.amount);
+    ensureCat(src.category ?? "—").transferOut += num(e.amount);
   }
+
 
   const generalExpenses = expenses.reduce((s, e) => s + num(e.amount), 0);
   const paidExpenses = expenses.reduce((s, e) => s + (((e.payment_status ?? "paid") === "paid") ? num(e.amount) : 0), 0);
@@ -468,11 +503,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   const catRows = Object.values(catMap).map((c) => {
     c.purchases = c.productPurchases + c.stockPurchases;
-    // COGS = Opening + Purchases + Received Stock − Closing
-    c.cogs = c.opening + c.purchases + c.received - c.closing;
+    c.received = c.receivedIn - c.transferOut;
+    // Category COGS = Opening + Purchases + Stock Received − Transfer Out − Closing
+    c.cogs = c.opening + c.purchases + c.receivedIn - c.transferOut - c.closing;
     c.grossProfit = c.sales - c.cogs;
     c.allocatedExp = 0;
     c.deliveryProfit = 0;
+    // Category Net Profit = Sales − COGS
     c.netProfit = c.grossProfit;
     return c;
   }).sort((a, b) => b.sales - a.sales || a.category.localeCompare(b.category));
@@ -480,9 +517,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const productRows = Object.values(productMap).map((p) => ({ ...p, grossProfit: p.rev - p.cogs })).sort((a, b) => b.rev - a.rev || a.name.localeCompare(b.name));
   const totalOpening = catRows.reduce((s, c) => s + c.opening, 0);
   const totalPurch = catRows.reduce((s, c) => s + c.purchases, 0);
-  const totalReceived = catRows.reduce((s, c) => s + c.received, 0);
-  const totalClosing = catRows.reduce((s, c) => s + c.closing, 0);
-  const totalCogs = totalOpening + totalPurch + totalReceived - totalClosing;
+  const totalReceivedIn = catRows.reduce((s, c) => s + c.receivedIn, 0);
+  const totalTransferOut = catRows.reduce((s, c) => s + c.transferOut, 0);
+  const totalReceived = totalReceivedIn - totalTransferOut;
+  const totalClosing = closingProductValue + closingStockItemValue;
+  // Monthly P&L COGS ignores internal stock transfers — they are informational only.
+  const totalCogs = totalOpening + totalPurch - totalClosing;
+
 
   const grossProfit = totalSales - totalCogs;
   const businessProfit = totalSales - totalCogs - generalExpenses - staffSalaryCost;
@@ -515,8 +556,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     totalOpening,
     totalPurch,
     totalReceived,
+    totalReceivedIn,
+    totalTransferOut,
 
+    closingProductValue,
+    closingStockItemValue,
     totalClosing,
+
     totalCogs,
     grossProfit,
     businessProfit,
