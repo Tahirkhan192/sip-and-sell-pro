@@ -4,7 +4,18 @@
 
 const SW_PATH = "/sw.js";
 
+/**
+ * The desktop (offline) app runs on a private loopback address. There we never
+ * want a service worker: a cached copy of an older build could keep serving
+ * outdated code, which is exactly how "saving needs internet" happens. The
+ * embedded database already makes the app work without a connection.
+ */
+function isLoopback(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "[::1]";
+}
+
 function isBlockedHost(hostname: string): boolean {
+  if (isLoopback(hostname)) return true;
   if (
     hostname.startsWith("id-preview--") ||
     hostname.startsWith("preview--")
@@ -23,6 +34,7 @@ function isBlockedHost(hostname: string): boolean {
   }
   return false;
 }
+
 
 async function unregisterMatching() {
   if (!("serviceWorker" in navigator)) return;
