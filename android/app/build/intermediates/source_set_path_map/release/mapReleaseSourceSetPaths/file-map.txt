@@ -1,0 +1,7 @@
+com.khyberdeliciousfood.viewer.app-pngs-0 /dev-server/android/app/build/generated/res/pngs/release
+com.khyberdeliciousfood.viewer.app-resValues-1 /dev-server/android/app/build/generated/res/resValues/release
+com.khyberdeliciousfood.viewer.app-packageReleaseResources-2 /dev-server/android/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
+com.khyberdeliciousfood.viewer.app-packageReleaseResources-3 /dev-server/android/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
+com.khyberdeliciousfood.viewer.app-release-4 /dev-server/android/app/build/intermediates/merged_res/release/mergeReleaseResources
+com.khyberdeliciousfood.viewer.app-main-5 /dev-server/android/app/src/main/res
+com.khyberdeliciousfood.viewer.app-release-6 /dev-server/android/app/src/release/res

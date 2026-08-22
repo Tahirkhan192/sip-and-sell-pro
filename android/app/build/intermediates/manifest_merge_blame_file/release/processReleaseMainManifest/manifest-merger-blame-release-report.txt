@@ -1,0 +1,48 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.khyberdeliciousfood.viewer"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/dev-server/android/app/src/main/AndroidManifest.xml:4:5-67
+11-->/dev-server/android/app/src/main/AndroidManifest.xml:4:22-64
+12    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+12-->/dev-server/android/app/src/main/AndroidManifest.xml:5:5-79
+12-->/dev-server/android/app/src/main/AndroidManifest.xml:5:22-76
+13
+14    <application
+14-->/dev-server/android/app/src/main/AndroidManifest.xml:7:5-20:19
+15        android:extractNativeLibs="false"
+16        android:label="Khyber Delicious Food"
+16-->/dev-server/android/app/src/main/AndroidManifest.xml:8:9-46
+17        android:theme="@style/Theme.KDF"
+17-->/dev-server/android/app/src/main/AndroidManifest.xml:10:9-41
+18        android:usesCleartextTraffic="false" >
+18-->/dev-server/android/app/src/main/AndroidManifest.xml:9:9-45
+19        <activity
+19-->/dev-server/android/app/src/main/AndroidManifest.xml:11:9-19:20
+20            android:name="com.khyberdeliciousfood.viewer.MainActivity"
+20-->/dev-server/android/app/src/main/AndroidManifest.xml:12:13-41
+21            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+21-->/dev-server/android/app/src/main/AndroidManifest.xml:14:13-113
+22            android:exported="true" >
+22-->/dev-server/android/app/src/main/AndroidManifest.xml:13:13-36
+23            <intent-filter>
+23-->/dev-server/android/app/src/main/AndroidManifest.xml:15:13-18:29
+24                <action android:name="android.intent.action.MAIN" />
+24-->/dev-server/android/app/src/main/AndroidManifest.xml:16:17-69
+24-->/dev-server/android/app/src/main/AndroidManifest.xml:16:25-66
+25
+26                <category android:name="android.intent.category.LAUNCHER" />
+26-->/dev-server/android/app/src/main/AndroidManifest.xml:17:17-77
+26-->/dev-server/android/app/src/main/AndroidManifest.xml:17:27-74
+27            </intent-filter>
+28        </activity>
+29    </application>
+30
+31</manifest>
