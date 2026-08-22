@@ -174,9 +174,11 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   try {
+    await clearStaleWebCaches();
     await startServer();
     blockNetwork();
     await createWindow();
+
   } catch (err) {
     dialog.showErrorBox("Khyber Delicious Food", String((err && err.stack) || err));
     app.quit();
