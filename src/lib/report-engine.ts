@@ -206,9 +206,15 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     : Promise.resolve({ data: [], error: null });
 
   const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
-  const attendancePromise = range.from && range.to
-    ? (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").gte("date", range.from).lte("date", range.to)
-    : (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present");
+  /** Attendance never counts days after today, and is paged so no day is dropped. */
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const buildAttendance = () => {
+    let q = (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").order("date", { ascending: true });
+    if (range.from) q = q.gte("date", range.from);
+    const end = range.to && range.to < todayIso ? range.to : todayIso;
+    return q.lte("date", end);
+  };
+
 
   const [salesRows, expensesRows, deliveryExpensesRows, purchasesRows, productsRows, stockItemsRows, recipesRows, transferRows, productionRows, transferExpenseRows, overridesQ, snapshotQ, staffQ, attendanceQ] = await Promise.all([
     fetchAllPaged<any>(buildSales),
@@ -224,7 +230,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     overridesPromise,
     snapshotPromise,
     staffPromise,
-    attendancePromise,
+    fetchAllPaged<any>(buildAttendance),
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
 
@@ -232,12 +238,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const openingSnapshot: Record<string, number> = {};
   for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
-  // Part 3 — present staff accrue one daily salary (monthly ÷ 30) per present day.
-  const salaryById: Record<string, number> = {};
-  for (const s of (((staffQ as any).data ?? []) as any[])) salaryById[s.id] = num(s.monthly_salary) / 30;
+  // Staff salary cost = for each member, (monthly salary ÷ 30) × their present days
+  // in the period (up to today), rounded per member, then all members added together.
+  const perDayById: Record<string, number> = {};
+  for (const s of (((staffQ as any).data ?? []) as any[])) perDayById[s.id] = num(s.monthly_salary) / 30;
+  const presentDays: Record<string, Set<string>> = {};
+  for (const a of ((attendanceQ as any[]) ?? [])) {
+    if (!(a.staff_id in perDayById)) continue; // removed staff cost nothing
+    (presentDays[a.staff_id] ??= new Set<string>()).add(String(a.date).slice(0, 10));
+  }
   let staffSalaryCost = 0;
-  for (const a of (((attendanceQ as any).data ?? []) as any[])) staffSalaryCost += salaryById[a.staff_id] ?? 0;
+  for (const [staffId, days] of Object.entries(presentDays)) {
+    staffSalaryCost += Math.round(perDayById[staffId] * days.size * 100) / 100;
+  }
   staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
+
 
 
   const invoices = (salesRows as any[]).filter((s) => inBusinessRange(s, range));
