@@ -198,7 +198,10 @@ function SettingsPage() {
 
       <StockPinCard />
 
+      <OfflineSelfTestCard />
+
       <BackupCard />
+
 
       <MenuVisibilityCard />
 
