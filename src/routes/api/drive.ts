@@ -93,6 +93,22 @@ export const Route = createFileRoute("/api/drive")({
         const { file, error } = await findSnapshot(request);
         if (error) return error;
 
+        // Which Gmail accounts were invited to this backup file.
+        if (url.searchParams.get("people") === "1") {
+          if (!file) return json({ people: [] });
+          const res = await fetch(
+            `${GATEWAY}/drive/v3/files/${file.id}/permissions?fields=permissions(id,emailAddress,role,type)`,
+            { headers: headers(request) },
+          );
+          if (!res.ok) return relay(res, "shared list");
+          const body = (await res.json()) as {
+            permissions?: { id: string; emailAddress?: string; role?: string; type?: string }[];
+          };
+          return json({
+            people: (body.permissions ?? []).filter((p) => p.type === "user" && p.emailAddress),
+          });
+        }
+
         if (url.searchParams.get("download") !== "1") {
           return json({ connected: true, custom: c.custom, file });
         }
