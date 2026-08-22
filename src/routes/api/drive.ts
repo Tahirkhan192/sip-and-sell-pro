@@ -7,8 +7,13 @@
  * can share the same data.
  *
  *   GET  /api/drive            → status + latest snapshot metadata
+ *   GET  /api/drive?about=1    → which Google account is being used
  *   GET  /api/drive?download=1 → the snapshot JSON itself
  *   POST /api/drive            → upload/replace the snapshot
+ *
+ * A computer can point at its own Google Drive account: the browser sends its
+ * saved account key in the `x-kdf-drive-key` header and it is used instead of
+ * the account configured for the app.
  */
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -16,14 +21,15 @@ import { createFileRoute } from "@tanstack/react-router";
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
 export const SNAPSHOT_NAME = "khyber-delicious-food-data.json";
 
-function creds() {
+function creds(request: Request) {
   const lovable = process.env["LOVABLE_API_KEY"];
-  const drive = process.env["GOOGLE_DRIVE_API_KEY"];
-  return { lovable, drive, ready: Boolean(lovable && drive) };
+  const override = request.headers.get("x-kdf-drive-key")?.trim();
+  const drive = override || process.env["GOOGLE_DRIVE_API_KEY"];
+  return { lovable, drive, custom: Boolean(override), ready: Boolean(lovable && drive) };
 }
 
-function headers() {
-  const { lovable, drive } = creds();
+function headers(request: Request) {
+  const { lovable, drive } = creds(request);
   return {
     Authorization: `Bearer ${lovable}`,
     "X-Connection-Api-Key": String(drive),
@@ -45,11 +51,11 @@ async function relay(res: Response, what: string) {
 
 type DriveFile = { id: string; name: string; modifiedTime: string; size?: string };
 
-async function findSnapshot(): Promise<{ file: DriveFile | null; error?: Response }> {
+async function findSnapshot(request: Request): Promise<{ file: DriveFile | null; error?: Response }> {
   const q = encodeURIComponent(`name = '${SNAPSHOT_NAME}' and trashed = false`);
   const res = await fetch(
     `${GATEWAY}/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime,size)`,
-    { headers: headers() },
+    { headers: headers(request) },
   );
   if (!res.ok) return { file: null, error: await relay(res, "search") };
   const body = (await res.json()) as { files?: DriveFile[] };
@@ -60,19 +66,39 @@ export const Route = createFileRoute("/api/drive")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!creds().ready) {
+        const c = creds(request);
+        if (!c.ready) {
           return json({ connected: false, reason: "Google Drive is not configured on this computer." });
         }
         const url = new URL(request.url);
-        const { file, error } = await findSnapshot();
+
+        if (url.searchParams.get("about") === "1") {
+          const res = await fetch(`${GATEWAY}/drive/v3/about?fields=user,storageQuota`, {
+            headers: headers(request),
+          });
+          if (!res.ok) return relay(res, "account lookup");
+          const body = (await res.json()) as {
+            user?: { emailAddress?: string; displayName?: string };
+            storageQuota?: { usage?: string; limit?: string };
+          };
+          return json({
+            connected: true,
+            custom: c.custom,
+            email: body.user?.emailAddress ?? null,
+            name: body.user?.displayName ?? null,
+            storage: body.storageQuota ?? null,
+          });
+        }
+
+        const { file, error } = await findSnapshot(request);
         if (error) return error;
 
         if (url.searchParams.get("download") !== "1") {
-          return json({ connected: true, file });
+          return json({ connected: true, custom: c.custom, file });
         }
         if (!file) return json({ error: "No data file on Google Drive yet." }, 404);
 
-        const res = await fetch(`${GATEWAY}/drive/v3/files/${file.id}?alt=media`, { headers: headers() });
+        const res = await fetch(`${GATEWAY}/drive/v3/files/${file.id}?alt=media`, { headers: headers(request) });
         if (!res.ok) return relay(res, "download");
         return new Response(await res.text(), {
           headers: { "content-type": "application/json", "x-drive-modified": file.modifiedTime },
@@ -80,15 +106,20 @@ export const Route = createFileRoute("/api/drive")({
       },
 
       POST: async ({ request }) => {
-        if (!creds().ready) return json({ error: "Google Drive is not configured on this computer." }, 503);
+        if (!creds(request).ready)
+          return json({ error: "Google Drive is not configured on this computer." }, 503);
         const payload = await request.text();
-        const { file, error } = await findSnapshot();
+        const { file, error } = await findSnapshot(request);
         if (error) return error;
 
         if (file) {
           const res = await fetch(
             `https://connector-gateway.lovable.dev/google_drive/upload/drive/v3/files/${file.id}?uploadType=media&fields=id,modifiedTime`,
-            { method: "PATCH", headers: { ...headers(), "content-type": "application/json" }, body: payload },
+            {
+              method: "PATCH",
+              headers: { ...headers(request), "content-type": "application/json" },
+              body: payload,
+            },
           );
           if (!res.ok) return relay(res, "upload");
           return json({ ok: true, file: await res.json() });
@@ -103,7 +134,7 @@ export const Route = createFileRoute("/api/drive")({
           `https://connector-gateway.lovable.dev/google_drive/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime`,
           {
             method: "POST",
-            headers: { ...headers(), "content-type": `multipart/related; boundary=${boundary}` },
+            headers: { ...headers(request), "content-type": `multipart/related; boundary=${boundary}` },
             body,
           },
         );
