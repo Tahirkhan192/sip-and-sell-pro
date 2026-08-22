@@ -37,23 +37,36 @@ function isBlockedHost(hostname: string): boolean {
 
 
 async function unregisterMatching() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    for (const reg of regs) {
-      const url =
-        reg.active?.scriptURL ||
-        reg.waiting?.scriptURL ||
-        reg.installing?.scriptURL ||
-        "";
-      if (url.endsWith(SW_PATH)) {
-        await reg.unregister();
+  if (typeof navigator === "undefined") return;
+  if ("serviceWorker" in navigator) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url =
+          reg.active?.scriptURL ||
+          reg.waiting?.scriptURL ||
+          reg.installing?.scriptURL ||
+          "";
+        if (url.endsWith(SW_PATH)) {
+          await reg.unregister();
+        }
       }
+    } catch {
+      /* ignore */
+    }
+  }
+  // Drop any pages/assets an older service worker cached, so the app always
+  // runs the code that ships with this build.
+  try {
+    if (typeof caches !== "undefined") {
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => n.startsWith("app-")).map((n) => caches.delete(n)));
     }
   } catch {
     /* ignore */
   }
 }
+
 
 export async function registerAppServiceWorker() {
   if (typeof window === "undefined") return;
