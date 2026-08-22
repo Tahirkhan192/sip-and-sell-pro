@@ -102,6 +102,58 @@ export function DriveAccountCard() {
     await save(next, "push");
   }
 
+  /** Emails an access request to a Gmail address. */
+  async function invite() {
+    const address = gmail.trim();
+    if (!address) return;
+    setInviting(true);
+    try {
+      await inviteDriveAccount(address);
+      toast.success(`Request sent to ${address} — ask them to open the email and accept.`);
+      setGmail("");
+      setPeople(await driveInvitedAccounts().catch(() => []));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the request");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  /** Looks on Google Drive for the shared backup file. */
+  async function findBackup() {
+    setInviting(true);
+    setFound(null);
+    try {
+      const status = await driveStatus();
+      if (!status.connected) {
+        setFound(status.reason ?? "Google Drive is not reachable right now.");
+        return;
+      }
+      setFound(
+        status.file
+          ? `Backup file found — last updated ${new Date(status.file.modifiedTime).toLocaleString()}`
+          : "No backup file found on this account yet.",
+      );
+    } catch (err) {
+      setFound(err instanceof Error ? err.message : "Could not search Google Drive");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  /** Brings the backup file found on Drive into this computer. */
+  async function loadBackup() {
+    setInviting(true);
+    try {
+      const res = await pullFromDrive();
+      toast.success(res.pulled ? `Loaded ${res.rows ?? 0} records from Google Drive` : (res.reason ?? "Nothing to load"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load the backup file");
+    } finally {
+      setInviting(false);
+    }
+  }
+
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
