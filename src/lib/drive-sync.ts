@@ -149,6 +149,31 @@ export async function driveAccount(): Promise<DriveAccount> {
   return (await res.json()) as DriveAccount;
 }
 
+export type DrivePerson = { id: string; emailAddress?: string; role?: string };
+
+/**
+ * Invites a Gmail address to the shared data file. Google emails that person a
+ * request; once they accept, that account can open the same backup file.
+ */
+export async function inviteDriveAccount(email: string): Promise<{ email: string }> {
+  const res = await fetch("/api/drive?invite=1", {
+    method: "POST",
+    headers: driveHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ email }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { error?: string; email?: string };
+  if (!res.ok) throw new Error(body.error ?? `Invite failed (${res.status})`);
+  return { email: body.email ?? email };
+}
+
+/** The Gmail accounts that already have access to the data file. */
+export async function driveInvitedAccounts(): Promise<DrivePerson[]> {
+  const res = await fetch("/api/drive?people=1", { headers: driveHeaders() });
+  if (!res.ok) return [];
+  const body = (await res.json()) as { people?: DrivePerson[] };
+  return body.people ?? [];
+}
+
 /** Uploads the whole local database to Drive. Skipped when nothing changed. */
 export async function pushToDrive(force = false): Promise<{ pushed: boolean; reason?: string }> {
   const backup = await exportFullBackup();

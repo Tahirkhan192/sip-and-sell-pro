@@ -20,13 +20,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserCog, RefreshCw } from "lucide-react";
+import { UserCog, RefreshCw, Mail, Search, Download } from "lucide-react";
 import {
   driveAccount,
   driveHasSnapshot,
+  driveInvitedAccounts,
+  driveStatus,
+  inviteDriveAccount,
+  pullFromDrive,
   readDriveAccountKey,
   switchDriveAccount,
   type DriveAccount,
+  type DrivePerson,
 } from "@/lib/drive-sync";
 
 export function DriveAccountCard() {
@@ -36,11 +41,17 @@ export function DriveAccountCard() {
   const [busy, setBusy] = useState(false);
   /** Access code waiting for a "which copy do we keep?" answer. */
   const [choice, setChoice] = useState<string | null>(null);
+  /* ---- invite a Gmail address to the shared backup file ---- */
+  const [gmail, setGmail] = useState("");
+  const [people, setPeople] = useState<DrivePerson[]>([]);
+  const [inviting, setInviting] = useState(false);
+  const [found, setFound] = useState<string | null>(null);
 
   async function load() {
     setBusy(true);
     try {
       setAccount(await driveAccount());
+      setPeople(await driveInvitedAccounts().catch(() => []));
     } catch {
       setAccount({ connected: false, reason: "Google Drive is unreachable" });
     } finally {
@@ -91,6 +102,58 @@ export function DriveAccountCard() {
     await save(next, "push");
   }
 
+  /** Emails an access request to a Gmail address. */
+  async function invite() {
+    const address = gmail.trim();
+    if (!address) return;
+    setInviting(true);
+    try {
+      await inviteDriveAccount(address);
+      toast.success(`Request sent to ${address} — ask them to open the email and accept.`);
+      setGmail("");
+      setPeople(await driveInvitedAccounts().catch(() => []));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the request");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  /** Looks on Google Drive for the shared backup file. */
+  async function findBackup() {
+    setInviting(true);
+    setFound(null);
+    try {
+      const status = await driveStatus();
+      if (!status.connected) {
+        setFound(status.reason ?? "Google Drive is not reachable right now.");
+        return;
+      }
+      setFound(
+        status.file
+          ? `Backup file found — last updated ${new Date(status.file.modifiedTime).toLocaleString()}`
+          : "No backup file found on this account yet.",
+      );
+    } catch (err) {
+      setFound(err instanceof Error ? err.message : "Could not search Google Drive");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  /** Brings the backup file found on Drive into this computer. */
+  async function loadBackup() {
+    setInviting(true);
+    try {
+      const res = await pullFromDrive();
+      toast.success(res.pulled ? `Loaded ${res.rows ?? 0} records from Google Drive` : (res.reason ?? "Nothing to load"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load the backup file");
+    } finally {
+      setInviting(false);
+    }
+  }
+
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
@@ -126,6 +189,46 @@ export function DriveAccountCard() {
           <Button onClick={() => setOpen(true)} disabled={busy}>
             <UserCog className="h-4 w-4 mr-2" /> Change account
           </Button>
+        </div>
+
+        {/* Simple Gmail flow: type an address, Google asks the owner to allow it,
+            then the app looks for the backup file on Drive. */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div>
+            <Label className="text-sm">Add a Gmail account</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Type the Gmail address that should reach this data. Google sends that person a request — once
+              they allow it, use “Find backup file” to pick up the data from Drive.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="email"
+              value={gmail}
+              onChange={(e) => setGmail(e.target.value)}
+              placeholder="name@gmail.com"
+              autoComplete="off"
+            />
+            <Button onClick={() => void invite()} disabled={inviting || !gmail.trim()}>
+              <Mail className="h-4 w-4 mr-2" /> Send request
+            </Button>
+          </div>
+
+          {people.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Already allowed: {people.map((p) => p.emailAddress).filter(Boolean).join(", ")}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => void findBackup()} disabled={inviting}>
+              <Search className="h-4 w-4 mr-2" /> Find backup file
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void loadBackup()} disabled={inviting}>
+              <Download className="h-4 w-4 mr-2" /> Load backup into this computer
+            </Button>
+          </div>
+          {found && <div className="text-xs text-muted-foreground">{found}</div>}
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>

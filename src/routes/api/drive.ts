@@ -93,6 +93,22 @@ export const Route = createFileRoute("/api/drive")({
         const { file, error } = await findSnapshot(request);
         if (error) return error;
 
+        // Which Gmail accounts were invited to this backup file.
+        if (url.searchParams.get("people") === "1") {
+          if (!file) return json({ people: [] });
+          const res = await fetch(
+            `${GATEWAY}/drive/v3/files/${file.id}/permissions?fields=permissions(id,emailAddress,role,type)`,
+            { headers: headers(request) },
+          );
+          if (!res.ok) return relay(res, "shared list");
+          const body = (await res.json()) as {
+            permissions?: { id: string; emailAddress?: string; role?: string; type?: string }[];
+          };
+          return json({
+            people: (body.permissions ?? []).filter((p) => p.type === "user" && p.emailAddress),
+          });
+        }
+
         if (url.searchParams.get("download") !== "1") {
           return json({ connected: true, custom: c.custom, file });
         }
@@ -108,6 +124,37 @@ export const Route = createFileRoute("/api/drive")({
       POST: async ({ request }) => {
         if (!creds(request).ready)
           return json({ error: "Google Drive is not configured on this computer." }, 503);
+
+        // Invite flow: the owner types a Gmail address, Google emails that person
+        // a request to open the data file, and once they accept the app can find
+        // the same backup file from their account.
+        const inviteUrl = new URL(request.url);
+        if (inviteUrl.searchParams.get("invite") === "1") {
+          const { email } = (await request.json()) as { email?: string };
+          const address = (email ?? "").trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))
+            return json({ error: "Enter a valid Gmail address." }, 400);
+
+          const { file, error } = await findSnapshot(request);
+          if (error) return error;
+          if (!file)
+            return json(
+              { error: "There is no backup file on Google Drive yet. Let the app upload one first, then invite." },
+              409,
+            );
+
+          const res = await fetch(
+            `${GATEWAY}/drive/v3/files/${file.id}/permissions?sendNotificationEmail=true&fields=id,emailAddress,role`,
+            {
+              method: "POST",
+              headers: { ...headers(request), "content-type": "application/json" },
+              body: JSON.stringify({ type: "user", role: "writer", emailAddress: address }),
+            },
+          );
+          if (!res.ok) return relay(res, "invite");
+          return json({ ok: true, email: address, file });
+        }
+
         const payload = await request.text();
         const { file, error } = await findSnapshot(request);
         if (error) return error;
