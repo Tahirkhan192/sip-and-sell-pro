@@ -62,6 +62,7 @@ async function init(): Promise<Engine> {
   }
 
   await repairGeneratedMovements(db);
+  await syncInvoiceSequence(db);
 
   const meta = await loadMeta(db);
   const funcs = await loadFuncs(db);
@@ -84,6 +85,7 @@ export async function withRestoreMode<T>(fn: () => Promise<T>): Promise<T> {
   } finally {
     await db.exec("SET session_replication_role = origin;");
     await repairGeneratedMovements(db);
+    await syncInvoiceSequence(db);
   }
 }
 
@@ -192,8 +194,34 @@ async function seed(db: PGlite) {
       throw new Error(`Restore incomplete for ${table}: expected ${expected}, got ${got.rows[0]?.c}`);
     }
   }
-  await db.exec("SELECT setval(pg_get_serial_sequence('public.sales','id'), 1, false) WHERE false;");
+  await syncInvoiceSequence(db);
 }
+
+/**
+ * Keeps invoice numbering ahead of the data already on this computer.
+ *
+ * The restored history contains invoice numbers up to some point; if the
+ * counter is left behind them, the very next POS sale fails with a duplicate
+ * invoice number and looks like "saving does not work". Runs after loading the
+ * seed data, after every restore, and each time the app opens.
+ */
+export async function syncInvoiceSequence(db: PGlite) {
+  try {
+    await db.exec(`
+      SELECT setval(
+        'public.invoice_seq',
+        GREATEST(
+          (SELECT COALESCE(MAX(NULLIF(regexp_replace(invoice_no, '\\D', '', 'g'), '')::bigint), 0) FROM public.sales),
+          1000
+        ),
+        true
+      );
+    `);
+  } catch {
+    /* never block the app from opening */
+  }
+}
+
 
 async function arrayColumns(db: PGlite, table: string): Promise<Set<string>> {
   const res = await db.query<{ column_name: string }>(

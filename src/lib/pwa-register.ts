@@ -4,7 +4,18 @@
 
 const SW_PATH = "/sw.js";
 
+/**
+ * The desktop (offline) app runs on a private loopback address. There we never
+ * want a service worker: a cached copy of an older build could keep serving
+ * outdated code, which is exactly how "saving needs internet" happens. The
+ * embedded database already makes the app work without a connection.
+ */
+function isLoopback(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "[::1]";
+}
+
 function isBlockedHost(hostname: string): boolean {
+  if (isLoopback(hostname)) return true;
   if (
     hostname.startsWith("id-preview--") ||
     hostname.startsWith("preview--")
@@ -24,24 +35,38 @@ function isBlockedHost(hostname: string): boolean {
   return false;
 }
 
+
 async function unregisterMatching() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    for (const reg of regs) {
-      const url =
-        reg.active?.scriptURL ||
-        reg.waiting?.scriptURL ||
-        reg.installing?.scriptURL ||
-        "";
-      if (url.endsWith(SW_PATH)) {
-        await reg.unregister();
+  if (typeof navigator === "undefined") return;
+  if ("serviceWorker" in navigator) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url =
+          reg.active?.scriptURL ||
+          reg.waiting?.scriptURL ||
+          reg.installing?.scriptURL ||
+          "";
+        if (url.endsWith(SW_PATH)) {
+          await reg.unregister();
+        }
       }
+    } catch {
+      /* ignore */
+    }
+  }
+  // Drop any pages/assets an older service worker cached, so the app always
+  // runs the code that ships with this build.
+  try {
+    if (typeof caches !== "undefined") {
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => n.startsWith("app-")).map((n) => caches.delete(n)));
     }
   } catch {
     /* ignore */
   }
 }
+
 
 export async function registerAppServiceWorker() {
   if (typeof window === "undefined") return;
