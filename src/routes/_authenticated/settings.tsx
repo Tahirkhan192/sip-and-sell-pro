@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { changeStockPin } from "@/lib/stock-pin";
 import { changePasscode } from "@/lib/passcode";
 import { DriveSyncCard } from "@/components/DriveSyncCard";
+import { DriveAccountCard } from "@/components/DriveAccountCard";
 import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
@@ -202,6 +203,7 @@ function SettingsPage() {
       <MenuVisibilityCard />
 
       <DriveSyncCard />
+      <DriveAccountCard />
 
       <SignInPasscodeCard />
 
