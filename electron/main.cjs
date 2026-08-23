@@ -63,8 +63,10 @@ const DRIVE_HOSTS = [
   "https://www.googleapis.com",
   "https://oauth2.googleapis.com",
   "https://accounts.google.com",
+  "https://connector-gateway.lovable.dev",
   "https://mcp.lovable.dev",
 ];
+
 
 function blockNetwork() {
   const fs = require("fs");
