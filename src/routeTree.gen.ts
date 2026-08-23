@@ -37,6 +37,7 @@ import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as OauthGoogleDriveReturnRouteImport } from './routes/oauth/google-drive/return'
 import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
 import { Route as AuthenticatedStaffStaffIdRouteImport } from './routes/_authenticated/staff_.$staffId'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -189,6 +190,11 @@ const Char91DotmcpChar93ListToolsRoute =
     path: '/.mcp/list-tools',
     getParentRoute: () => rootRouteImport,
   } as any)
+const OauthGoogleDriveReturnRoute = OauthGoogleDriveReturnRouteImport.update({
+  id: '/oauth/google-drive/return',
+  path: '/oauth/google-drive/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappInvoiceRoute =
   ApiPublicWhatsappInvoiceRouteImport.update({
     id: '/api/public/whatsapp-invoice',
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/staff/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
+  '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/staff/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
+  '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -313,6 +321,7 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/staff_/$staffId': typeof AuthenticatedStaffStaffIdRoute
   '/api/public/whatsapp-invoice': typeof ApiPublicWhatsappInvoiceRoute
+  '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/staff/$staffId'
     | '/api/public/whatsapp-invoice'
+    | '/oauth/google-drive/return'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/staff/$staffId'
     | '/api/public/whatsapp-invoice'
+    | '/oauth/google-drive/return'
   id:
     | '__root__'
     | '/_authenticated'
@@ -415,6 +426,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/staff_/$staffId'
     | '/api/public/whatsapp-invoice'
+    | '/oauth/google-drive/return'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -428,6 +440,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicWhatsappInvoiceRoute: typeof ApiPublicWhatsappInvoiceRoute
+  OauthGoogleDriveReturnRoute: typeof OauthGoogleDriveReturnRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -628,6 +641,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/google-drive/return': {
+      id: '/oauth/google-drive/return'
+      path: '/oauth/google-drive/return'
+      fullPath: '/oauth/google-drive/return'
+      preLoaderRoute: typeof OauthGoogleDriveReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-invoice': {
       id: '/api/public/whatsapp-invoice'
       path: '/api/public/whatsapp-invoice'
@@ -724,6 +744,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicWhatsappInvoiceRoute: ApiPublicWhatsappInvoiceRoute,
+  OauthGoogleDriveReturnRoute: OauthGoogleDriveReturnRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
