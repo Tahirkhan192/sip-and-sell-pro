@@ -67,73 +67,108 @@ export type DriveAccount = {
   reason?: string;
 };
 
-/* ---------- which Google account this computer uses ---------- */
+/* ---------- the Google Drive account connected on this computer ---------- */
 
-const ACCOUNT_KEY = "kdf.driveAccountKey.v1";
+const TOKEN_KEY = "kdf.driveAccountToken.v1";
+const DEVICE_KEY = "kdf.driveDeviceId.v1";
 
-/** The Drive account key saved on this computer, if the owner set one. */
-export function readDriveAccountKey(): string {
+/** A permanent, meaningless id for this computer. */
+export function driveDeviceId(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem(ACCOUNT_KEY) ?? "";
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
 }
 
-/** Points this computer at another Google Drive account (empty = the default). */
-export function writeDriveAccountKey(key: string) {
-  const clean = key.trim();
-  if (clean) localStorage.setItem(ACCOUNT_KEY, clean);
-  else localStorage.removeItem(ACCOUNT_KEY);
+/** The sealed account code saved on this computer (never the Google key itself). */
+export function readDriveToken(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+function writeDriveToken(token: string) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
   writeSyncState({ lastHash: undefined, lastError: undefined });
 }
 
-/**
- * Switches this computer to another Google Drive account.
- *
- * The data on this computer is never touched. After the switch the whole local
- * database is uploaded to the new account, so the new Drive becomes a complete
- * copy instead of appearing empty (or overwriting this computer on next pull).
- *
- * When the new account already holds a snapshot the caller decides what to keep:
- *   - "push" (default): this computer's data is uploaded over it,
- *   - "pull": the account's snapshot is merged into this computer.
- */
-export async function switchDriveAccount(
-  key: string,
-  keep: "push" | "pull" = "push",
-): Promise<{ mode: "push" | "pull"; rows?: number }> {
-  const previous = readDriveAccountKey();
-  writeDriveAccountKey(key);
-  try {
-    if (keep === "pull") {
-      const res = await pullFromDrive();
-      if (!res.pulled) {
-        await pushToDrive(true);
-        return { mode: "push" };
-      }
-      await pushToDrive(true);
-      return { mode: "pull", rows: res.rows };
-    }
-    await pushToDrive(true);
-    return { mode: "push" };
-  } catch (err) {
-    // Keep the old account rather than leaving the computer pointed at a Drive
-    // that does not hold this data.
-    writeDriveAccountKey(previous);
-    throw err;
-  }
+/** True when a Google Drive account has been connected on this computer. */
+export function isDriveConnected(): boolean {
+  return Boolean(readDriveToken());
 }
 
-/** True when the account this computer points at already holds a data file. */
-export async function driveHasSnapshot(key: string): Promise<boolean> {
-  const headers: Record<string, string> = key.trim() ? { "x-kdf-drive-key": key.trim() } : {};
-  const res = await fetch("/api/drive", { headers });
-  if (!res.ok) return false;
-  const status = (await res.json()) as DriveStatus;
-  return Boolean(status.connected && status.file);
+/**
+ * Opens the Google window, waits for the account owner to allow access and
+ * saves the connection on this computer.
+ */
+export async function connectDriveAccount(): Promise<void> {
+  const popup = window.open("", "kdf-google-drive", "width=520,height=680");
+  if (!popup) throw new Error("Allow pop-up windows and try again.");
+
+  const waitForCode = new Promise<string>((resolve, reject) => {
+    let poll: number | undefined;
+    const cleanup = () => {
+      window.removeEventListener("message", onMessage);
+      if (poll !== undefined) window.clearInterval(poll);
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== popup) return;
+      const type = (event.data as { type?: string })?.type;
+      if (type !== "driveConnectComplete" && type !== "driveConnectFailed") return;
+      cleanup();
+      const code = (event.data as { code?: string })?.code;
+      if (type === "driveConnectComplete" && code) resolve(code);
+      else reject(new Error("The Google window closed without connecting."));
+    };
+    window.addEventListener("message", onMessage);
+    poll = window.setInterval(() => {
+      if (popup.closed) {
+        cleanup();
+        reject(new Error("The Google window was closed before finishing."));
+      }
+    }, 500);
+  });
+
+  let code: string;
+  try {
+    const start = await fetch(`/api/drive-connect?start=1&device=${encodeURIComponent(driveDeviceId())}`);
+    const body = (await start.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string };
+    if (!start.ok || !body.authorizationUrl) throw new Error(body.error ?? "Could not open the Google window.");
+    popup.location.href = body.authorizationUrl;
+    code = await waitForCode;
+  } catch (err) {
+    popup.close();
+    throw err;
+  }
+
+  const done = await fetch("/api/drive-connect", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const result = (await done.json().catch(() => ({}))) as { token?: string; error?: string };
+  if (!done.ok || !result.token) throw new Error(result.error ?? "Could not save the Google account.");
+  writeDriveToken(result.token);
+}
+
+/** Signs the connected Google Drive account out of this computer. */
+export async function disconnectDriveAccount(): Promise<void> {
+  const token = readDriveToken();
+  writeDriveToken("");
+  if (!token) return;
+  await fetch("/api/drive-connect?forget=1", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  }).catch(() => undefined);
 }
 
 function driveHeaders(extra: Record<string, string> = {}) {
-  const key = readDriveAccountKey();
-  return key ? { ...extra, "x-kdf-drive-key": key } : extra;
+  const token = readDriveToken();
+  return token ? { ...extra, "x-kdf-drive-token": token } : extra;
 }
 
 export async function driveStatus(): Promise<DriveStatus> {
@@ -149,30 +184,7 @@ export async function driveAccount(): Promise<DriveAccount> {
   return (await res.json()) as DriveAccount;
 }
 
-export type DrivePerson = { id: string; emailAddress?: string; role?: string };
 
-/**
- * Invites a Gmail address to the shared data file. Google emails that person a
- * request; once they accept, that account can open the same backup file.
- */
-export async function inviteDriveAccount(email: string): Promise<{ email: string }> {
-  const res = await fetch("/api/drive?invite=1", {
-    method: "POST",
-    headers: driveHeaders({ "content-type": "application/json" }),
-    body: JSON.stringify({ email }),
-  });
-  const body = (await res.json().catch(() => ({}))) as { error?: string; email?: string };
-  if (!res.ok) throw new Error(body.error ?? `Invite failed (${res.status})`);
-  return { email: body.email ?? email };
-}
-
-/** The Gmail accounts that already have access to the data file. */
-export async function driveInvitedAccounts(): Promise<DrivePerson[]> {
-  const res = await fetch("/api/drive?people=1", { headers: driveHeaders() });
-  if (!res.ok) return [];
-  const body = (await res.json()) as { people?: DrivePerson[] };
-  return body.people ?? [];
-}
 
 /** Uploads the whole local database to Drive. Skipped when nothing changed. */
 export async function pushToDrive(force = false): Promise<{ pushed: boolean; reason?: string }> {
