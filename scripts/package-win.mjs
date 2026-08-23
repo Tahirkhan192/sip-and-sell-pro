@@ -6,7 +6,7 @@
  * "Khyber Delicious Food.exe". All data stays on that computer.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -15,6 +15,18 @@ if (!existsSync(path.join(root, ".output", "server", "index.mjs"))) {
   console.error("Run `npm run build:offline` first — no offline build found.");
   process.exit(1);
 }
+
+// Carry the keys the optional Google Drive backup needs into the package.
+const runtimeEnv = {};
+for (const name of [
+  "LOVABLE_API_KEY",
+  "GOOGLE_DRIVE_APP_USER_CONNECTOR_CLIENT_API_KEY",
+  "APP_USER_CONNECTION_KEY_SECRET",
+  "GOOGLE_DRIVE_API_KEY",
+]) {
+  if (process.env[name]) runtimeEnv[name] = process.env[name];
+}
+writeFileSync(path.join(root, "electron", "runtime-env.json"), JSON.stringify(runtimeEnv, null, 2));
 
 const args = [
   "@electron/packager",

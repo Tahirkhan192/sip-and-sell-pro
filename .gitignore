@@ -39,3 +39,4 @@ dist/
 android/build
 android/.gradle
 android/app/build
+electron/runtime-env.json

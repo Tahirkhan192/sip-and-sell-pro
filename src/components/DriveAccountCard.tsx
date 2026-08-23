@@ -1,156 +1,79 @@
 /**
  * Settings → Google Drive account.
  *
- * Shows which Google account holds the shared data file and lets the owner
- * point THIS computer at a different Google Drive account. The choice is
- * stored on this computer only, so every laptop can use its own account.
+ * One button opens a Google window where the owner picks the Google account
+ * used for backup and restore. The account is remembered on this computer only.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserCog, RefreshCw, Mail, Search, Download } from "lucide-react";
+import { CloudUpload, CloudDownload, LogOut, RefreshCw, Link2 } from "lucide-react";
 import {
+  connectDriveAccount,
+  disconnectDriveAccount,
   driveAccount,
-  driveHasSnapshot,
-  driveInvitedAccounts,
   driveStatus,
-  inviteDriveAccount,
+  isDriveConnected,
   pullFromDrive,
-  readDriveAccountKey,
-  switchDriveAccount,
+  pushToDrive,
   type DriveAccount,
-  type DrivePerson,
+  type DriveStatus,
 } from "@/lib/drive-sync";
 
 export function DriveAccountCard() {
+  const [connected, setConnected] = useState(false);
   const [account, setAccount] = useState<DriveAccount | null>(null);
-  const [open, setOpen] = useState(false);
-  const [key, setKey] = useState("");
-  const [busy, setBusy] = useState(false);
-  /** Access code waiting for a "which copy do we keep?" answer. */
-  const [choice, setChoice] = useState<string | null>(null);
-  /* ---- invite a Gmail address to the shared backup file ---- */
-  const [gmail, setGmail] = useState("");
-  const [people, setPeople] = useState<DrivePerson[]>([]);
-  const [inviting, setInviting] = useState(false);
-  const [found, setFound] = useState<string | null>(null);
+  const [status, setStatus] = useState<DriveStatus | null>(null);
+  const [busy, setBusy] = useState<"" | "connect" | "check" | "backup" | "restore">("");
 
-  async function load() {
-    setBusy(true);
-    try {
-      setAccount(await driveAccount());
-      setPeople(await driveInvitedAccounts().catch(() => []));
-    } catch {
-      setAccount({ connected: false, reason: "Google Drive is unreachable" });
-    } finally {
-      setBusy(false);
+  const load = useCallback(async () => {
+    const has = isDriveConnected();
+    setConnected(has);
+    if (!has) {
+      setAccount(null);
+      setStatus(null);
+      return;
     }
-  }
+    setAccount(await driveAccount().catch(() => ({ connected: false, reason: "Google Drive is unreachable" })));
+    setStatus(await driveStatus().catch(() => ({ connected: false, reason: "Google Drive is unreachable" })));
+  }, []);
 
   useEffect(() => {
     void load();
-    setKey(readDriveAccountKey());
-  }, []);
+  }, [load]);
 
-  async function save(next: string, keep: "push" | "pull" = "push") {
-    setBusy(true);
+  async function run(kind: "connect" | "check" | "backup" | "restore") {
+    setBusy(kind);
     try {
-      const res = await switchDriveAccount(next, keep);
-      setKey(next);
-      setOpen(false);
-      setChoice(null);
-      toast.success(
-        res.mode === "pull"
-          ? "Loaded that account's data and uploaded the combined copy back"
-          : next
-            ? "Switched account — your data was uploaded to it"
-            : "Back to the default account — your data was uploaded to it",
-      );
-      void load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not switch account");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** Asks what to keep when the other account already has data. */
-  async function beginSave(next: string) {
-    setBusy(true);
-    try {
-      if (await driveHasSnapshot(next)) {
-        setChoice(next);
-        return;
+      if (kind === "connect") {
+        await connectDriveAccount();
+        toast.success("Google Drive account connected");
+      } else if (kind === "backup") {
+        await pushToDrive(true);
+        toast.success("Backup saved to Google Drive");
+      } else if (kind === "restore") {
+        const res = await pullFromDrive();
+        toast.success(res.pulled ? `Restored ${res.rows ?? 0} records from Google Drive` : (res.reason ?? "Nothing to restore"));
       }
-    } catch {
-      /* treat as empty */
-    } finally {
-      setBusy(false);
-    }
-    await save(next, "push");
-  }
-
-  /** Emails an access request to a Gmail address. */
-  async function invite() {
-    const address = gmail.trim();
-    if (!address) return;
-    setInviting(true);
-    try {
-      await inviteDriveAccount(address);
-      toast.success(`Request sent to ${address} — ask them to open the email and accept.`);
-      setGmail("");
-      setPeople(await driveInvitedAccounts().catch(() => []));
+      await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not send the request");
+      toast.error(err instanceof Error ? err.message : "Google Drive action failed");
     } finally {
-      setInviting(false);
+      setBusy("");
     }
   }
 
-  /** Looks on Google Drive for the shared backup file. */
-  async function findBackup() {
-    setInviting(true);
-    setFound(null);
+  async function forget() {
+    setBusy("connect");
     try {
-      const status = await driveStatus();
-      if (!status.connected) {
-        setFound(status.reason ?? "Google Drive is not reachable right now.");
-        return;
-      }
-      setFound(
-        status.file
-          ? `Backup file found — last updated ${new Date(status.file.modifiedTime).toLocaleString()}`
-          : "No backup file found on this account yet.",
-      );
-    } catch (err) {
-      setFound(err instanceof Error ? err.message : "Could not search Google Drive");
+      await disconnectDriveAccount();
+      toast.success("Google Drive account removed from this computer");
+      await load();
     } finally {
-      setInviting(false);
-    }
-  }
-
-  /** Brings the backup file found on Drive into this computer. */
-  async function loadBackup() {
-    setInviting(true);
-    try {
-      const res = await pullFromDrive();
-      toast.success(res.pulled ? `Loaded ${res.rows ?? 0} records from Google Drive` : (res.reason ?? "Nothing to load"));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not load the backup file");
-    } finally {
-      setInviting(false);
+      setBusy("");
     }
   }
 
@@ -158,134 +81,53 @@ export function DriveAccountCard() {
     <Card>
       <CardContent className="p-4 space-y-4">
         <div>
-          <Label className="text-base">Google Drive Account</Label>
+          <Label className="text-base">Google Drive Account (backup &amp; restore)</Label>
           <p className="text-xs text-muted-foreground mt-1">
-            The account that keeps the shared data file. Every computer can use its own account — the choice
-            below applies to this computer only.
+            Your data always stays on this computer. Connect a Google account here to also keep one backup
+            file on its Google Drive, and to restore that backup on another computer.
           </p>
         </div>
 
-        <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-          <div>
-            Account:{" "}
-            {account
-              ? account.connected
-                ? (account.email ?? account.name ?? "connected")
-                : (account.reason ?? "not connected")
-              : "checking…"}
-          </div>
-          <div>Using: {readDriveAccountKey() ? "this computer's own account" : "the app's default account"}</div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 justify-end">
-          <Button variant="outline" onClick={() => void load()} disabled={busy}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Check
-          </Button>
-          {readDriveAccountKey() && (
-            <Button variant="outline" onClick={() => void beginSave("")} disabled={busy}>
-              Use default account
-            </Button>
-          )}
-          <Button onClick={() => setOpen(true)} disabled={busy}>
-            <UserCog className="h-4 w-4 mr-2" /> Change account
-          </Button>
-        </div>
-
-        {/* Simple Gmail flow: type an address, Google asks the owner to allow it,
-            then the app looks for the backup file on Drive. */}
-        <div className="rounded-md border p-3 space-y-3">
-          <div>
-            <Label className="text-sm">Add a Gmail account</Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Type the Gmail address that should reach this data. Google sends that person a request — once
-              they allow it, use “Find backup file” to pick up the data from Drive.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              type="email"
-              value={gmail}
-              onChange={(e) => setGmail(e.target.value)}
-              placeholder="name@gmail.com"
-              autoComplete="off"
-            />
-            <Button onClick={() => void invite()} disabled={inviting || !gmail.trim()}>
-              <Mail className="h-4 w-4 mr-2" /> Send request
-            </Button>
-          </div>
-
-          {people.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              Already allowed: {people.map((p) => p.emailAddress).filter(Boolean).join(", ")}
+        {connected ? (
+          <>
+            <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+              <div>
+                Account:{" "}
+                {account
+                  ? account.connected
+                    ? (account.email ?? account.name ?? "connected")
+                    : (account.reason ?? "not reachable")
+                  : "checking…"}
+              </div>
+              <div>
+                Backup file:{" "}
+                {status?.file ? new Date(status.file.modifiedTime).toLocaleString() : "not created yet"}
+              </div>
             </div>
-          )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void findBackup()} disabled={inviting}>
-              <Search className="h-4 w-4 mr-2" /> Find backup file
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void loadBackup()} disabled={inviting}>
-              <Download className="h-4 w-4 mr-2" /> Load backup into this computer
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button variant="outline" onClick={() => void run("check")} disabled={!!busy}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Check
+              </Button>
+              <Button variant="outline" onClick={() => void run("restore")} disabled={!!busy}>
+                <CloudDownload className="h-4 w-4 mr-2" /> {busy === "restore" ? "Restoring…" : "Restore from Drive"}
+              </Button>
+              <Button onClick={() => void run("backup")} disabled={!!busy}>
+                <CloudUpload className="h-4 w-4 mr-2" /> {busy === "backup" ? "Saving…" : "Back up now"}
+              </Button>
+              <Button variant="ghost" onClick={() => void forget()} disabled={!!busy}>
+                <LogOut className="h-4 w-4 mr-2" /> Remove account
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">No Google Drive account is connected on this computer.</p>
+            <Button onClick={() => void run("connect")} disabled={!!busy}>
+              <Link2 className="h-4 w-4 mr-2" /> {busy === "connect" ? "Opening Google…" : "Add Google Drive account"}
             </Button>
           </div>
-          {found && <div className="text-xs text-muted-foreground">{found}</div>}
-        </div>
-
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Change Google Drive account</DialogTitle>
-              <DialogDescription>
-                Paste the Google Drive access code for the account you want this computer to use. Leave it empty
-                to go back to the default account.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="drive-key">Google Drive access code</Label>
-              <Input
-                id="drive-key"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="Paste the access code"
-                autoComplete="off"
-              />
-              <p className="text-xs text-muted-foreground">
-                Saved on this computer only. It is never shown to anyone else and never leaves this machine
-                except to reach Google Drive.
-              </p>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => void beginSave(key)} disabled={busy}>
-                {busy ? "Working…" : "Save"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={choice !== null} onOpenChange={(o) => !o && setChoice(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>That account already has data</DialogTitle>
-              <DialogDescription>
-                Nothing on this computer is deleted either way. Choose which copy should be the shared one.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setChoice(null)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button variant="outline" onClick={() => void save(choice ?? "", "pull")} disabled={busy}>
-                Load that account's data here
-              </Button>
-              <Button onClick={() => void save(choice ?? "", "push")} disabled={busy}>
-                Upload my data to this account
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        )}
       </CardContent>
     </Card>
   );
