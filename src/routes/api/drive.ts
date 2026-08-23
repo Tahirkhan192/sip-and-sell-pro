@@ -21,20 +21,30 @@ import { createFileRoute } from "@tanstack/react-router";
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
 export const SNAPSHOT_NAME = "khyber-delicious-food-data.json";
 
-function creds(request: Request) {
+async function creds(request: Request) {
   const lovable = process.env["LOVABLE_API_KEY"];
-  const override = request.headers.get("x-kdf-drive-key")?.trim();
+  let override = request.headers.get("x-kdf-drive-key")?.trim() || "";
+  const sealed = request.headers.get("x-kdf-drive-token")?.trim();
+  if (!override && sealed) {
+    try {
+      const { openDriveToken } = await import("@/lib/drive-token.server");
+      override = openDriveToken(sealed);
+    } catch (err) {
+      console.error("[drive] bad account code", err);
+    }
+  }
   const drive = override || process.env["GOOGLE_DRIVE_API_KEY"];
   return { lovable, drive, custom: Boolean(override), ready: Boolean(lovable && drive) };
 }
 
-function headers(request: Request) {
-  const { lovable, drive } = creds(request);
+async function headers(request: Request) {
+  const { lovable, drive } = await creds(request);
   return {
     Authorization: `Bearer ${lovable}`,
     "X-Connection-Api-Key": String(drive),
   };
 }
+
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
