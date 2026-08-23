@@ -21,6 +21,20 @@ app.setName("Khyber Delicious Food");
 
 let serverPort = 0;
 
+// Keys needed only for the optional Google Drive backup. They are written into
+// the package when it is built; without them the app still runs completely
+// offline, Google Drive backup is simply unavailable.
+try {
+  const envFile = path.join(__dirname, "runtime-env.json");
+  if (require("fs").existsSync(envFile)) {
+    const saved = JSON.parse(require("fs").readFileSync(envFile, "utf8"));
+    for (const [k, v] of Object.entries(saved)) if (v) process.env[k] = String(v);
+  }
+} catch {
+  /* backup stays unavailable */
+}
+
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
