@@ -44,6 +44,7 @@ function nextMonth(m: string) {
 
 function StaffDetailPage() {
   const { staffId } = Route.useParams();
+  const qc = useQueryClient();
   const [month, setMonth] = useState(() => businessToday().slice(0, 7));
 
   const { data: staff } = useQuery({
