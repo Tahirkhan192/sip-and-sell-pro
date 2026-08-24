@@ -242,9 +242,10 @@ function StaffPage() {
             </tr>
           </thead>
           <tbody>
-            {staff.length === 0 && <tr><td colSpan={11} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
+            {staff.length === 0 && <tr><td colSpan={13} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
             {staff.map((s) => {
               const r = salaryMap[s.id];
+              const c = calcMap?.[s.id];
               const a = attMap[s.id] ?? "present"; // present by default each business day
               return (
                 <tr key={s.id} className="border-t hover:bg-accent/30">
