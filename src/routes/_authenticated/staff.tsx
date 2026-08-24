@@ -264,12 +264,14 @@ function StaffPage() {
                     </div>
                     <div className="hidden print:block text-center capitalize">{a}</div>
                   </td>
-                  <td className="p-2 text-right">{r?.present_days ?? 0}</td>
-                  <td className="p-2 text-right">{r?.absent_days ?? 0}</td>
+                  <td className="p-2 text-right">{c?.presentDays ?? r?.present_days ?? 0}</td>
+                  <td className="p-2 text-right">{c?.absentDays ?? r?.absent_days ?? 0}</td>
                   <td className="p-2 text-right">{money(s.monthly_salary)}</td>
+                  <td className="p-2 text-right">{money(c?.earnedSalary ?? 0)}</td>
                   <td className="p-2 text-right">{money(n(r?.salary_paid) + n(r?.advance_taken))}</td>
                   <td className="p-2 text-right">{money(s.katha_balance)}</td>
-                  <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
+                  <td className={`p-2 text-right ${n(c?.remainingSalary) < 0 ? "text-destructive" : ""}`}>{money(c?.remainingSalary ?? 0)}</td>
+                  <td className={`p-2 text-right font-medium ${n(c?.actualRemainingSalary) < 0 ? "text-destructive" : ""}`}>{money(c?.actualRemainingSalary ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
                   <td className="p-2">
                     <Badge variant={s.status === "active" ? "secondary" : "outline"} className="capitalize">{s.status}</Badge>
