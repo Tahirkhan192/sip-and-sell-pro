@@ -81,6 +81,36 @@ function StaffDetailPage() {
 
   const dailySalary = n(staff?.monthly_salary) / 30;
 
+  const { data: salaries } = useStaffSalaries(month);
+  const calc = salaries?.[staffId];
+
+  const [openingEdit, setOpeningEdit] = useState("");
+  const saveOpening = useMutation({
+    mutationFn: async () => {
+      const v = Number(openingEdit);
+      if (openingEdit === "" || !Number.isFinite(v)) throw new Error("Enter an opening balance");
+      const [y, mm] = month.split("-").map(Number);
+      const { error } = await supabase.from("staff_month_carry" as any).upsert(
+        {
+          staff_id: staffId,
+          year: y,
+          month: mm,
+          prev_remaining: Math.max(0, v),
+          prev_advance: Math.max(0, -v),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "staff_id,year,month" } as any,
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Opening balance saved");
+      setOpeningEdit("");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const monthPayments = useMemo(
     () => (payments as any[]).filter((p) => p.date >= `${month}-01` && p.date < nextMonth(month)),
     [payments, month],
