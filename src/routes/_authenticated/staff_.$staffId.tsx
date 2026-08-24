@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useStaffSalaries } from "@/lib/staff-salary";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ function nextMonth(m: string) {
 
 function StaffDetailPage() {
   const { staffId } = Route.useParams();
+  const qc = useQueryClient();
   const [month, setMonth] = useState(() => businessToday().slice(0, 7));
 
   const { data: staff } = useQuery({
@@ -81,6 +84,36 @@ function StaffDetailPage() {
 
   const dailySalary = n(staff?.monthly_salary) / 30;
 
+  const { data: salaries } = useStaffSalaries(month);
+  const calc = salaries?.[staffId];
+
+  const [openingEdit, setOpeningEdit] = useState("");
+  const saveOpening = useMutation({
+    mutationFn: async () => {
+      const v = Number(openingEdit);
+      if (openingEdit === "" || !Number.isFinite(v)) throw new Error("Enter an opening balance");
+      const [y, mm] = month.split("-").map(Number);
+      const { error } = await supabase.from("staff_month_carry" as any).upsert(
+        {
+          staff_id: staffId,
+          year: y,
+          month: mm,
+          prev_remaining: Math.max(0, v),
+          prev_advance: Math.max(0, -v),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "staff_id,year,month" } as any,
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Opening balance saved");
+      setOpeningEdit("");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const monthPayments = useMemo(
     () => (payments as any[]).filter((p) => p.date >= `${month}-01` && p.date < nextMonth(month)),
     [payments, month],
@@ -116,19 +149,47 @@ function StaffDetailPage() {
         <Stat label="Position" value={staff.role ?? "Staff"} />
         <Stat label="Joining Date" value={staff.joining_date} />
         <Stat label="Monthly Salary" value={money(staff.monthly_salary)} />
-        <Stat label="Daily Salary" value={money(dailySalary)} />
+        <Stat label="Daily Base Salary" value={money(calc?.dailyBase ?? dailySalary)} />
         <Stat label="Status" value={staff.status === "active" ? "Active" : "Inactive"} />
-        <Stat label="Present Days" value={String(salary?.present_days ?? 0)} />
-        <Stat label="Absent Days" value={String(salary?.absent_days ?? 0)} />
-        <Stat label="Previous Month Remaining" value={money(salary?.prev_remaining ?? 0)} />
-        <Stat label="Previous Month Advance" value={money(salary?.prev_advance ?? 0)} />
-        <Stat label="Payment This Month" value={money(salary?.payment_this_month ?? 0)} />
-        <Stat label="This Month POS Katha" value={money(salary?.katha_purchases ?? 0)} />
-        <Stat label="Current Remaining Salary" value={money(salary?.remaining_salary ?? 0)} highlight />
-        <Stat label="Current Advance" value={money(salary?.advance_taken ?? 0)} />
-        <Stat label="Salary Deduction" value={money(salary?.deduction ?? 0)} />
+        <Stat label="Present Days" value={String(calc?.presentDays ?? 0)} />
+        <Stat label="Absent Days" value={String(calc?.absentDays ?? 0)} />
+        <Stat label="Opening Balance" value={money(calc?.openingBalance ?? 0)} />
+        <Stat label="Actual Earned Salary" value={money(calc?.earnedSalary ?? 0)} />
+        <Stat label="Salary Paid" value={money(calc?.salaryPaid ?? 0)} />
+        <Stat label="POS Amounts" value={money(calc?.posAmount ?? 0)} />
+        <Stat label="Received From Member" value={money(calc?.receivedAmount ?? 0)} />
+        <Stat label="Remaining Salary" value={money(calc?.remainingSalary ?? 0)} />
+        <Stat label="Actual Remaining Salary" value={money(calc?.actualRemainingSalary ?? 0)} highlight />
         <Stat label="Staff Katha Balance" value={money(staff.katha_balance)} />
       </div>
+
+      {/* Opening balance carried from last month — automatic, adjustable */}
+      <Card className="p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Opening Balance for {month}</div>
+            <div className="text-sm font-semibold">
+              {money(calc?.openingBalance ?? 0)}{" "}
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {calc?.openingManual ? "(manually set)" : "(carried automatically from last month)"}
+              </span>
+            </div>
+          </div>
+          <div className="no-print space-y-1">
+            <Label className="text-xs">Adjust opening balance</Label>
+            <Input
+              type="number"
+              className="h-9 w-[160px]"
+              value={openingEdit}
+              onChange={(e) => setOpeningEdit(e.target.value)}
+              placeholder={String(calc?.openingBalance ?? 0)}
+            />
+          </div>
+          <Button className="no-print" onClick={() => saveOpening.mutate()} disabled={saveOpening.isPending}>Save Opening</Button>
+        </div>
+      </Card>
+
+
 
       {/* POS purchase history */}
       <Card className="overflow-hidden">

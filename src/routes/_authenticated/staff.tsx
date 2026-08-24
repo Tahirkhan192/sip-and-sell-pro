@@ -231,18 +231,21 @@ function StaffPage() {
               <th className="text-right p-2">Present</th>
               <th className="text-right p-2">Absent</th>
               <th className="text-right p-2">Salary</th>
+              <th className="text-right p-2">Earned Salary</th>
               <th className="text-right p-2">Payment This Month</th>
               <th className="text-right p-2">Staff Katha</th>
               <th className="text-right p-2">Remaining Salary</th>
+              <th className="text-right p-2">Actual Remaining Salary</th>
               <th className="text-right p-2">Advance</th>
               <th className="text-left p-2">Status</th>
               <th className="text-right p-2 no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {staff.length === 0 && <tr><td colSpan={11} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
+            {staff.length === 0 && <tr><td colSpan={13} className="p-4 text-center text-muted-foreground">No staff yet</td></tr>}
             {staff.map((s) => {
               const r = salaryMap[s.id];
+              const c = calcMap?.[s.id];
               const a = attMap[s.id] ?? "present"; // present by default each business day
               return (
                 <tr key={s.id} className="border-t hover:bg-accent/30">
@@ -261,12 +264,14 @@ function StaffPage() {
                     </div>
                     <div className="hidden print:block text-center capitalize">{a}</div>
                   </td>
-                  <td className="p-2 text-right">{r?.present_days ?? 0}</td>
-                  <td className="p-2 text-right">{r?.absent_days ?? 0}</td>
+                  <td className="p-2 text-right">{c?.presentDays ?? r?.present_days ?? 0}</td>
+                  <td className="p-2 text-right">{c?.absentDays ?? r?.absent_days ?? 0}</td>
                   <td className="p-2 text-right">{money(s.monthly_salary)}</td>
+                  <td className="p-2 text-right">{money(c?.earnedSalary ?? 0)}</td>
                   <td className="p-2 text-right">{money(n(r?.salary_paid) + n(r?.advance_taken))}</td>
                   <td className="p-2 text-right">{money(s.katha_balance)}</td>
-                  <td className={`p-2 text-right font-medium ${n(r?.remaining_salary) < 0 ? "text-destructive" : ""}`}>{money(r?.remaining_salary ?? 0)}</td>
+                  <td className={`p-2 text-right ${n(c?.remainingSalary) < 0 ? "text-destructive" : ""}`}>{money(c?.remainingSalary ?? 0)}</td>
+                  <td className={`p-2 text-right font-medium ${n(c?.actualRemainingSalary) < 0 ? "text-destructive" : ""}`}>{money(c?.actualRemainingSalary ?? 0)}</td>
                   <td className="p-2 text-right">{money(r?.advance_taken ?? 0)}</td>
                   <td className="p-2">
                     <Badge variant={s.status === "active" ? "secondary" : "outline"} className="capitalize">{s.status}</Badge>
