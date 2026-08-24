@@ -116,17 +116,17 @@ function StaffDetailPage() {
         <Stat label="Position" value={staff.role ?? "Staff"} />
         <Stat label="Joining Date" value={staff.joining_date} />
         <Stat label="Monthly Salary" value={money(staff.monthly_salary)} />
-        <Stat label="Daily Salary" value={money(dailySalary)} />
+        <Stat label="Daily Base Salary" value={money(calc?.dailyBase ?? dailySalary)} />
         <Stat label="Status" value={staff.status === "active" ? "Active" : "Inactive"} />
-        <Stat label="Present Days" value={String(salary?.present_days ?? 0)} />
-        <Stat label="Absent Days" value={String(salary?.absent_days ?? 0)} />
-        <Stat label="Previous Month Remaining" value={money(salary?.prev_remaining ?? 0)} />
-        <Stat label="Previous Month Advance" value={money(salary?.prev_advance ?? 0)} />
-        <Stat label="Payment This Month" value={money(salary?.payment_this_month ?? 0)} />
-        <Stat label="This Month POS Katha" value={money(salary?.katha_purchases ?? 0)} />
-        <Stat label="Current Remaining Salary" value={money(salary?.remaining_salary ?? 0)} highlight />
-        <Stat label="Current Advance" value={money(salary?.advance_taken ?? 0)} />
-        <Stat label="Salary Deduction" value={money(salary?.deduction ?? 0)} />
+        <Stat label="Present Days" value={String(calc?.presentDays ?? 0)} />
+        <Stat label="Absent Days" value={String(calc?.absentDays ?? 0)} />
+        <Stat label="Opening Balance" value={money(calc?.openingBalance ?? 0)} />
+        <Stat label="Actual Earned Salary" value={money(calc?.earnedSalary ?? 0)} />
+        <Stat label="Salary Paid" value={money(calc?.salaryPaid ?? 0)} />
+        <Stat label="POS Amounts" value={money(calc?.posAmount ?? 0)} />
+        <Stat label="Received From Member" value={money(calc?.receivedAmount ?? 0)} />
+        <Stat label="Remaining Salary" value={money(calc?.remainingSalary ?? 0)} />
+        <Stat label="Actual Remaining Salary" value={money(calc?.actualRemainingSalary ?? 0)} highlight />
         <Stat label="Staff Katha Balance" value={money(staff.katha_balance)} />
       </div>
 
