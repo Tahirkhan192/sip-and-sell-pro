@@ -130,6 +130,34 @@ function StaffDetailPage() {
         <Stat label="Staff Katha Balance" value={money(staff.katha_balance)} />
       </div>
 
+      {/* Opening balance carried from last month — automatic, adjustable */}
+      <Card className="p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Opening Balance for {month}</div>
+            <div className="text-sm font-semibold">
+              {money(calc?.openingBalance ?? 0)}{" "}
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {calc?.openingManual ? "(manually set)" : "(carried automatically from last month)"}
+              </span>
+            </div>
+          </div>
+          <div className="no-print space-y-1">
+            <Label className="text-xs">Adjust opening balance</Label>
+            <Input
+              type="number"
+              className="h-9 w-[160px]"
+              value={openingEdit}
+              onChange={(e) => setOpeningEdit(e.target.value)}
+              placeholder={String(calc?.openingBalance ?? 0)}
+            />
+          </div>
+          <Button className="no-print" onClick={() => saveOpening.mutate()} disabled={saveOpening.isPending}>Save Opening</Button>
+        </div>
+      </Card>
+
+
+
       {/* POS purchase history */}
       <Card className="overflow-hidden">
         <div className="border-b px-3 py-2 text-sm font-semibold">POS Purchase History</div>
