@@ -231,9 +231,11 @@ function StaffPage() {
               <th className="text-right p-2">Present</th>
               <th className="text-right p-2">Absent</th>
               <th className="text-right p-2">Salary</th>
+              <th className="text-right p-2">Earned Salary</th>
               <th className="text-right p-2">Payment This Month</th>
               <th className="text-right p-2">Staff Katha</th>
               <th className="text-right p-2">Remaining Salary</th>
+              <th className="text-right p-2">Actual Remaining Salary</th>
               <th className="text-right p-2">Advance</th>
               <th className="text-left p-2">Status</th>
               <th className="text-right p-2 no-print">Actions</th>
