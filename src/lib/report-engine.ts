@@ -205,11 +205,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
         .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
-  /** Attendance never counts days after today, and is paged so no day is dropped. */
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary, joining_date").is("deleted_at", null);
+  /** Absences only — every other day up to today counts as present (same rule as Staff Management). */
+  const todayIso = businessToday();
   const buildAttendance = () => {
-    let q = (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").order("date", { ascending: true });
+    let q = (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "absent").order("date", { ascending: true });
     if (range.from) q = q.gte("date", range.from);
     const end = range.to && range.to < todayIso ? range.to : todayIso;
     return q.lte("date", end);
