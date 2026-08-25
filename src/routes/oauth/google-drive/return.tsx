@@ -25,13 +25,28 @@ function OAuthReturn() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const opener = window.opener;
+
     const finish = (type: "ok" | "failed", code?: string) => {
-      window.opener?.postMessage(
-        { type: type === "ok" ? "driveConnectComplete" : "driveConnectFailed", code: code ?? null },
-        window.location.origin,
-      );
-      window.close();
+      if (opener) {
+        opener.postMessage(
+          { type: type === "ok" ? "driveConnectComplete" : "driveConnectFailed", code: code ?? null },
+          window.location.origin,
+        );
+        window.close();
+        return;
+      }
+      // Same-window sign-in (pop-ups blocked): finish here, then go to Settings.
+      if (type !== "ok" || !code) {
+        setMessage(params.get("error") ?? "Google did not complete the connection.");
+        return;
+      }
+      import("@/lib/drive-sync")
+        .then((m) => m.finishDriveConnect(code))
+        .then(() => { window.location.replace("/settings"); })
+        .catch((err) => setMessage(err instanceof Error ? err.message : String(err)));
     };
+
     if (params.get("success") !== "true") {
       setMessage(params.get("error") ?? "Google did not complete the connection.");
       finish("failed");
