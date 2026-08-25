@@ -14,6 +14,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { StockPinDialog } from "@/components/StockPinDialog";
 import { money } from "@/lib/format";
 import { businessToday } from "@/lib/business-date";
+import { useStaffSalaries } from "@/lib/staff-salary";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Check, X, Wallet, HandCoins, Banknote } from "lucide-react";
 
