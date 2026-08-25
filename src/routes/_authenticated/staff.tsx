@@ -171,16 +171,19 @@ function StaffPage() {
 
   const totals = useMemo(() => {
     const rows = salary as SalaryRow[];
+    const calcRows = Object.values(calcMap ?? {});
     return {
       staff: staff.length,
       monthly: rows.reduce((s, r) => s + n(r.monthly_salary), 0),
       paid: rows.reduce((s, r) => s + n(r.salary_paid), 0),
-      remaining: rows.reduce((s, r) => s + n(r.remaining_salary), 0),
+      remaining: calcRows.reduce((s, r) => s + n(r.remainingSalary), 0),
+      earned: calcRows.reduce((s, r) => s + n(r.earnedSalary), 0),
+      actualRemaining: calcRows.reduce((s, r) => s + n(r.actualRemainingSalary), 0),
       advance: rows.reduce((s, r) => s + n(r.advance_taken), 0),
       deduction: rows.reduce((s, r) => s + n(r.deduction), 0),
       katha: staff.reduce((s, r) => s + n(r.katha_balance), 0),
     };
-  }, [salary, staff]);
+  }, [salary, staff, calcMap]);
 
   function askPin(title: string, action: () => void) {
     setPin({ open: true, title, action });
