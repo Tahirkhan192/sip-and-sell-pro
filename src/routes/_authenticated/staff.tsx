@@ -206,8 +206,10 @@ function StaffPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
         <Stat label="Total Staff" value={String(totals.staff)} />
         <Stat label="Monthly Salary" value={money(totals.monthly)} />
+        <Stat label="Actual Earned Salary" value={money(totals.earned)} />
         <Stat label="Salary Paid" value={money(totals.paid)} />
         <Stat label="Remaining Salary" value={money(totals.remaining)} />
+        <Stat label="Actual Remaining Salary" value={money(totals.actualRemaining)} />
         <Stat label="Total Advance" value={money(totals.advance)} />
         <Stat label="Salary Deduction" value={money(totals.deduction)} />
         <Stat label="Staff Katha Outstanding" value={money(totals.katha)} />
