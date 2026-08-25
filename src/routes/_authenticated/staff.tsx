@@ -104,6 +104,10 @@ function StaffPage() {
     return m;
   }, [salary]);
 
+  const { data: calcMap } = useStaffSalaries(month);
+
+
+
   const purchasesMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const s of kathaSales as any[]) {
