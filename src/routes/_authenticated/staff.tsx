@@ -14,6 +14,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { StockPinDialog } from "@/components/StockPinDialog";
 import { money } from "@/lib/format";
 import { businessToday } from "@/lib/business-date";
+import { useStaffSalaries } from "@/lib/staff-salary";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Check, X, Wallet, HandCoins, Banknote } from "lucide-react";
 
@@ -104,6 +105,10 @@ function StaffPage() {
     return m;
   }, [salary]);
 
+  const { data: calcMap } = useStaffSalaries(month);
+
+
+
   const purchasesMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const s of kathaSales as any[]) {
@@ -166,16 +171,19 @@ function StaffPage() {
 
   const totals = useMemo(() => {
     const rows = salary as SalaryRow[];
+    const calcRows = Object.values(calcMap ?? {});
     return {
       staff: staff.length,
       monthly: rows.reduce((s, r) => s + n(r.monthly_salary), 0),
       paid: rows.reduce((s, r) => s + n(r.salary_paid), 0),
-      remaining: rows.reduce((s, r) => s + n(r.remaining_salary), 0),
+      remaining: calcRows.reduce((s, r) => s + n(r.remainingSalary), 0),
+      earned: calcRows.reduce((s, r) => s + n(r.earnedSalary), 0),
+      actualRemaining: calcRows.reduce((s, r) => s + n(r.actualRemainingSalary), 0),
       advance: rows.reduce((s, r) => s + n(r.advance_taken), 0),
       deduction: rows.reduce((s, r) => s + n(r.deduction), 0),
       katha: staff.reduce((s, r) => s + n(r.katha_balance), 0),
     };
-  }, [salary, staff]);
+  }, [salary, staff, calcMap]);
 
   function askPin(title: string, action: () => void) {
     setPin({ open: true, title, action });
@@ -198,8 +206,10 @@ function StaffPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
         <Stat label="Total Staff" value={String(totals.staff)} />
         <Stat label="Monthly Salary" value={money(totals.monthly)} />
+        <Stat label="Actual Earned Salary" value={money(totals.earned)} />
         <Stat label="Salary Paid" value={money(totals.paid)} />
         <Stat label="Remaining Salary" value={money(totals.remaining)} />
+        <Stat label="Actual Remaining Salary" value={money(totals.actualRemaining)} />
         <Stat label="Total Advance" value={money(totals.advance)} />
         <Stat label="Salary Deduction" value={money(totals.deduction)} />
         <Stat label="Staff Katha Outstanding" value={money(totals.katha)} />

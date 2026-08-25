@@ -105,22 +105,33 @@ export function isDriveConnected(): boolean {
  * saves the connection on this computer.
  */
 export async function connectDriveAccount(): Promise<void> {
-  const popup = window.open("", "kdf-google-drive", "width=520,height=680");
-  if (!popup) throw new Error("Allow pop-up windows and try again.");
+  // Ask for the Google address FIRST, then open the window straight on it.
+  // Opening a blank window and redirecting it is what Google refuses to load
+  // ("accounts.google.com is blocked").
+  const start = await fetch(`/api/drive-connect?start=1&device=${encodeURIComponent(driveDeviceId())}`);
+  const body = (await start.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string };
+  if (!start.ok || !body.authorizationUrl) throw new Error(body.error ?? "Could not open the Google window.");
 
-  const waitForCode = new Promise<string>((resolve, reject) => {
+  const popup = window.open(body.authorizationUrl, "kdf-google-drive", "width=520,height=680,noopener=no");
+  if (!popup) {
+    // Pop-ups blocked — finish in this same window instead of failing.
+    window.location.href = body.authorizationUrl;
+    return;
+  }
+
+  const code = await new Promise<string>((resolve, reject) => {
     let poll: number | undefined;
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
       if (poll !== undefined) window.clearInterval(poll);
     };
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== popup) return;
+      if (event.origin !== window.location.origin) return;
       const type = (event.data as { type?: string })?.type;
       if (type !== "driveConnectComplete" && type !== "driveConnectFailed") return;
       cleanup();
-      const code = (event.data as { code?: string })?.code;
-      if (type === "driveConnectComplete" && code) resolve(code);
+      const received = (event.data as { code?: string })?.code;
+      if (type === "driveConnectComplete" && received) resolve(received);
       else reject(new Error("The Google window closed without connecting."));
     };
     window.addEventListener("message", onMessage);
@@ -132,18 +143,18 @@ export async function connectDriveAccount(): Promise<void> {
     }, 500);
   });
 
-  let code: string;
-  try {
-    const start = await fetch(`/api/drive-connect?start=1&device=${encodeURIComponent(driveDeviceId())}`);
-    const body = (await start.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string };
-    if (!start.ok || !body.authorizationUrl) throw new Error(body.error ?? "Could not open the Google window.");
-    popup.location.href = body.authorizationUrl;
-    code = await waitForCode;
-  } catch (err) {
-    popup.close();
-    throw err;
-  }
+  const done = await fetch("/api/drive-connect", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const result = (await done.json().catch(() => ({}))) as { token?: string; error?: string };
+  if (!done.ok || !result.token) throw new Error(result.error ?? "Could not save the Google account.");
+  writeDriveToken(result.token);
+}
 
+/** Finishes a connection that came back in this same window (pop-up blocked). */
+export async function finishDriveConnect(code: string): Promise<void> {
   const done = await fetch("/api/drive-connect", {
     method: "POST",
     headers: { "content-type": "application/json" },

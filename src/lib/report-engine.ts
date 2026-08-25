@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { businessDateOf, type RangeResult } from "@/lib/business-date";
+import { businessDateOf, businessToday, type RangeResult } from "@/lib/business-date";
 import { num } from "@/lib/format";
 import { fetchInventoryEngine } from "@/lib/inventory-engine";
 
@@ -205,11 +205,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
         .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
     : Promise.resolve({ data: [], error: null });
 
-  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary").is("deleted_at", null);
-  /** Attendance never counts days after today, and is paged so no day is dropped. */
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const staffPromise = (supabase as any).from("staff").select("id, monthly_salary, joining_date").is("deleted_at", null);
+  /** Absences only — every other day up to today counts as present (same rule as Staff Management). */
+  const todayIso = businessToday();
   const buildAttendance = () => {
-    let q = (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "present").order("date", { ascending: true });
+    let q = (supabase as any).from("staff_attendance").select("staff_id, status, date").eq("status", "absent").order("date", { ascending: true });
     if (range.from) q = q.gte("date", range.from);
     const end = range.to && range.to < todayIso ? range.to : todayIso;
     return q.lte("date", end);
@@ -238,18 +238,26 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const openingSnapshot: Record<string, number> = {};
   for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
-  // Staff salary cost = for each member, (monthly salary ÷ 30) × their present days
-  // in the period (up to today), rounded per member, then all members added together.
-  const perDayById: Record<string, number> = {};
-  for (const s of (((staffQ as any).data ?? []) as any[])) perDayById[s.id] = num(s.monthly_salary) / 30;
-  const presentDays: Record<string, Set<string>> = {};
+  // Payable salary per member = (monthly salary ÷ 30) × present days in the period,
+  // where present days = days elapsed up to today minus recorded absences.
+  // Rounded per member, then all members added together (same as Staff Management).
+  const absentDays: Record<string, Set<string>> = {};
   for (const a of ((attendanceQ as any[]) ?? [])) {
-    if (!(a.staff_id in perDayById)) continue; // removed staff cost nothing
-    (presentDays[a.staff_id] ??= new Set<string>()).add(String(a.date).slice(0, 10));
+    (absentDays[a.staff_id] ??= new Set<string>()).add(String(a.date).slice(0, 10));
   }
+  const periodEnd = range.to && range.to < todayIso ? range.to : todayIso;
   let staffSalaryCost = 0;
-  for (const [staffId, days] of Object.entries(presentDays)) {
-    staffSalaryCost += Math.round(perDayById[staffId] * days.size * 100) / 100;
+  for (const s of (((staffQ as any).data ?? []) as any[])) {
+    const perDay = num(s.monthly_salary) / 30;
+    const joined = String(s.joining_date ?? "");
+    const start = range.from && range.from > joined ? range.from : joined || range.from;
+    if (!start || !periodEnd || periodEnd < start) continue;
+    const elapsed = Math.max(
+      0,
+      Math.floor((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1,
+    );
+    const present = Math.max(0, elapsed - (absentDays[s.id]?.size ?? 0));
+    staffSalaryCost += Math.round(perDay * present * 100) / 100;
   }
   staffSalaryCost = Math.round(staffSalaryCost * 100) / 100;
 
