@@ -69,7 +69,21 @@ async function findSnapshot(request: Request): Promise<{ file: DriveFile | null;
   );
   if (!res.ok) return { file: null, error: await relay(res, "search") };
   const body = (await res.json()) as { files?: DriveFile[] };
-  return { file: body.files?.[0] ?? null };
+  const files = body.files ?? [];
+  const newest = files[0] ?? null;
+
+  // Older releases could race two initial uploads and leave multiple files
+  // with the same name. Keep the newest snapshot and move every duplicate to
+  // Drive trash so future backup/restore always has one authoritative file.
+  for (const duplicate of files.slice(1)) {
+    const cleanup = await fetch(`${GATEWAY}/drive/v3/files/${duplicate.id}?fields=id,trashed`, {
+      method: "PATCH",
+      headers: { ...(await headers(request)), "content-type": "application/json" },
+      body: JSON.stringify({ trashed: true }),
+    });
+    if (!cleanup.ok) console.error(`[drive] duplicate cleanup failed [${cleanup.status}]: ${await cleanup.text()}`);
+  }
+  return { file: newest };
 }
 
 export const Route = createFileRoute("/api/drive")({

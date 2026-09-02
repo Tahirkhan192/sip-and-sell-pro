@@ -86,6 +86,8 @@ function Page() {
       qc.invalidateQueries({ queryKey: ["customers"] });
       qc.invalidateQueries({ queryKey: ["report"] });
       qc.invalidateQueries({ queryKey: ["daily_closing"] });
+      qc.invalidateQueries({ queryKey: ["digi_katha"] });
+      qc.invalidateQueries({ queryKey: ["staff"] });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed"),
   });

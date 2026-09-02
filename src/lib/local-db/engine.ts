@@ -51,6 +51,13 @@ async function init(): Promise<Engine> {
   // Closing, reports, POS business date) stops matching.
   const db = new PGlite(DATA_DIR, { parsers: { 1082: (value: string) => value } });
   await db.waitReady;
+  // Ask Chromium not to evict this origin's IndexedDB under storage pressure.
+  // In Electron it is physically held inside the configured D:\app data profile.
+  try {
+    await navigator.storage?.persist?.();
+  } catch {
+    /* persistence request is best-effort; database writes remain local */
+  }
   await db.exec("SET TIME ZONE 'UTC';");
 
   const installed = await db.query<{ ok: boolean }>(
