@@ -19,11 +19,21 @@ const fs = require("fs");
 // IndexedDB database) under D:\app data. KDF_DATA_DIR can override this for
 // managed installations; computers without a D: drive use normal AppData.
 const requestedDataDir = process.env.KDF_DATA_DIR?.trim();
-const windowsDataDir = "D:\\app data\\KhyberDeliciousFood";
+const legacyDataDir = path.join(app.getPath("appData"), "KhyberDeliciousFood");
+const windowsDataDir = "D:\\app data";
 const DATA_DIR = requestedDataDir || (process.platform === "win32" && fs.existsSync("D:\\")
   ? windowsDataDir
-  : path.join(app.getPath("appData"), "KhyberDeliciousFood"));
+  : legacyDataDir);
 fs.mkdirSync(DATA_DIR, { recursive: true });
+// First run after this update: retain the existing local database, passcode,
+// Drive connection and settings instead of starting a blank profile on D:.
+if (DATA_DIR !== legacyDataDir && fs.existsSync(legacyDataDir) && !fs.existsSync(path.join(DATA_DIR, "IndexedDB"))) {
+  try {
+    fs.cpSync(legacyDataDir, DATA_DIR, { recursive: true, force: false, errorOnExist: false });
+  } catch {
+    /* If migration is unavailable, the packaged seed still opens normally. */
+  }
+}
 app.setPath("userData", DATA_DIR);
 app.setName("Khyber Delicious Food");
 
