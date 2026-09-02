@@ -515,19 +515,12 @@ function POS() {
         }
       }
 
-      // Staff katha sale: link the invoice to the staff member and add the unpaid
-      // amount to their katha balance. No money movement is created (goods sold on credit).
+      // Staff katha sale: link the invoice to the staff member. The database
+      // trigger recomputes the balance from invoice history, avoiding duplicate
+      // increments when the same sale is edited or retried.
       if (saleData && !editId && staffId) {
-        await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
-        if (katha && status === "completed") {
-          const owed = Math.max(0, round2(num(saleData.grand_total) - num(saleData.cash_paid) - num(saleData.online_paid)));
-          if (owed > 0) {
-            const { data: st } = await supabase.from("staff" as any).select("katha_balance").eq("id", staffId).maybeSingle();
-            await supabase.from("staff" as any)
-              .update({ katha_balance: round2(num((st as any)?.katha_balance) + owed) })
-              .eq("id", staffId);
-          }
-        }
+        const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
+        if (staffLinkError) throw staffLinkError;
       }
 
 
@@ -580,6 +573,7 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["cash_movements"] });
       qc.invalidateQueries({ queryKey: ["daily_closing"] });
       qc.invalidateQueries({ queryKey: ["report"] });
+      qc.invalidateQueries({ queryKey: ["digi_katha"] });
     },
     onError: (e: any) => {
       if (e instanceof SaveInProgress) return;

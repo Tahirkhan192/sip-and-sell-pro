@@ -165,7 +165,8 @@ async function loadInput(): Promise<StaffSalaryInput> {
       .not("staff_id", "is", null)
       .eq("katha", true)
       .eq("status", "completed")
-      .is("deleted_at", null),
+      .is("deleted_at", null)
+      .eq("hidden", false),
     supabase.from("staff_month_carry" as any).select("staff_id, year, month, prev_remaining, prev_advance"),
   ]);
   return {

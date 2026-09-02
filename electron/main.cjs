@@ -13,13 +13,26 @@
 const { app, BrowserWindow, Menu, dialog, shell, session } = require("electron");
 const path = require("path");
 const net = require("net");
+const fs = require("fs");
 
-// Keep all local data in one clearly named folder next to the other app data.
-const DATA_DIR = path.join(app.getPath("appData"), "KhyberDeliciousFood");
+// On Windows keep the complete Chromium profile (including the PGlite
+// IndexedDB database) under D:\app data. KDF_DATA_DIR can override this for
+// managed installations; computers without a D: drive use normal AppData.
+const requestedDataDir = process.env.KDF_DATA_DIR?.trim();
+const windowsDataDir = "D:\\app data\\KhyberDeliciousFood";
+const DATA_DIR = requestedDataDir || (process.platform === "win32" && fs.existsSync("D:\\")
+  ? windowsDataDir
+  : path.join(app.getPath("appData"), "KhyberDeliciousFood"));
+fs.mkdirSync(DATA_DIR, { recursive: true });
 app.setPath("userData", DATA_DIR);
 app.setName("Khyber Delicious Food");
 
 let serverPort = 0;
+const FIXED_PORT = Number(process.env.KDF_PORT) || 47831;
+
+// One running copy means one stable loopback origin and one local database.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
 
 // Keys needed only for the optional Google Drive backup. They are written into
 // the package when it is built; without them the app still runs completely
@@ -35,19 +48,10 @@ try {
 }
 
 
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.listen(0, "127.0.0.1", () => {
-      const { port } = srv.address();
-      srv.close(() => resolve(port));
-    });
-    srv.on("error", reject);
-  });
-}
-
 async function startServer() {
-  serverPort = await freePort();
+  // IndexedDB is scoped by origin. A random port creates a different database
+  // on every launch, so the desktop app must always use the same port.
+  serverPort = FIXED_PORT;
   process.env.PORT = String(serverPort);
   process.env.HOST = "127.0.0.1";
   process.env.NITRO_PORT = String(serverPort);
@@ -199,7 +203,14 @@ async function createWindow() {
   await win.loadURL(`http://127.0.0.1:${serverPort}/`);
 }
 
-app.whenReady().then(async () => {
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
+
+if (hasSingleInstanceLock) app.whenReady().then(async () => {
   try {
     await clearStaleWebCaches();
     await startServer();

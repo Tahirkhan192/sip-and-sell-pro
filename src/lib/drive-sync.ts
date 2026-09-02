@@ -5,7 +5,7 @@
  * In the background the app keeps one snapshot file on Google Drive in step:
  *
  *   - when the app opens it pulls the Drive snapshot if it is newer,
- *   - afterwards it pushes the local data every few minutes whenever it changed.
+ *   - afterwards it pushes the local data hourly whenever it changed.
  *
  * Losing the internet never blocks anything — the app just keeps working and
  * syncs again the next time Drive answers.
@@ -17,7 +17,7 @@ import { applyBackup } from "@/data/backup/apply";
 import { validateBackup } from "@/data/backup/restore";
 import type { BackupFile } from "@/data/backup/format";
 
-export const SYNC_INTERVAL_MS = 3 * 60 * 1000;
+export const SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const STATE_KEY = "kdf.driveSync.v1";
 
 export type SyncState = {
@@ -197,24 +197,36 @@ export async function driveAccount(): Promise<DriveAccount> {
 
 
 
+let pushInFlight: Promise<{ pushed: boolean; reason?: string }> | null = null;
+
 /** Uploads the whole local database to Drive. Skipped when nothing changed. */
 export async function pushToDrive(force = false): Promise<{ pushed: boolean; reason?: string }> {
-  const backup = await exportFullBackup();
-  const payload = JSON.stringify(backup);
-  const digest = hash(payload);
-  if (!force && readSyncState().lastHash === digest) return { pushed: false, reason: "No changes" };
+  if (pushInFlight) return pushInFlight;
+  pushInFlight = (async () => {
+    const backup = await exportFullBackup();
+    const payload = JSON.stringify(backup);
+    // createdAt changes on every export; exclude it when deciding whether the
+    // database itself changed.
+    const digest = hash(JSON.stringify({ ...backup, createdAt: "" }));
+    if (!force && readSyncState().lastHash === digest) return { pushed: false, reason: "No changes" };
 
-  const res = await fetch("/api/drive", {
-    method: "POST",
-    headers: driveHeaders({ "content-type": "application/json" }),
-    body: payload,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(body || `Upload failed (${res.status})`);
+    const res = await fetch("/api/drive", {
+      method: "POST",
+      headers: driveHeaders({ "content-type": "application/json" }),
+      body: payload,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(body || `Upload failed (${res.status})`);
+    }
+    writeSyncState({ lastHash: digest, lastPushAt: new Date().toISOString(), lastError: undefined });
+    return { pushed: true };
+  })();
+  try {
+    return await pushInFlight;
+  } finally {
+    pushInFlight = null;
   }
-  writeSyncState({ lastHash: digest, lastPushAt: new Date().toISOString(), lastError: undefined });
-  return { pushed: true };
 }
 
 /** Downloads the Drive snapshot without importing it (used by the phone viewer). */
@@ -244,7 +256,7 @@ export async function pullFromDrive(
 
 
 /**
- * Background sync: one pull when the app opens, then a push every few minutes
+ * Background sync: one pull when the app opens, then a push every hour
  * whenever the local data changed.
  */
 export function useDriveAutoSync() {
