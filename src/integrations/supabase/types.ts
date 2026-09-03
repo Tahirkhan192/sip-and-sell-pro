@@ -1386,6 +1386,7 @@ export type Database = {
           created_at: string
           id: string
           item_id: string
+          kind: string
           month: number
           quantity: number
           scope: string
@@ -1397,6 +1398,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id: string
+          kind?: string
           month: number
           quantity?: number
           scope: string
@@ -1408,6 +1410,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id?: string
+          kind?: string
           month?: number
           quantity?: number
           scope?: string
@@ -1702,6 +1705,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      lock_month_opening: {
+        Args: { _month: number; _rows: Json; _year: number }
+        Returns: number
       }
       mark_whatsapp_status: {
         Args: { _sale_id: string; _status: string }
