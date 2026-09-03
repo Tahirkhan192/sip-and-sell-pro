@@ -11,12 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
 import { StockAvailability, useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
+import { OpeningStockHistory } from "@/components/OpeningStockHistory";
+import { buildLockRows, lockMonthOpening, monthLabel, previousMonthOf } from "@/lib/month-opening";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
 import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/stock")({ component: Page });
 
