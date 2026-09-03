@@ -22,15 +22,29 @@ export const Route = createFileRoute("/_authenticated/stock")({ component: Page 
 
 function Page() {
   const qc = useQueryClient();
+  const now = new Date();
+  const [lockOpen, setLockOpen] = useState(false);
+  const [lockYear, setLockYear] = useState(now.getFullYear());
+  const [lockMonth, setLockMonth] = useState(now.getMonth() + 1);
+  const prev = previousMonthOf(lockYear, lockMonth);
+
+  const preview = useQuery({
+    queryKey: ["lock-preview", lockOpen],
+    queryFn: buildLockRows,
+    enabled: lockOpen,
+  });
+
   const setOpening = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("set_opening_stock_from_current" as any);
-      if (error) throw error;
+      const rows = preview.data ?? (await buildLockRows());
+      return lockMonthOpening(lockYear, lockMonth, rows);
     },
-    onSuccess: () => {
-      toast.success("Opening stock updated for all products and stock items");
+    onSuccess: (count) => {
+      toast.success(`Saved: opening of ${monthLabel(lockYear, lockMonth)} and closing of ${monthLabel(prev.year, prev.month)} (${count} items)`);
+      setLockOpen(false);
       qc.invalidateQueries({ queryKey: ["stock"] });
       qc.invalidateQueries({ queryKey: ["stock-monthly"] });
+      qc.invalidateQueries({ queryKey: ["stock-opening-history"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["report"] });
@@ -44,31 +58,56 @@ function Page() {
         title="Stock"
         subtitle="Current stock & monthly movement"
         action={
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (confirm("Copy current stock into Opening Stock for ALL products and stock items? Use this at month start after physical adjustment.")) {
-                setOpening.mutate();
-              }
-            }}
-            disabled={setOpening.isPending}
-          >
-            <CalendarClock className="h-4 w-4 mr-1" />Set Current Stock As Opening Stock
+          <Button variant="outline" onClick={() => setLockOpen(true)}>
+            <CalendarClock className="h-4 w-4 mr-1" />Set As Opening Stock
           </Button>
         }
       />
+
+      <Dialog open={lockOpen} onOpenChange={(v) => { if (!setOpening.isPending) setLockOpen(v); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set As Opening Stock</DialogTitle>
+            <DialogDescription>
+              The current stock of every product and stock item (after all adjustments) is written into the
+              opening of the selected month and saved as the closing of the previous month. Opening is replaced,
+              never added. Purchase price is carried automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <div className="space-y-1 flex-1"><Label className="text-xs">Opening Year</Label><Input type="number" value={lockYear} onChange={(e) => setLockYear(Number(e.target.value))} /></div>
+            <div className="space-y-1 flex-1"><Label className="text-xs">Opening Month</Label><Input type="number" min={1} max={12} value={lockMonth} onChange={(e) => setLockMonth(Number(e.target.value))} /></div>
+          </div>
+          <div className="rounded-md border p-3 text-sm space-y-1">
+            <div>Opening of <b>{monthLabel(lockYear, lockMonth)}</b></div>
+            <div>Closing of <b>{monthLabel(prev.year, prev.month)}</b></div>
+            <div className="text-muted-foreground">
+              {preview.isLoading ? "Reading current stock…" : `${preview.data?.length ?? 0} items will be saved`}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLockOpen(false)} disabled={setOpening.isPending}>Cancel</Button>
+            <Button onClick={() => setOpening.mutate()} disabled={setOpening.isPending || preview.isLoading}>
+              {setOpening.isPending ? "Saving…" : "Save Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="current">
         <TabsList>
           <TabsTrigger value="current">Current Stock</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
+          <TabsTrigger value="history">Opening / Closing History</TabsTrigger>
         </TabsList>
         <TabsContent value="current" className="pt-4"><CurrentStock /></TabsContent>
         <TabsContent value="monthly" className="pt-4"><MonthlyStock /></TabsContent>
+        <TabsContent value="history" className="pt-4"><OpeningStockHistory /></TabsContent>
       </Tabs>
     </div>
   );
 }
+
 
 function CurrentStock() {
   const [search, setSearch] = useState("");
