@@ -202,7 +202,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   // Locked opening-stock snapshot for the reported period (historical months never change).
   const snapshotPromise = range.from
     ? (supabase as any).from("stock_opening_snapshots").select("scope,item_id,quantity,unit_value")
-        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
+        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7))).eq("kind", "opening")
+
     : Promise.resolve({ data: [], error: null });
 
   const staffPromise = (supabase as any).from("staff").select("id, monthly_salary, joining_date").is("deleted_at", null);
