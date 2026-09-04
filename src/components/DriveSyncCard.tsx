@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { CloudUpload, CloudDownload, RefreshCw } from "lucide-react";
+import { CloudUpload, CloudDownload, RefreshCw, PackageSearch } from "lucide-react";
 import {
   driveStatus,
   pullFromDrive,
   pushToDrive,
+  restoreCatalogFromDrive,
   readSyncState,
   writeSyncState,
   type DriveStatus,
