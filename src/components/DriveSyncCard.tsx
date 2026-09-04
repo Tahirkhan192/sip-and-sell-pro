@@ -28,7 +28,7 @@ function when(iso?: string) {
 export function DriveSyncCard() {
   const [status, setStatus] = useState<DriveStatus | null>(null);
   const [state, setState] = useState<SyncState>(() => readSyncState());
-  const [busy, setBusy] = useState<"" | "push" | "pull">("");
+  const [busy, setBusy] = useState<"" | "push" | "pull" | "catalog">("");
 
   useEffect(() => {
     driveStatus().then(setStatus).catch(() => setStatus({ connected: false, reason: "Drive unreachable" }));
@@ -37,12 +37,20 @@ export function DriveSyncCard() {
     return () => window.removeEventListener("kdf-drive-sync", onChange);
   }, []);
 
-  async function run(kind: "push" | "pull") {
+  async function run(kind: "push" | "pull" | "catalog") {
     setBusy(kind);
     try {
       if (kind === "push") {
         const r = await pushToDrive(true);
         toast.success(r.pushed ? "Data sent to Google Drive" : "Already up to date");
+      } else if (kind === "catalog") {
+        const r = await restoreCatalogFromDrive();
+        toast.success(
+          r.restored
+            ? `Products and lists restored (${r.rows} records). Your sales and purchases were not changed.`
+            : r.reason ?? "Nothing to restore",
+        );
+        window.location.reload();
       } else {
         const r = await pullFromDrive();
         toast.success(r.pulled ? `Loaded ${r.rows} records from Google Drive` : r.reason ?? "Nothing to load");
