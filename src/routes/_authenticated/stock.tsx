@@ -132,7 +132,9 @@ function CurrentStock() {
   const { data: calcItems = [] } = useStockItemAvailable();
   const products = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of calcProducts) m[r.id] = r.remaining;
+    // Untracked products are excluded from the engine (remaining = 0) —
+    // keep their stored Current Stock so the column is never blanked out.
+    for (const r of calcProducts) if (r.tracked) m[r.id] = r.remaining;
     return (rawProducts as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
   }, [rawProducts, calcProducts]);
   const items = useMemo(() => {
