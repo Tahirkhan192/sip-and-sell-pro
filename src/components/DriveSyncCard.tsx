@@ -94,6 +94,10 @@ export function DriveSyncCard() {
           <Button variant="outline" onClick={() => driveStatus().then(setStatus)} disabled={!!busy}>
             <RefreshCw className="h-4 w-4 mr-2" /> Check
           </Button>
+          <Button variant="outline" onClick={() => run("catalog")} disabled={!!busy}>
+            <PackageSearch className="h-4 w-4 mr-2" />
+            {busy === "catalog" ? "Restoring…" : "Restore products only"}
+          </Button>
           <Button variant="outline" onClick={() => run("pull")} disabled={!!busy}>
             <CloudDownload className="h-4 w-4 mr-2" /> {busy === "pull" ? "Loading…" : "Get data from Drive"}
           </Button>
