@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { CloudUpload, CloudDownload, RefreshCw } from "lucide-react";
+import { CloudUpload, CloudDownload, RefreshCw, PackageSearch } from "lucide-react";
 import {
   driveStatus,
   pullFromDrive,
   pushToDrive,
+  restoreCatalogFromDrive,
   readSyncState,
   writeSyncState,
   type DriveStatus,
@@ -27,7 +28,7 @@ function when(iso?: string) {
 export function DriveSyncCard() {
   const [status, setStatus] = useState<DriveStatus | null>(null);
   const [state, setState] = useState<SyncState>(() => readSyncState());
-  const [busy, setBusy] = useState<"" | "push" | "pull">("");
+  const [busy, setBusy] = useState<"" | "push" | "pull" | "catalog">("");
 
   useEffect(() => {
     driveStatus().then(setStatus).catch(() => setStatus({ connected: false, reason: "Drive unreachable" }));
@@ -36,12 +37,20 @@ export function DriveSyncCard() {
     return () => window.removeEventListener("kdf-drive-sync", onChange);
   }, []);
 
-  async function run(kind: "push" | "pull") {
+  async function run(kind: "push" | "pull" | "catalog") {
     setBusy(kind);
     try {
       if (kind === "push") {
         const r = await pushToDrive(true);
         toast.success(r.pushed ? "Data sent to Google Drive" : "Already up to date");
+      } else if (kind === "catalog") {
+        const r = await restoreCatalogFromDrive();
+        toast.success(
+          r.restored
+            ? `Products and lists restored (${r.rows} records). Your sales and purchases were not changed.`
+            : r.reason ?? "Nothing to restore",
+        );
+        window.location.reload();
       } else {
         const r = await pullFromDrive();
         toast.success(r.pulled ? `Loaded ${r.rows} records from Google Drive` : r.reason ?? "Nothing to load");
@@ -84,6 +93,10 @@ export function DriveSyncCard() {
         <div className="flex flex-wrap gap-2 justify-end">
           <Button variant="outline" onClick={() => driveStatus().then(setStatus)} disabled={!!busy}>
             <RefreshCw className="h-4 w-4 mr-2" /> Check
+          </Button>
+          <Button variant="outline" onClick={() => run("catalog")} disabled={!!busy}>
+            <PackageSearch className="h-4 w-4 mr-2" />
+            {busy === "catalog" ? "Restoring…" : "Restore products only"}
           </Button>
           <Button variant="outline" onClick={() => run("pull")} disabled={!!busy}>
             <CloudDownload className="h-4 w-4 mr-2" /> {busy === "pull" ? "Loading…" : "Get data from Drive"}

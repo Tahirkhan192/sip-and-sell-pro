@@ -256,6 +256,35 @@ export async function pullFromDrive(
 
 
 /**
+ * Products and other lists only.
+ *
+ * Brings the product list, stock items, categories, recipes, customers,
+ * suppliers and staff back from the Google Drive copy. Sales, purchases,
+ * expenses, money movements and every other entry made on this computer are
+ * left exactly as they are.
+ */
+export const CATALOG_TABLES = [
+  "categories",
+  "expense_categories",
+  "money_movement_subcategories",
+  "suppliers",
+  "customers",
+  "employees",
+  "staff",
+  "products",
+  "stock_items",
+  "recipes",
+] as const;
+
+export async function restoreCatalogFromDrive(): Promise<{ restored: boolean; rows?: number; reason?: string }> {
+  const backup = await fetchDriveSnapshot();
+  if (!backup) return { restored: false, reason: "No data on Google Drive yet" };
+  const { rows } = await applyBackup(backup, undefined, CATALOG_TABLES);
+  writeSyncState({ lastPullAt: new Date().toISOString(), lastError: undefined });
+  return { restored: true, rows };
+}
+
+/**
  * Background sync: one pull when the app opens, then a push every hour
  * whenever the local data changed.
  */
