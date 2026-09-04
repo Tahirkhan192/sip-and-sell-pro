@@ -17,11 +17,13 @@ export type ApplyProgress = { table: string; index: number; total: number; rows:
 export async function applyBackup(
   backup: BackupFile,
   onProgress?: (p: ApplyProgress) => void,
+  only?: readonly string[],
 ): Promise<{ rows: number }> {
   const order = new Map(BACKUP_TABLES.map((t, i) => [t, i]));
-  const tables = [...backup.tables].sort(
-    (a, b) => (order.get(a.table) ?? 999) - (order.get(b.table) ?? 999),
-  );
+  const keep = only ? new Set(only) : null;
+  const tables = [...backup.tables]
+    .filter((t) => !keep || keep.has(t.table))
+    .sort((a, b) => (order.get(a.table) ?? 999) - (order.get(b.table) ?? 999));
 
   // Restored rows already carry their money movements and stock effects, so the
   // database rules are held back while they land — otherwise every purchase and
