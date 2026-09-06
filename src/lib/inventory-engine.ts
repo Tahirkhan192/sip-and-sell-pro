@@ -67,14 +67,29 @@ async function fetchAllPaged<T = any>(build: () => any, pageSize = 1000): Promis
   return out;
 }
 
+/** A missing optional history source must not hide the product catalogue. */
+async function fetchHistory<T = any>(build: () => any): Promise<T[]> {
+  try {
+    return await fetchAllPaged<T>(build);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchInventoryEngine(period: Period): Promise<InventorySnapshot> {
   const year = Number(period.from.slice(0, 4));
   const month = Number(period.from.slice(5, 7));
   const sb = supabase as any;
 
+  // Load the two master lists independently from movement history. This keeps
+  // every catalogue item visible even when an older/offline database does not
+  // yet contain one of the newer history fields.
+  const [prods, items] = await Promise.all([
+    fetchAllPaged(() => sb.from("products").select("*").order("name")),
+    fetchAllPaged(() => sb.from("stock_items").select("*").order("name")),
+  ]);
+
   const [
-    prods,
-    items,
     openRows,
     purRows,
     batchRows,
@@ -86,22 +101,20 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     expCatRows,
     adjustRows,
   ] = await Promise.all([
-    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").order("name")),
-    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").order("name")),
-    fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).eq("kind", "opening").order("item_id")),
-    fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
-    fetchAllPaged(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
-    fetchAllPaged(() => sb.from("production_batch_items").select("component_product_id,component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
+    fetchHistory(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).eq("kind", "opening").order("item_id")),
+    fetchHistory(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
+    fetchHistory(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
+    fetchHistory(() => sb.from("production_batch_items").select("component_product_id,component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
       .gte("production_batches.batch_date", period.from).lte("production_batches.batch_date", period.to).order("id")),
-    fetchAllPaged(() => sb.from("stock_transfers").select("product_id,stock_item_id,quantity,from_category,to_category").is("deleted_at", null)
+    fetchHistory(() => sb.from("stock_transfers").select("product_id,stock_item_id,quantity,from_category,to_category").is("deleted_at", null)
       .gte("created_at", period.startUTC).lt("created_at", period.endExclusiveUTC).order("id")),
-    fetchAllPaged(() => sb.from("expenses").select("source_product_id,source_stock_item_id,source_quantity").is("deleted_at", null).eq("is_stock_transfer", true)
+    fetchHistory(() => sb.from("expenses").select("source_product_id,source_stock_item_id,source_quantity").is("deleted_at", null).eq("is_stock_transfer", true)
       .gte("date", period.from).lte("date", period.to).order("id")),
-    fetchAllPaged(() => sb.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden,order_type)")
+    fetchHistory(() => sb.from("sale_items").select("product_id,quantity,sales!inner(sale_date,status,deleted_at,hidden,order_type)")
       .gte("sales.sale_date", period.startUTC).lt("sales.sale_date", period.endExclusiveUTC).order("id")),
-    fetchAllPaged(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
-    fetchAllPaged(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
-    fetchAllPaged(() => sb.from("stock_adjustments").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
+    fetchHistory(() => sb.from("recipes").select("parent_product_id,component_product_id,component_stock_item_id,quantity,applies_to").is("deleted_at", null).order("id")),
+    fetchHistory(() => sb.from("expense_categories").select("name").is("deleted_at", null).order("id")),
+    fetchHistory(() => sb.from("stock_adjustments").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
   ]);
   const prodsRes = { data: prods };
 
@@ -201,10 +214,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
 
   const round = (n: number) => Math.round(n * 1e6) / 1e6;
 
-  const products: ProductInventoryRow[] = ((prodsRes.data ?? []) as any[]).map((r) => {
+  const products: ProductInventoryRow[] = ((prodsRes.data ?? []) as any[]).filter((r) => !r.deleted_at).map((r) => {
     const tracked = r.track_stock !== false;
     const auto = r.auto_calc === true;
-    const salePrice = num(r.sale_price);
+    const salePrice = num(r.sale_price ?? r.price);
     const base = {
       id: r.id as string,
       name: r.name as string,
@@ -235,7 +248,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     };
   });
 
-  const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).map((r) => {
+  const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).filter((r) => !r.deleted_at).map((r) => {
     const auto = r.auto_calc === true;
     const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;

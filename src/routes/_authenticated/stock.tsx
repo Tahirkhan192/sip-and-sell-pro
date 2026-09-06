@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
-import { StockAvailability, useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
 import { OpeningStockHistory } from "@/components/OpeningStockHistory";
 import { buildLockRows, lockMonthOpening, monthLabel, previousMonthOf } from "@/lib/month-opening";
 import { money, num } from "@/lib/format";
@@ -120,11 +120,19 @@ function CurrentStock() {
 
   const { data: rawProducts = [] } = useQuery({
     queryKey: ["stock", "products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").order("name")).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("products").select("*").order("name");
+      if (error) throw error;
+      return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
+    },
   });
   const { data: rawItems = [] } = useQuery({
     queryKey: ["stock", "items"],
-    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").order("name")).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("stock_items").select("*").order("name");
+      if (error) throw error;
+      return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
+    },
   });
 
   // Single source of truth — same calculated Remaining as Reports and POS.
@@ -150,8 +158,6 @@ function CurrentStock() {
 
   return (
     <div className="space-y-6">
-      <StockAvailability />
-
       <div className="flex gap-2 flex-wrap">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -173,7 +179,7 @@ function CurrentStock() {
             <TableHeader><TableRow>
               <TableHead>Product</TableHead><TableHead>Category</TableHead>
               <TableHead className="text-right">Opening</TableHead>
-              <TableHead className="text-right">Current</TableHead>
+              <TableHead className="text-right">Closing (Current)</TableHead>
               <TableHead className="text-right">Min</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
               <TableHead>Status</TableHead>
@@ -209,7 +215,7 @@ function CurrentStock() {
             <TableHeader><TableRow>
               <TableHead>Item</TableHead><TableHead>Unit</TableHead>
               <TableHead className="text-right">Opening</TableHead>
-              <TableHead className="text-right">Current</TableHead>
+              <TableHead className="text-right">Closing (Current)</TableHead>
               <TableHead className="text-right">Min</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
               <TableHead>Status</TableHead>
