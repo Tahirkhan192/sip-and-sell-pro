@@ -5,3 +5,4 @@
 - [ ] Keep staff salary deductions sourced from valid staff Katha invoices.
 - [ ] Run Drive backup hourly and remove duplicate snapshot files.
 - [ ] Verify offline entry self-test/build signals and package final artifacts.
+- [x] Show every product and stock item in Current Stock; calculate automatic items and preserve saved quantities for manual items.

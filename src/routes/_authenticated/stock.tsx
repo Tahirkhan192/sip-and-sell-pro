@@ -120,11 +120,11 @@ function CurrentStock() {
 
   const { data: rawProducts = [] } = useQuery({
     queryKey: ["stock", "products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id,name,category,current_stock,minimum_stock,cost_price,opening_stock").order("name")).data ?? [],
   });
   const { data: rawItems = [] } = useQuery({
     queryKey: ["stock", "items"],
-    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").is("deleted_at", null).order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("stock_items").select("id,name,unit,current_stock,minimum_stock,purchase_price,opening_stock").order("name")).data ?? [],
   });
 
   // Single source of truth — same calculated Remaining as Reports and POS.
@@ -132,9 +132,7 @@ function CurrentStock() {
   const { data: calcItems = [] } = useStockItemAvailable();
   const products = useMemo(() => {
     const m: Record<string, number> = {};
-    // Untracked products are excluded from the engine (remaining = 0) —
-    // keep their stored Current Stock so the column is never blanked out.
-    for (const r of calcProducts) if (r.tracked) m[r.id] = r.remaining;
+    for (const r of calcProducts) m[r.id] = r.remaining;
     return (rawProducts as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
   }, [rawProducts, calcProducts]);
   const items = useMemo(() => {
