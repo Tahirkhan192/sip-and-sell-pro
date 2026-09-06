@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { money, num } from "@/lib/format";
 import { usePinGate } from "@/lib/pin-locks";
-import { buildRange } from "@/lib/business-date";
+import { buildRange, businessToday } from "@/lib/business-date";
 import { useInventoryEngine, type Period, type ProductInventoryRow, type StockItemInventoryRow } from "@/lib/inventory-engine";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 function currentPeriod(): Period {
-  const r = buildRange("month");
+  const r = buildRange("custom", "2000-01-01", businessToday());
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
 
@@ -66,7 +66,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground truncate">Products only · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">Opening to current date · {period.from} → {period.to}</p>
         </div>
         <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
@@ -176,7 +176,7 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold">Stock Item Available</h3>
-          <p className="text-[11px] text-muted-foreground">Raw stock items only · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground">Opening to current date · {period.from} → {period.to}</p>
         </div>
         <Input className="h-8 max-w-[200px] no-print" placeholder="Search item" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
