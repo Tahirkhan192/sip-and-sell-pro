@@ -86,8 +86,8 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     expCatRows,
     adjustRows,
   ] = await Promise.all([
-    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").is("deleted_at", null).order("name")),
-    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").is("deleted_at", null).order("name")),
+    fetchAllPaged(() => sb.from("products").select("id,name,category,opening_stock,current_stock,sale_price,auto_calc,track_stock").order("name")),
+    fetchAllPaged(() => sb.from("stock_items").select("id,name,unit,opening_stock,current_stock,purchase_price,avg_price_override,auto_calc").order("name")),
     fetchAllPaged(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).eq("kind", "opening").order("item_id")),
     fetchAllPaged(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
     fetchAllPaged(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
@@ -213,15 +213,6 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       auto,
       salePrice,
     };
-    // Stock Tracking OFF → unlimited stock, excluded from every calculation.
-    if (!tracked) {
-      return {
-        ...base,
-        opening: 0, purchases: 0, transferIn: 0, production: 0,
-        recipeUsage: 0, directSales: 0, transferOut: 0, manualAdjustment: 0,
-        remaining: 0, value: 0,
-      };
-    }
     const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
