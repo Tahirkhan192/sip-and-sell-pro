@@ -231,11 +231,14 @@ function CurrentStock() {
             {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
+        <StockPeriodSelect value={mode} onChange={setMode} />
       </div>
       <p className="text-xs text-muted-foreground">
         Current Stock = Opening + Purchase − Direct Sale − Recipe Usage − Transfer Out ± Adjustment (applied only where the
-        formula is Active). Movement counted {period.from} → {period.to}. Click any row to trace the transactions behind it.
+        formula is Active). Every product and stock item always stays listed — the month filter only changes the numbers.
+        Movement counted {period.from} → {period.to}. Click any row to trace the transactions behind it.
       </p>
+
 
       <div>
         <h3 className="text-sm font-semibold mb-2">Products ({filtered.length})</h3>
