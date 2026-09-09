@@ -120,7 +120,7 @@ function CurrentStock() {
   const [catFilter, setCatFilter] = useState("all");
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [trace, setTrace] = useState<TraceTarget | null>(null);
-  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
 
 

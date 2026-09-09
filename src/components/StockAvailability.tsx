@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { money, num } from "@/lib/format";
 import { usePinGate } from "@/lib/pin-locks";
-import { buildRange, businessToday } from "@/lib/business-date";
+import { buildRange } from "@/lib/business-date";
 import { useInventoryEngine, type Period, type ProductInventoryRow, type StockItemInventoryRow } from "@/lib/inventory-engine";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
@@ -75,7 +75,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
 }
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
-  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
 
@@ -98,7 +98,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground truncate">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{mode === "month" ? "This month" : "Last month (read only)"} · {period.from} → {period.to}</p>
         </div>
         <div className="flex items-center gap-2">
           <StockPeriodSelect value={mode} onChange={setMode} />
@@ -186,7 +186,7 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
 }
 
 export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
-  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useStockItemAvailable(period);
 
@@ -214,7 +214,7 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold">Stock Item Available</h3>
-          <p className="text-[11px] text-muted-foreground">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground">{mode === "month" ? "This month" : "Last month (read only)"} · {period.from} → {period.to}</p>
         </div>
         <div className="flex items-center gap-2">
           <StockPeriodSelect value={mode} onChange={setMode} />
