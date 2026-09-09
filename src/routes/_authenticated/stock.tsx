@@ -123,7 +123,7 @@ function CurrentStock() {
   const period = useMemo(() => stockPeriod(), []);
 
   // Master lists — every product and every stock item that exists, one by one.
-  const { data: rawProducts = [] } = useQuery({
+  const productsQ = useQuery({
     queryKey: ["stock", "products"],
     queryFn: async () => {
       const { data, error } = await supabase.from("products").select("*").order("name");
@@ -131,7 +131,7 @@ function CurrentStock() {
       return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
     },
   });
-  const { data: rawItems = [] } = useQuery({
+  const itemsQ = useQuery({
     queryKey: ["stock", "items"],
     queryFn: async () => {
       const { data, error } = await supabase.from("stock_items").select("*").order("name");
@@ -139,6 +139,16 @@ function CurrentStock() {
       return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
     },
   });
+  const rawProducts = productsQ.data ?? [];
+  const rawItems = itemsQ.data ?? [];
+
+  // Single source of truth — the same calculated movement used by Reports and POS.
+  const calcQ = useProductStockAvailable(period);
+  const itemCalcQ = useStockItemAvailable(period);
+  const calcProducts = calcQ.data ?? [];
+  const calcItems = itemCalcQ.data ?? [];
+  const loading = productsQ.isLoading || itemsQ.isLoading || calcQ.isLoading || itemCalcQ.isLoading;
+
 
   // Single source of truth — the same calculated movement used by Reports and POS.
   const { data: calcProducts = [] } = useProductStockAvailable(period);
