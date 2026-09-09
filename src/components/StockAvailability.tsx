@@ -77,8 +77,10 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
 }
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
-  const period = currentPeriod();
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
+
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
   const t = filtered.reduce((a, r) => ({
