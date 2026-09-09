@@ -8,33 +8,30 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { money, num } from "@/lib/format";
 import { usePinGate } from "@/lib/pin-locks";
-import { buildRange, businessToday } from "@/lib/business-date";
+import { buildRange } from "@/lib/business-date";
 import { useInventoryEngine, type Period, type ProductInventoryRow, type StockItemInventoryRow } from "@/lib/inventory-engine";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
-function currentPeriod(): Period {
-  const r = buildRange("custom", "2000-01-01", businessToday());
-  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
-}
-
-/** The period every stock screen uses: from the very beginning to today. */
-export const stockPeriod = currentPeriod;
-
-export type StockPeriodMode = "all" | "month" | "lastMonth";
+export type StockPeriodMode = "month" | "lastMonth";
 
 export const STOCK_PERIOD_OPTIONS: { id: StockPeriodMode; label: string }[] = [
-  { id: "all", label: "All time" },
   { id: "month", label: "This Month" },
   { id: "lastMonth", label: "Last Month" },
 ];
 
 /** Same product/item list everywhere — only the numbers follow the chosen month. */
 export function stockPeriodFor(mode: StockPeriodMode): Period {
-  if (mode === "all") return currentPeriod();
   const r = buildRange(mode === "month" ? "month" : "lastMonth");
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
+
+function currentPeriod(): Period {
+  return stockPeriodFor("month");
+}
+
+/** The period every stock screen uses by default: the running business month. */
+export const stockPeriod = currentPeriod;
 
 export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode; onChange: (v: StockPeriodMode) => void }) {
   return (
@@ -47,6 +44,7 @@ export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode;
     </div>
   );
 }
+
 
 
 
@@ -77,7 +75,7 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
 }
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
-  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
 
@@ -100,7 +98,7 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground truncate">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{mode === "month" ? "This month" : "Last month (read only)"} · {period.from} → {period.to}</p>
         </div>
         <div className="flex items-center gap-2">
           <StockPeriodSelect value={mode} onChange={setMode} />
@@ -187,9 +185,11 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
   return { ...q, data: q.data?.stockItems } as typeof q & { data: StockItemInventoryRow[] | undefined };
 }
 
-export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
-  const [mode, setMode] = useState<StockPeriodMode>("all");
+export function StockItemAvailable({ editable: editableProp = true, compact = false }: { editable?: boolean; compact?: boolean }) {
+  const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
+  // Last month is a read-only look-back.
+  const editable = editableProp && mode === "month";
   const { data: rows = [], isLoading } = useStockItemAvailable(period);
 
   const [search, setSearch] = useState("");
@@ -216,7 +216,7 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold">Stock Item Available</h3>
-          <p className="text-[11px] text-muted-foreground">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground">{mode === "month" ? "This month" : "Last month (read only)"} · {period.from} → {period.to}</p>
         </div>
         <div className="flex items-center gap-2">
           <StockPeriodSelect value={mode} onChange={setMode} />

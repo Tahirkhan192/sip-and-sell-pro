@@ -413,10 +413,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const itemTotal = num(it.total);
       const allocatedSales = itemSubtotal > 0 ? (grand * itemTotal) / itemSubtotal : grand / items.length;
       const cat = ensureCat(category);
-      // Quantities and product rows include pending so Reports match the Sales page.
-      cat.revenueQty += qty;
-      totalQtySold += qty;
-      day.totalQtySold += qty;
+      // Sold quantity counts the same invoices as the money totals: completed,
+      // not hidden, not deleted, keyed on business date. Pending is inventory-only.
+      if (!isPending) {
+        cat.revenueQty += qty;
+        totalQtySold += qty;
+        day.totalQtySold += qty;
+      }
 
       // If parent product has a recipe, cost = sum of consumed ingredient WACs and cost
       // is transferred from each ingredient category to the finished-product category.
@@ -442,8 +445,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
       const pid = it.product_id ?? `unknown-${category}`;
       productMap[pid] ??= { id: pid, name: product.name ?? "Unknown product", category, qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
-      productMap[pid].qty += qty;
       if (!isPending) {
+        productMap[pid].qty += qty;
         cat.sales += allocatedSales;
         productMap[pid].rev += allocatedSales;
         productMap[pid].cogs += cost;

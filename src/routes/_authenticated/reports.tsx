@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/CrudHelpers";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrintButton } from "@/components/PrintButton";
 import { StockAvailability } from "@/components/StockAvailability";
 import { money, num } from "@/lib/format";
@@ -393,6 +394,7 @@ function SalesReport() {
   const { data } = useReportData(r);
   const rows = data?.productRows ?? [];
   const totals = { qty: data?.totalQtySold ?? 0, rev: data?.totalSales ?? 0 };
+  const [trace, setTrace] = useState<{ id: string; name: string } | null>(null);
   return (<>
     {r.el}
     <Card>
@@ -400,7 +402,7 @@ function SalesReport() {
         <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Revenue</TableHead></TableRow></TableHeader>
         <TableBody>
           {rows.map((r) => (
-            <TableRow key={r.id}>
+            <TableRow key={r.id} className="cursor-pointer" onClick={() => setTrace({ id: r.id, name: r.name })}>
               <TableCell className="font-medium">{r.name}</TableCell>
               <TableCell>{r.category}</TableCell>
               <TableCell className="text-right">{r.qty.toFixed(2)}</TableCell>
@@ -415,8 +417,55 @@ function SalesReport() {
         <span>Total: {money(totals.rev)}</span>
       </div>
     </Card>
+    <ProductSalesTrace target={trace} startUTC={r.startUTC} endExclusiveUTC={r.endExclusiveUTC} onClose={() => setTrace(null)} />
   </>);
 }
+
+function ProductSalesTrace({ target, startUTC, endExclusiveUTC, onClose }: { target: { id: string; name: string } | null; startUTC: string; endExclusiveUTC: string; onClose: () => void }) {
+  const { data = [], isLoading } = useQuery({
+    enabled: !!target,
+    queryKey: ["report", "product-sales-trace", target?.id, startUTC, endExclusiveUTC],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sale_items")
+        .select("id, quantity, total, sales!inner(invoice_no, sale_date, status, hidden, deleted_at)")
+        .eq("product_id", target!.id)
+        .gte("sales.sale_date", startUTC)
+        .lt("sales.sale_date", endExclusiveUTC);
+      if (error) throw error;
+      return ((data ?? []) as any[])
+        .filter((row) => row.sales && !row.sales.deleted_at && row.sales.hidden !== true && row.sales.status === "completed")
+        .sort((a, b) => String(b.sales.sale_date).localeCompare(String(a.sales.sale_date)));
+    },
+  });
+  const totalQty = data.reduce((s: number, x: any) => s + num(x.quantity), 0);
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{target?.name} — invoices behind the quantity</DialogTitle>
+          <DialogDescription>Every completed invoice line in the selected business-date range.</DialogDescription>
+        </DialogHeader>
+        <Table>
+          <TableHeader><TableRow><TableHead>Invoice</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {data.map((x: any) => (
+              <TableRow key={x.id}>
+                <TableCell>{x.sales.invoice_no}</TableCell>
+                <TableCell>{String(x.sales.sale_date).slice(0, 16).replace("T", " ")}</TableCell>
+                <TableCell className="text-right">{num(x.quantity).toFixed(2)}</TableCell>
+                <TableCell className="text-right">{money(x.total)}</TableCell>
+              </TableRow>
+            ))}
+            {data.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">{isLoading ? "Loading…" : "No invoices"}</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+        <div className="flex justify-end border-t pt-2 text-sm font-semibold">Total qty: {totalQty.toFixed(2)}</div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function ReportAudit({ data }: { data?: ReportResult }) {
   const { data: isAdmin } = useIsAdmin();
