@@ -21,6 +21,34 @@ function currentPeriod(): Period {
 /** The period every stock screen uses: from the very beginning to today. */
 export const stockPeriod = currentPeriod;
 
+export type StockPeriodMode = "all" | "month" | "lastMonth";
+
+export const STOCK_PERIOD_OPTIONS: { id: StockPeriodMode; label: string }[] = [
+  { id: "all", label: "All time" },
+  { id: "month", label: "This Month" },
+  { id: "lastMonth", label: "Last Month" },
+];
+
+/** Same product/item list everywhere — only the numbers follow the chosen month. */
+export function stockPeriodFor(mode: StockPeriodMode): Period {
+  if (mode === "all") return currentPeriod();
+  const r = buildRange(mode === "month" ? "month" : "lastMonth");
+  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
+}
+
+export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode; onChange: (v: StockPeriodMode) => void }) {
+  return (
+    <div className="flex gap-1 no-print">
+      {STOCK_PERIOD_OPTIONS.map((o) => (
+        <Button key={o.id} size="sm" variant={value === o.id ? "default" : "outline"} onClick={() => onChange(o.id)}>
+          {o.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+
 
 function useOverrideMutation(table: "products" | "stock_items", invalidate: string[]) {
   const qc = useQueryClient();
