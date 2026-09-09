@@ -185,9 +185,11 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
   return { ...q, data: q.data?.stockItems } as typeof q & { data: StockItemInventoryRow[] | undefined };
 }
 
-export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
+export function StockItemAvailable({ editable: editableProp = true, compact = false }: { editable?: boolean; compact?: boolean }) {
   const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
+  // Last month is a read-only look-back.
+  const editable = editableProp && mode === "month";
   const { data: rows = [], isLoading } = useStockItemAvailable(period);
 
   const [search, setSearch] = useState("");
