@@ -100,10 +100,14 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground truncate">Opening to current date · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
         </div>
-        <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <StockPeriodSelect value={mode} onChange={setMode} />
+          <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+
       <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-x-auto"}>
         <Table>
           <TableHeader><TableRow>
