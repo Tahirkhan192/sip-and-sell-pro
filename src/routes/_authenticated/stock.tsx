@@ -268,7 +268,7 @@ function CurrentStock() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">{loading ? "Loading your products…" : "No products"}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
@@ -312,7 +312,7 @@ function CurrentStock() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredItems.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">No stock items</TableCell></TableRow>}
+              {filteredItems.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">{loading ? "Loading your stock items…" : "No stock items"}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
