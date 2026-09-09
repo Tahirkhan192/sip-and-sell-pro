@@ -216,10 +216,14 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold">Stock Item Available</h3>
-          <p className="text-[11px] text-muted-foreground">Opening to current date · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
         </div>
-        <Input className="h-8 max-w-[200px] no-print" placeholder="Search item" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <StockPeriodSelect value={mode} onChange={setMode} />
+          <Input className="h-8 max-w-[200px] no-print" placeholder="Search item" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+
       <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-auto"}>
         <Table>
           <TableHeader><TableRow>
