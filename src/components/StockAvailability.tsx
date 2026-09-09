@@ -188,8 +188,10 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
 }
 
 export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
-  const period = currentPeriod();
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useStockItemAvailable(period);
+
   const [search, setSearch] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState("");
