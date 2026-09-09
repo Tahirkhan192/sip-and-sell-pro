@@ -13,28 +13,25 @@ import { useInventoryEngine, type Period, type ProductInventoryRow, type StockIt
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
-function currentPeriod(): Period {
-  const r = buildRange("custom", "2000-01-01", businessToday());
-  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
-}
-
-/** The period every stock screen uses: from the very beginning to today. */
-export const stockPeriod = currentPeriod;
-
-export type StockPeriodMode = "all" | "month" | "lastMonth";
+export type StockPeriodMode = "month" | "lastMonth";
 
 export const STOCK_PERIOD_OPTIONS: { id: StockPeriodMode; label: string }[] = [
-  { id: "all", label: "All time" },
   { id: "month", label: "This Month" },
   { id: "lastMonth", label: "Last Month" },
 ];
 
 /** Same product/item list everywhere — only the numbers follow the chosen month. */
 export function stockPeriodFor(mode: StockPeriodMode): Period {
-  if (mode === "all") return currentPeriod();
   const r = buildRange(mode === "month" ? "month" : "lastMonth");
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
+
+function currentPeriod(): Period {
+  return stockPeriodFor("month");
+}
+
+/** The period every stock screen uses by default: the running business month. */
+export const stockPeriod = currentPeriod;
 
 export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode; onChange: (v: StockPeriodMode) => void }) {
   return (
@@ -47,6 +44,7 @@ export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode;
     </div>
   );
 }
+
 
 
 
