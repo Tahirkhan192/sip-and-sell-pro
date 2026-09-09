@@ -122,6 +122,7 @@ function CurrentStock() {
   const [trace, setTrace] = useState<TraceTarget | null>(null);
   const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
+  const readOnly = mode === "lastMonth";
 
 
   // Master lists — every product and every stock item that exists, one by one.
@@ -274,7 +275,7 @@ function CurrentStock() {
                   <TableCell>{formulaBadge(r.auto)}</TableCell>
                   <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: r.price, current: r.current })}>
+                    <Button size="icon" variant="ghost" disabled={readOnly} title={readOnly ? "Last month is read only" : "Transfer to Expense"} onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -318,7 +319,7 @@ function CurrentStock() {
                   <TableCell>{formulaBadge(r.auto)}</TableCell>
                   <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: r.price, current: r.current })}>
+                    <Button size="icon" variant="ghost" disabled={readOnly} title={readOnly ? "Last month is read only" : "Transfer to Expense"} onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
                   </TableCell>
