@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
-import { useProductStockAvailable, useStockItemAvailable, stockPeriod } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable, stockPeriodFor, StockPeriodSelect, type StockPeriodMode } from "@/components/StockAvailability";
 import { StockTraceDialog, type TraceTarget } from "@/components/StockTraceDialog";
 import { OpeningStockHistory } from "@/components/OpeningStockHistory";
 
