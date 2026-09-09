@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
-import { useProductStockAvailable, useStockItemAvailable, stockPeriod } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable, stockPeriodFor, StockPeriodSelect, type StockPeriodMode } from "@/components/StockAvailability";
 import { StockTraceDialog, type TraceTarget } from "@/components/StockTraceDialog";
 import { OpeningStockHistory } from "@/components/OpeningStockHistory";
 
@@ -120,7 +120,9 @@ function CurrentStock() {
   const [catFilter, setCatFilter] = useState("all");
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [trace, setTrace] = useState<TraceTarget | null>(null);
-  const period = useMemo(() => stockPeriod(), []);
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
+
 
   // Master lists — every product and every stock item that exists, one by one.
   const productsQ = useQuery({
@@ -229,11 +231,14 @@ function CurrentStock() {
             {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
+        <StockPeriodSelect value={mode} onChange={setMode} />
       </div>
       <p className="text-xs text-muted-foreground">
         Current Stock = Opening + Purchase − Direct Sale − Recipe Usage − Transfer Out ± Adjustment (applied only where the
-        formula is Active). Movement counted {period.from} → {period.to}. Click any row to trace the transactions behind it.
+        formula is Active). Every product and stock item always stays listed — the month filter only changes the numbers.
+        Movement counted {period.from} → {period.to}. Click any row to trace the transactions behind it.
       </p>
+
 
       <div>
         <h3 className="text-sm font-semibold mb-2">Products ({filtered.length})</h3>

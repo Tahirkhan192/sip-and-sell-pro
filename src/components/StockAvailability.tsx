@@ -21,6 +21,34 @@ function currentPeriod(): Period {
 /** The period every stock screen uses: from the very beginning to today. */
 export const stockPeriod = currentPeriod;
 
+export type StockPeriodMode = "all" | "month" | "lastMonth";
+
+export const STOCK_PERIOD_OPTIONS: { id: StockPeriodMode; label: string }[] = [
+  { id: "all", label: "All time" },
+  { id: "month", label: "This Month" },
+  { id: "lastMonth", label: "Last Month" },
+];
+
+/** Same product/item list everywhere — only the numbers follow the chosen month. */
+export function stockPeriodFor(mode: StockPeriodMode): Period {
+  if (mode === "all") return currentPeriod();
+  const r = buildRange(mode === "month" ? "month" : "lastMonth");
+  return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
+}
+
+export function StockPeriodSelect({ value, onChange }: { value: StockPeriodMode; onChange: (v: StockPeriodMode) => void }) {
+  return (
+    <div className="flex gap-1 no-print">
+      {STOCK_PERIOD_OPTIONS.map((o) => (
+        <Button key={o.id} size="sm" variant={value === o.id ? "default" : "outline"} onClick={() => onChange(o.id)}>
+          {o.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+
 
 function useOverrideMutation(table: "products" | "stock_items", invalidate: string[]) {
   const qc = useQueryClient();
@@ -49,8 +77,10 @@ export function useProductStockAvailable(period: Period = currentPeriod()) {
 }
 
 export function ProductStockAvailable({ compact = false }: { compact?: boolean }) {
-  const period = currentPeriod();
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useProductStockAvailable(period);
+
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => rows.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
   const t = filtered.reduce((a, r) => ({
@@ -70,10 +100,14 @@ export function ProductStockAvailable({ compact = false }: { compact?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Product Stock Available</h3>
-          <p className="text-[11px] text-muted-foreground truncate">Opening to current date · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
         </div>
-        <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <StockPeriodSelect value={mode} onChange={setMode} />
+          <Input className="h-8 w-[130px] sm:w-[200px] no-print" placeholder="Search product" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+
       <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-x-auto"}>
         <Table>
           <TableHeader><TableRow>
@@ -154,8 +188,10 @@ export function useStockItemAvailable(period: Period = currentPeriod()) {
 }
 
 export function StockItemAvailable({ editable = true, compact = false }: { editable?: boolean; compact?: boolean }) {
-  const period = currentPeriod();
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const { data: rows = [], isLoading } = useStockItemAvailable(period);
+
   const [search, setSearch] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -180,10 +216,14 @@ export function StockItemAvailable({ editable = true, compact = false }: { edita
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold">Stock Item Available</h3>
-          <p className="text-[11px] text-muted-foreground">Opening to current date · {period.from} → {period.to}</p>
+          <p className="text-[11px] text-muted-foreground">{mode === "all" ? "Opening to current date" : "Selected month"} · {period.from} → {period.to}</p>
         </div>
-        <Input className="h-8 max-w-[200px] no-print" placeholder="Search item" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <StockPeriodSelect value={mode} onChange={setMode} />
+          <Input className="h-8 max-w-[200px] no-print" placeholder="Search item" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+
       <div className={compact ? "max-h-[420px] overflow-auto" : "overflow-auto"}>
         <Table>
           <TableHeader><TableRow>
