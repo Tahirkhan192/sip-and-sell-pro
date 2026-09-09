@@ -120,7 +120,9 @@ function CurrentStock() {
   const [catFilter, setCatFilter] = useState("all");
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [trace, setTrace] = useState<TraceTarget | null>(null);
-  const period = useMemo(() => stockPeriod(), []);
+  const [mode, setMode] = useState<StockPeriodMode>("all");
+  const period = useMemo(() => stockPeriodFor(mode), [mode]);
+
 
   // Master lists — every product and every stock item that exists, one by one.
   const productsQ = useQuery({
