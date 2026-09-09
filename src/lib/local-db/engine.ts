@@ -12,6 +12,8 @@
 
 import type { PGlite } from "@electric-sql/pglite";
 import type { Meta, FK } from "./postgrest";
+import { LOCAL_UPGRADE_SQL } from "./upgrades";
+
 
 const DATA_DIR = "idb://kdf-pos-local";
 const SEED_BASE = "/seed";
@@ -68,8 +70,10 @@ async function init(): Promise<Engine> {
     await seed(db);
   }
 
+  await applyUpgrades(db);
   await repairGeneratedMovements(db);
   await syncInvoiceSequence(db);
+
 
   const meta = await loadMeta(db);
   const funcs = await loadFuncs(db);
@@ -132,10 +136,20 @@ async function repairGeneratedMovements(db: PGlite) {
 }
 
 
+/** Brings an already-installed local database up to the current structure. */
+async function applyUpgrades(db: PGlite) {
+  try {
+    await db.exec(LOCAL_UPGRADE_SQL);
+  } catch (err) {
+    console.error("[local-db] upgrade failed", err);
+  }
+}
+
 async function installSchema(db: PGlite) {
   report("Creating local database…", 5);
   const sql = await (await fetch(`${SEED_BASE}/schema.sql`)).text();
   await db.exec(sql);
+
   await db.exec(`CREATE TABLE IF NOT EXISTS public._local_meta (key text PRIMARY KEY, value text);
     INSERT INTO public._local_meta(key, value) VALUES ('installed_at', now()::text) ON CONFLICT DO NOTHING;
     CREATE TABLE IF NOT EXISTS auth.local_credentials (

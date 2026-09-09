@@ -18,6 +18,10 @@ function currentPeriod(): Period {
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
 
+/** The period every stock screen uses: from the very beginning to today. */
+export const stockPeriod = currentPeriod;
+
+
 function useOverrideMutation(table: "products" | "stock_items", invalidate: string[]) {
   const qc = useQueryClient();
   return useMutation({

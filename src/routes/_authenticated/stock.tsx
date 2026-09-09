@@ -13,8 +13,10 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/CrudHelpers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
-import { useProductStockAvailable, useStockItemAvailable } from "@/components/StockAvailability";
+import { useProductStockAvailable, useStockItemAvailable, stockPeriod } from "@/components/StockAvailability";
+import { StockTraceDialog, type TraceTarget } from "@/components/StockTraceDialog";
 import { OpeningStockHistory } from "@/components/OpeningStockHistory";
+
 import { buildLockRows, lockMonthOpening, monthLabel, previousMonthOf } from "@/lib/month-opening";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
@@ -63,7 +65,7 @@ function Page() {
         subtitle="Current stock & monthly movement"
         action={
           <Button variant="outline" onClick={() => setLockOpen(true)}>
-            <CalendarClock className="h-4 w-4 mr-1" />Set As Opening Stock
+            <CalendarClock className="h-4 w-4 mr-1" />Save as Opening
           </Button>
         }
       />
@@ -71,7 +73,7 @@ function Page() {
       <Dialog open={lockOpen} onOpenChange={(v) => { if (!setOpening.isPending) setLockOpen(v); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set As Opening Stock</DialogTitle>
+            <DialogTitle>Save as Opening</DialogTitle>
             <DialogDescription>
               The current stock of every product and stock item (after all adjustments) is written into the
               opening of the selected month and saved as the closing of the previous month. Opening is replaced,
@@ -117,8 +119,11 @@ function CurrentStock() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [transferTarget, setTransferTarget] = useState<any>(null);
+  const [trace, setTrace] = useState<TraceTarget | null>(null);
+  const period = useMemo(() => stockPeriod(), []);
 
-  const { data: rawProducts = [] } = useQuery({
+  // Master lists — every product and every stock item that exists, one by one.
+  const productsQ = useQuery({
     queryKey: ["stock", "products"],
     queryFn: async () => {
       const { data, error } = await supabase.from("products").select("*").order("name");
@@ -126,7 +131,7 @@ function CurrentStock() {
       return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
     },
   });
-  const { data: rawItems = [] } = useQuery({
+  const itemsQ = useQuery({
     queryKey: ["stock", "items"],
     queryFn: async () => {
       const { data, error } = await supabase.from("stock_items").select("*").order("name");
@@ -134,34 +139,88 @@ function CurrentStock() {
       return ((data ?? []) as any[]).filter((row) => !row.deleted_at);
     },
   });
+  const rawProducts = productsQ.data ?? [];
+  const rawItems = itemsQ.data ?? [];
 
-  // Single source of truth — same calculated Remaining as Reports and POS.
-  const { data: calcProducts = [] } = useProductStockAvailable();
-  const { data: calcItems = [] } = useStockItemAvailable();
+  // Single source of truth — the same calculated movement used by Reports and POS.
+  const calcQ = useProductStockAvailable(period);
+  const itemCalcQ = useStockItemAvailable(period);
+  const calcProducts = calcQ.data ?? [];
+  const calcItems = itemCalcQ.data ?? [];
+  const loading = productsQ.isLoading || itemsQ.isLoading || calcQ.isLoading || itemCalcQ.isLoading;
+
+
+
   const products = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of calcProducts) m[r.id] = r.remaining;
-    return (rawProducts as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+    const m: Record<string, any> = {};
+    for (const r of calcProducts) m[r.id] = r;
+    return (rawProducts as any[]).map((p) => {
+      const c = m[p.id];
+      const auto = p.auto_calc === true;
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category ?? "—",
+        unit: p.unit ?? "pcs",
+        auto,
+        opening: c ? c.opening : num(p.opening_stock),
+        purchases: c?.purchases ?? 0,
+        production: c?.production ?? 0,
+        directSales: c?.directSales ?? 0,
+        recipeUsage: c?.recipeUsage ?? 0,
+        transferOut: c?.transferOut ?? 0,
+        adjustment: c?.manualAdjustment ?? 0,
+        current: c ? c.remaining : num(p.current_stock),
+        minimum: num(p.minimum_stock),
+        price: p.avg_price_override != null ? num(p.avg_price_override) : num(p.cost_price),
+      };
+    });
   }, [rawProducts, calcProducts]);
+
   const items = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of calcItems) m[r.id] = r.remaining;
-    return (rawItems as any[]).map((p) => (m[p.id] === undefined ? p : { ...p, current_stock: m[p.id] }));
+    const m: Record<string, any> = {};
+    for (const r of calcItems) m[r.id] = r;
+    return (rawItems as any[]).map((p) => {
+      const c = m[p.id];
+      const auto = p.auto_calc === true;
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit ?? "pcs",
+        auto,
+        opening: c ? c.opening : num(p.opening_stock),
+        purchases: c?.purchases ?? 0,
+        directSales: 0,
+        recipeUsage: c?.recipeUsage ?? 0,
+        transferOut: c?.transferOut ?? 0,
+        adjustment: c?.manualAdjustment ?? 0,
+        current: c ? c.remaining : num(p.current_stock),
+        minimum: num(p.minimum_stock),
+        price: p.avg_price_override != null ? num(p.avg_price_override) : num(p.purchase_price),
+      };
+    });
   }, [rawItems, calcItems]);
 
   const filtered = useMemo(() => {
-    let rows = (products as any[]).filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+    let rows = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     if (catFilter !== "all") rows = rows.filter((p) => p.category === catFilter);
     return rows;
   }, [products, search, catFilter]);
 
+  const filteredItems = useMemo(
+    () => items.filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
+    [items, search],
+  );
+
+  const formulaBadge = (auto: boolean) =>
+    auto ? <Badge className="text-[10px]">Active</Badge> : <Badge variant="secondary" className="text-[10px]">Inactive</Badge>;
 
   return (
     <div className="space-y-6">
       <div className="flex gap-2 flex-wrap">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search products" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-8" placeholder="Search products or stock items" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={catFilter} onValueChange={setCatFilter}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
@@ -171,82 +230,106 @@ function CurrentStock() {
           </SelectContent>
         </Select>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Current Stock = Opening + Purchase − Direct Sale − Recipe Usage − Transfer Out ± Adjustment (applied only where the
+        formula is Active). Movement counted {period.from} → {period.to}. Click any row to trace the transactions behind it.
+      </p>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Products</h3>
-        <Card>
+        <h3 className="text-sm font-semibold mb-2">Products ({filtered.length})</h3>
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
               <TableHead>Product</TableHead><TableHead>Category</TableHead>
               <TableHead className="text-right">Opening</TableHead>
-              <TableHead className="text-right">Closing (Current)</TableHead>
-              <TableHead className="text-right">Min</TableHead>
+              <TableHead className="text-right">Purchase</TableHead>
+              <TableHead className="text-right">Production</TableHead>
+              <TableHead className="text-right">Direct Sale</TableHead>
+              <TableHead className="text-right">Recipe Usage</TableHead>
+              <TableHead className="text-right">Transfer Out</TableHead>
+              <TableHead className="text-right">Adjustment</TableHead>
+              <TableHead className="text-right">Current / Closing</TableHead>
+              <TableHead>Formula</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {filtered.map((r: any) => (
-                <TableRow key={r.id}>
+              {filtered.map((r) => (
+                <TableRow key={r.id} className="cursor-pointer" onClick={() => setTrace({ scope: "product", id: r.id, name: r.name, unit: r.unit, opening: r.opening, formulaActive: r.auto, current: r.current })}>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{r.category ?? "—"}</TableCell>
-                  <TableCell className="text-right">{num(r.opening_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-medium">{num(r.current_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{num(r.minimum_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{money(num(r.current_stock) * num(r.cost_price))}</TableCell>
-                  <TableCell>{num(r.current_stock) < num(r.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
-                  <TableCell>
-                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: num(r.cost_price), current: num(r.current_stock) })}>
+                  <TableCell>{r.category}</TableCell>
+                  <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.purchases.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.production.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.directSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.adjustment.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium">{r.current.toFixed(2)}</TableCell>
+                  <TableCell>{formulaBadge(r.auto)}</TableCell>
+                  <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No products</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-6">{loading ? "Loading your products…" : "No products"}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Stock Items</h3>
-        <Card>
+        <h3 className="text-sm font-semibold mb-2">Stock Items ({filteredItems.length})</h3>
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
               <TableHead>Item</TableHead><TableHead>Unit</TableHead>
               <TableHead className="text-right">Opening</TableHead>
-              <TableHead className="text-right">Closing (Current)</TableHead>
-              <TableHead className="text-right">Min</TableHead>
+              <TableHead className="text-right">Purchase</TableHead>
+              <TableHead className="text-right">Direct Sale</TableHead>
+              <TableHead className="text-right">Recipe Usage</TableHead>
+              <TableHead className="text-right">Transfer Out</TableHead>
+              <TableHead className="text-right">Adjustment</TableHead>
+              <TableHead className="text-right">Current / Closing</TableHead>
+              <TableHead>Formula</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {(items as any[]).map((r) => (
-                <TableRow key={r.id}>
+              {filteredItems.map((r) => (
+                <TableRow key={r.id} className="cursor-pointer" onClick={() => setTrace({ scope: "stock_item", id: r.id, name: r.name, unit: r.unit, opening: r.opening, formulaActive: r.auto, current: r.current })}>
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>{r.unit}</TableCell>
-                  <TableCell className="text-right">{num(r.opening_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-medium">{num(r.current_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{num(r.minimum_stock).toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{money(num(r.current_stock) * num(r.purchase_price))}</TableCell>
-                  <TableCell>{num(r.current_stock) < num(r.minimum_stock) ? <Badge variant="destructive">Low</Badge> : <Badge>OK</Badge>}</TableCell>
-                  <TableCell>
-                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: num(r.purchase_price), current: num(r.current_stock) })}>
+                  <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.purchases.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.directSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.recipeUsage.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.transferOut.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{r.adjustment.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium">{r.current.toFixed(2)}</TableCell>
+                  <TableCell>{formulaBadge(r.auto)}</TableCell>
+                  <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button size="icon" variant="ghost" title="Transfer to Expense" onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {items.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No stock items</TableCell></TableRow>}
+              {filteredItems.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-6">{loading ? "Loading your stock items…" : "No stock items"}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Card>
       </div>
+      <StockTraceDialog target={trace} period={period} onOpenChange={(v) => { if (!v) setTrace(null); }} />
       <StockToExpenseDialog target={transferTarget} open={!!transferTarget} onOpenChange={(v) => { if (!v) setTransferTarget(null); }} />
     </div>
   );
 }
+
 
 function MonthlyStock() {
   const today = new Date();

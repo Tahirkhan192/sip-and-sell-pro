@@ -12,16 +12,21 @@
  * manual average-price override where one is set.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { buildRange } from "@/lib/business-date";
+import { buildRange, businessToday } from "@/lib/business-date";
 import { fetchInventoryEngine, type Period } from "@/lib/inventory-engine";
 import { num } from "@/lib/format";
 
 export type LockRow = { scope: "product" | "stock_item"; item_id: string; quantity: number; unit_value: number };
 
+/**
+ * The figures locked at month end are exactly the ones shown on Current Stock:
+ * every movement from the very beginning up to today.
+ */
 export function currentBusinessMonthPeriod(): Period {
-  const r = buildRange("month");
+  const r = buildRange("custom", "2000-01-01", businessToday());
   return { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
 }
+
 
 export function previousMonthOf(year: number, month: number) {
   return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
