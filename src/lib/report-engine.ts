@@ -201,10 +201,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
   // Locked opening-stock snapshot for the reported period (historical months never change).
   const snapshotPromise = range.from
-    ? (supabase as any).from("stock_opening_snapshots").select("scope,item_id,quantity,unit_value")
-        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7))).eq("kind", "opening")
+    ? (supabase as any).from("stock_opening_snapshots").select("scope,item_id,kind,quantity,unit_value")
+        .eq("year", Number(range.from.slice(0, 4))).eq("month", Number(range.from.slice(5, 7)))
 
     : Promise.resolve({ data: [], error: null });
+
 
   const staffPromise = (supabase as any).from("staff").select("id, monthly_salary, joining_date").is("deleted_at", null);
   /** Absences only — every other day up to today counts as present (same rule as Staff Management). */
@@ -235,9 +236,21 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   ]);
   if ((overridesQ as any).error) throw (overridesQ as any).error;
 
-  // Opening quantities locked to this period, keyed "<scope>:<id>".
+  // Permanently saved month-end record, keyed "<scope>:<id>". Opening rows freeze the
+  // month's opening quantity AND its valuation; closing rows freeze the month's closing.
   const openingSnapshot: Record<string, number> = {};
-  for (const r of (((snapshotQ as any).data ?? []) as any[])) openingSnapshot[`${r.scope}:${r.item_id}`] = num(r.quantity);
+  const openingSnapshotValue: Record<string, number> = {};
+  const closingSnapshotValue: Record<string, number> = {};
+  for (const r of (((snapshotQ as any).data ?? []) as any[])) {
+    const key = `${r.scope}:${r.item_id}`;
+    if ((r.kind ?? "opening") === "closing") {
+      closingSnapshotValue[key] = num(r.quantity) * num(r.unit_value);
+    } else {
+      openingSnapshot[key] = num(r.quantity);
+      openingSnapshotValue[key] = num(r.quantity) * num(r.unit_value);
+    }
+  }
+
 
   // Payable salary per member = (monthly salary ÷ 30) × present days in the period,
   // where present days = days elapsed up to today minus recorded absences.
@@ -474,9 +487,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const cat = ensureCat(p.category ?? "—");
     // Owner override of the average purchase price is used for valuation only.
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
-    const openQty = openingSnapshot[`product:${p.id}`] ?? num(p.opening_stock);
-    cat.opening += prodOverride[p.id]?.opening ?? openQty * costPrice;
-    const closeVal = prodOverride[p.id]?.closing ?? engineProductValue[p.id] ?? num(p.current_stock) * costPrice;
+    const key = `product:${p.id}`;
+    const openQty = openingSnapshot[key] ?? num(p.opening_stock);
+    // Saved opening value of the month wins — a closed month never re-values itself.
+    cat.opening += prodOverride[p.id]?.opening ?? openingSnapshotValue[key] ?? openQty * costPrice;
+    const closeVal = prodOverride[p.id]?.closing ?? closingSnapshotValue[key] ?? engineProductValue[p.id] ?? num(p.current_stock) * costPrice;
     cat.closing += closeVal;
     closingProductValue += closeVal;
     cat.productPurchases += purchaseByProduct[p.id] ?? 0;
@@ -485,12 +500,14 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   for (const si of stockItems) {
     const cat = ensureCat(si.category ?? "—");
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
-    const openQty = openingSnapshot[`stock_item:${si.id}`] ?? num(si.opening_stock);
-    cat.opening += openQty * price;
-    const closeVal = engineItemValue[si.id] ?? num(si.current_stock) * price;
+    const key = `stock_item:${si.id}`;
+    const openQty = openingSnapshot[key] ?? num(si.opening_stock);
+    cat.opening += openingSnapshotValue[key] ?? openQty * price;
+    const closeVal = closingSnapshotValue[key] ?? engineItemValue[si.id] ?? num(si.current_stock) * price;
     cat.closing += closeVal;
     closingStockItemValue += closeVal;
   }
+
 
   for (const [category, override] of Object.entries(catOverride)) {
     const cat = ensureCat(category);

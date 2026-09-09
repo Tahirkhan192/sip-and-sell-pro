@@ -34,21 +34,47 @@ export function OpeningStockHistory() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
 
+  const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+
   const { data, isLoading } = useQuery({
     queryKey: ["stock-opening-history", year, month],
     queryFn: async () => {
-      const [snapQ, prodQ, itemQ] = await Promise.all([
+      const [snapQ, prevQ, prodQ, itemQ] = await Promise.all([
         (supabase as any).from("stock_opening_snapshots").select("scope,item_id,kind,quantity,unit_value").eq("year", year).eq("month", month),
+        (supabase as any).from("stock_opening_snapshots").select("scope,item_id,kind,quantity,unit_value").eq("year", prev.year).eq("month", prev.month).eq("kind", "closing"),
         (supabase as any).from("products").select("id,name").is("deleted_at", null).order("name"),
         (supabase as any).from("stock_items").select("id,name,unit").is("deleted_at", null).order("name"),
       ]);
       return {
         snaps: (snapQ.data ?? []) as Snap[],
+        prevClosing: (prevQ.data ?? []) as Snap[],
         products: (prodQ.data ?? []) as any[],
         items: (itemQ.data ?? []) as any[],
       };
     },
   });
+
+  // Integrity rule: this month's opening must equal the previous month's closing.
+  const mismatches = useMemo(() => {
+    const prevMap: Record<string, Snap> = {};
+    for (const s of data?.prevClosing ?? []) prevMap[`${s.scope}:${s.item_id}`] = s;
+    if (Object.keys(prevMap).length === 0) return [] as string[];
+    const nameOf: Record<string, string> = {};
+    for (const p of data?.products ?? []) nameOf[`product:${p.id}`] = p.name;
+    for (const i of data?.items ?? []) nameOf[`stock_item:${i.id}`] = i.name;
+    const out: string[] = [];
+    for (const s of data?.snaps ?? []) {
+      if ((s.kind ?? "opening") !== "opening") continue;
+      const k = `${s.scope}:${s.item_id}`;
+      const p = prevMap[k];
+      if (!p) continue;
+      const qtyOff = Math.abs(num(s.quantity) - num(p.quantity)) > 0.001;
+      const valOff = Math.abs(num(s.quantity) * num(s.unit_value) - num(p.quantity) * num(p.unit_value)) > 0.01;
+      if (qtyOff || valOff) out.push(nameOf[k] ?? k);
+    }
+    return out;
+  }, [data]);
+
 
   const { products, stockItems } = useMemo(() => {
     const snaps = data?.snaps ?? [];
@@ -137,6 +163,14 @@ export function OpeningStockHistory() {
       <p className="text-sm text-muted-foreground">
         Saved record for {monthLabel(year, month)}. Closing of this month is the same figure saved as next month's opening.
       </p>
+      {mismatches.length > 0 && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          <b>Check needed:</b> the opening of {monthLabel(year, month)} does not match the closing of {monthLabel(prev.year, prev.month)} for{" "}
+          {mismatches.slice(0, 8).join(", ")}
+          {mismatches.length > 8 ? ` and ${mismatches.length - 8} more` : ""}.
+        </div>
+      )}
+
       {section("Products", products)}
       {section("Stock Items", stockItems)}
     </div>
