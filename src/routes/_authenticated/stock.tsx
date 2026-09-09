@@ -150,9 +150,6 @@ function CurrentStock() {
   const loading = productsQ.isLoading || itemsQ.isLoading || calcQ.isLoading || itemCalcQ.isLoading;
 
 
-  // Single source of truth — the same calculated movement used by Reports and POS.
-  const { data: calcProducts = [] } = useProductStockAvailable(period);
-  const { data: calcItems = [] } = useStockItemAvailable(period);
 
   const products = useMemo(() => {
     const m: Record<string, any> = {};
