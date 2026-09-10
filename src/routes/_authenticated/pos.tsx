@@ -555,21 +555,28 @@ function POS() {
       // Explicit recomputation also repairs older local databases where the
       // staff trigger may not have been installed yet.
       const saleId = (saleData as any)?.id ?? editId ?? null;
-      if (!saleId) throw new Error("Invoice saved but its staff link could not be verified");
       const nextStaff = staffId ?? null;
-      const { data: linkedSale, error: staffLinkError } = await supabase
-        .from("sales")
-        .update({ staff_id: nextStaff, katha: effectiveKatha } as any)
-        .eq("id", saleId)
-        .select("*")
-        .single();
-      if (staffLinkError) throw staffLinkError;
-      if ((linkedSale as any)?.staff_id !== nextStaff) throw new Error("Staff member was not linked to the invoice");
-      if (nextStaff) {
-        const { error: staffBalanceError } = await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
-        if (staffBalanceError) throw staffBalanceError;
+      let staffWarning: string | null = null;
+      if (saleId) {
+        const { error: staffLinkError } = await supabase
+          .from("sales")
+          .update({ staff_id: nextStaff, katha: effectiveKatha } as any)
+          .eq("id", saleId);
+        if (staffLinkError) staffWarning = staffLinkError.message;
+
+        // Read the saved invoice back so the link is confirmed from the record
+        // itself, not from what the save call happened to return.
+        const { data: check } = await supabase.from("sales").select("*").eq("id", saleId).maybeSingle();
+        if (check) saleData = check;
+        const savedStaff = (check as any)?.staff_id ?? null;
+        if (!staffWarning && String(savedStaff ?? "") !== String(nextStaff ?? "")) {
+          staffWarning = "The staff member could not be attached to this invoice.";
+        }
+        if (nextStaff && !staffWarning) {
+          await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
+        }
       }
-      saleData = linkedSale;
+      if (staffWarning) (saleData as any) = { ...(saleData as any), __staffWarning: staffWarning };
 
 
       return { sale: saleData, status, movements: mmRows.map((r) => ({ ...r, katha_category: mmCategory })) };
@@ -590,6 +597,7 @@ function POS() {
       }
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
+      if (sale?.__staffWarning) toast.warning("Bill saved", { description: sale.__staffWarning });
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart, movements: lastMovements, movement_remark: mmRemark?.trim() || null });
         // Silent WhatsApp send (non-blocking)
