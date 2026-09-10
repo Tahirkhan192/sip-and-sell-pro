@@ -469,7 +469,8 @@ function POS() {
         }
       }
 
-      const items = cart.map((i) => ({
+      // Save one line per product — repeated lines are merged first.
+      const items = mergeLines(cart).map((i) => ({
         product_id: i.product_id,
         quantity: i.quantity,
         rate: i.rate,
@@ -545,12 +546,17 @@ function POS() {
         }
       }
 
-      // Staff katha sale: link the invoice to the staff member. The database
-      // trigger recomputes the balance from invoice history, avoiding duplicate
-      // increments when the same sale is edited or retried.
-      if (saleData && !editId && staffId) {
-        const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
-        if (staffLinkError) throw staffLinkError;
+      // Staff bill: link the invoice to the staff member on every save — a new
+      // bill, an edited bill, and a pending bill completed later. Clearing the
+      // staff member removes the link again. The database trigger recomputes
+      // the katha balance from invoice history, so nothing is double counted.
+      if (saleData) {
+        const currentStaff = (saleData as any).staff_id ?? null;
+        const nextStaff = staffId ?? null;
+        if (currentStaff !== nextStaff) {
+          const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: nextStaff } as any).eq("id", saleData.id);
+          if (staffLinkError) throw staffLinkError;
+        }
       }
 
 
