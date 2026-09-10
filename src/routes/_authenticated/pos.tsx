@@ -133,6 +133,10 @@ function POS() {
   const { data: editingSale } = useQuery({
     queryKey: ["sales", "edit", editId],
     enabled: !!editId,
+    // Always read the bill fresh: a stored copy could re-populate the order
+    // panel with lines that are no longer on the bill.
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
   });
 
