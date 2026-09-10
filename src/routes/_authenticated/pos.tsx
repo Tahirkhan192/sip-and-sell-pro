@@ -49,6 +49,29 @@ const UNIT_LABEL: Record<string, string> = { kg: "KG", ltr: "LTR", pcs: "PCS" };
 function round2(n: number) { return Math.round(n * 100) / 100; }
 function round3(n: number) { return Math.round(n * 1000) / 1000; }
 
+/**
+ * Collapses repeated lines of the same product into a single line. Quantities
+ * add up, the price stays the price already on the line. Used both when a bill
+ * is opened and when it is saved, so a bill can never accumulate copies of the
+ * same product.
+ */
+function mergeLines(items: CartItem[]): CartItem[] {
+  const out: CartItem[] = [];
+  const index = new Map<string, number>();
+  for (const it of items) {
+    const at = index.get(it.product_id);
+    if (at === undefined) {
+      index.set(it.product_id, out.length);
+      out.push({ ...it });
+      continue;
+    }
+    const prev = out[at];
+    const quantity = round3(prev.quantity + it.quantity);
+    out[at] = { ...prev, quantity, total: round2(quantity * prev.rate) };
+  }
+  return out;
+}
+
 function POS() {
   const qc = useQueryClient();
   const navigate = useNavigate();
