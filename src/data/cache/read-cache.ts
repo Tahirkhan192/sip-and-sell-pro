@@ -37,27 +37,17 @@ const CACHEABLE_ROOTS = new Set<string>([
 ]);
 
 /**
- * Query keys that also need caching but do not fit the root-only rule.
- * We match on a JSON prefix so `["sales","pending-search", ...]` variants
- * are all cached under the same offline bucket while completed-sale history
- * queries like `["sales", <from>, <to>]` are skipped.
+ * Invoices are never mirrored offline. A stored copy of a pending bill or of
+ * the bill being edited could be replayed after the real one changed, which
+ * showed completed bills as pending and re-populated the order panel with
+ * stale lines. Bills are always read live from the local database.
  */
-function isPendingBillsKey(key: readonly unknown[]): boolean {
-  return (
-    key.length >= 2 &&
-    key[0] === "sales" &&
-    typeof key[1] === "string" &&
-    (key[1] === "pending" || key[1] === "pending-search" || key[1] === "edit")
-  );
-}
-
 function shouldCache(key: readonly unknown[]): boolean {
   if (!key.length) return false;
   const root = key[0];
   if (typeof root !== "string") return false;
-  if (CACHEABLE_ROOTS.has(root)) return true;
-  if (isPendingBillsKey(key)) return true;
-  return false;
+  if (root === "sales") return false;
+  return CACHEABLE_ROOTS.has(root);
 }
 
 function serializeKey(key: readonly unknown[]): string {
