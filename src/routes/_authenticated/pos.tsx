@@ -162,7 +162,10 @@ function POS() {
     if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
     setDiscountType((s.discount_type ?? "amount") as any);
     setDiscountValue(num(s.discount_value) || "");
-    setCart((s.sale_items ?? []).map((it: any) => ({
+    // One line per product: if the same product ever ended up stored twice on
+    // the bill, it is shown once with the correct total quantity so reopening
+    // a bill can never make it grow.
+    setCart(mergeLines((s.sale_items ?? []).map((it: any) => ({
       product_id: it.product_id,
       name: it.products?.name ?? "Item",
       category: it.products?.category ?? "",
@@ -172,7 +175,7 @@ function POS() {
       quantity: num(it.quantity),
       total: num(it.total),
       current_stock: num(it.products?.current_stock),
-    })));
+    }))));
     setInvoiceSearch("");
     setShowInvoiceResults(false);
   }, [editingSale]);
