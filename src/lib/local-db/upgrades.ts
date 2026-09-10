@@ -63,4 +63,43 @@ BEGIN
 
   RETURN v_count;
 END $function$;
+
+-- Staff invoices: an app installed before staff bills shipped has no staff
+-- column, no balance function and no trigger, so the link silently fails.
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS staff_id uuid;
+
+CREATE OR REPLACE FUNCTION public.recompute_staff_katha(_staff_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+DECLARE v_buy numeric; v_pay numeric;
+BEGIN
+  IF _staff_id IS NULL THEN RETURN; END IF;
+  SELECT COALESCE(SUM(GREATEST(grand_total - cash_paid - online_paid, 0)),0) INTO v_buy
+    FROM public.sales
+    WHERE staff_id = _staff_id AND deleted_at IS NULL AND NOT hidden AND status='completed' AND katha;
+  SELECT COALESCE(SUM(amount),0) INTO v_pay
+    FROM public.staff_payments WHERE staff_id = _staff_id AND kind = 'katha_receipt';
+  UPDATE public.staff
+     SET katha_balance = round(COALESCE(opening_katha,0) + v_buy - v_pay, 2), updated_at = now()
+   WHERE id = _staff_id;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.fn_sale_staff_katha()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF TG_OP <> 'INSERT' AND OLD.staff_id IS NOT NULL THEN
+    PERFORM public.recompute_staff_katha(OLD.staff_id);
+  END IF;
+  IF TG_OP <> 'DELETE' AND NEW.staff_id IS NOT NULL THEN
+    PERFORM public.recompute_staff_katha(NEW.staff_id);
+  END IF;
+  RETURN NULL;
+END $function$;
+
+DROP TRIGGER IF EXISTS trg_sale_staff_katha ON public.sales;
+CREATE TRIGGER trg_sale_staff_katha AFTER INSERT OR DELETE OR UPDATE ON public.sales
+  FOR EACH ROW EXECUTE FUNCTION public.fn_sale_staff_katha();
 `;
