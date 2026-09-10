@@ -597,6 +597,7 @@ function POS() {
       }
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
+      if (sale?.__staffWarning) toast.warning("Bill saved", { description: sale.__staffWarning });
       if (status === "completed") {
         setLastInvoice({ ...sale, items: cart, movements: lastMovements, movement_remark: mmRemark?.trim() || null });
         // Silent WhatsApp send (non-blocking)
