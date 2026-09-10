@@ -476,6 +476,10 @@ function POS() {
         rate: i.rate,
         unit: i.unit,
       }));
+      // A staff invoice with an unpaid balance is always a staff Katha invoice.
+      // This protects the link even if the checkbox state was lost while the
+      // staff suggestion was being selected.
+      const effectiveKatha = katha || (!!staffId && remaining > 0);
       const args: any = {
         _items: items,
         _customer_name: customer,
@@ -489,7 +493,7 @@ function POS() {
         // Staff sales never touch the Customer database: no phone is sent so no
         // customer record is created or matched. The invoice links to staff_id only.
         _customer_phone: staffId ? "" : phone,
-        _katha: katha,
+        _katha: effectiveKatha,
         _discount_type: discountType,
         _discount_value: num(discountValue),
         _delivery_address: deliveryAddress,
@@ -546,18 +550,26 @@ function POS() {
         }
       }
 
-      // Staff bill: link the invoice to the staff member on every save — a new
-      // bill, an edited bill, and a pending bill completed later. Clearing the
-      // staff member removes the link again. The database trigger recomputes
-      // the katha balance from invoice history, so nothing is double counted.
-      if (saleData) {
-        const currentStaff = (saleData as any).staff_id ?? null;
-        const nextStaff = staffId ?? null;
-        if (currentStaff !== nextStaff) {
-          const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: nextStaff } as any).eq("id", saleData.id);
-          if (staffLinkError) throw staffLinkError;
-        }
+      // Staff bill: persist and verify the staff link on every save. This is a
+      // separate update because the existing sale RPCs predate staff invoices.
+      // Explicit recomputation also repairs older local databases where the
+      // staff trigger may not have been installed yet.
+      const saleId = (saleData as any)?.id ?? editId ?? null;
+      if (!saleId) throw new Error("Invoice saved but its staff link could not be verified");
+      const nextStaff = staffId ?? null;
+      const { data: linkedSale, error: staffLinkError } = await supabase
+        .from("sales")
+        .update({ staff_id: nextStaff, katha: effectiveKatha } as any)
+        .eq("id", saleId)
+        .select("*")
+        .single();
+      if (staffLinkError) throw staffLinkError;
+      if ((linkedSale as any)?.staff_id !== nextStaff) throw new Error("Staff member was not linked to the invoice");
+      if (nextStaff) {
+        const { error: staffBalanceError } = await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
+        if (staffBalanceError) throw staffBalanceError;
       }
+      saleData = linkedSale;
 
 
       return { sale: saleData, status, movements: mmRows.map((r) => ({ ...r, katha_category: mmCategory })) };
