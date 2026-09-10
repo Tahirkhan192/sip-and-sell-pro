@@ -49,6 +49,29 @@ const UNIT_LABEL: Record<string, string> = { kg: "KG", ltr: "LTR", pcs: "PCS" };
 function round2(n: number) { return Math.round(n * 100) / 100; }
 function round3(n: number) { return Math.round(n * 1000) / 1000; }
 
+/**
+ * Collapses repeated lines of the same product into a single line. Quantities
+ * add up, the price stays the price already on the line. Used both when a bill
+ * is opened and when it is saved, so a bill can never accumulate copies of the
+ * same product.
+ */
+function mergeLines(items: CartItem[]): CartItem[] {
+  const out: CartItem[] = [];
+  const index = new Map<string, number>();
+  for (const it of items) {
+    const at = index.get(it.product_id);
+    if (at === undefined) {
+      index.set(it.product_id, out.length);
+      out.push({ ...it });
+      continue;
+    }
+    const prev = out[at];
+    const quantity = round3(prev.quantity + it.quantity);
+    out[at] = { ...prev, quantity, total: round2(quantity * prev.rate) };
+  }
+  return out;
+}
+
 function POS() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -133,6 +156,10 @@ function POS() {
   const { data: editingSale } = useQuery({
     queryKey: ["sales", "edit", editId],
     enabled: !!editId,
+    // Always read the bill fresh: a stored copy could re-populate the order
+    // panel with lines that are no longer on the bill.
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => (await supabase.from("sales").select("*, sale_items(*, products(id, name, category, sale_price, unit, selling_method, current_stock))").eq("id", editId!).maybeSingle()).data,
   });
 
@@ -158,7 +185,10 @@ function POS() {
     if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
     setDiscountType((s.discount_type ?? "amount") as any);
     setDiscountValue(num(s.discount_value) || "");
-    setCart((s.sale_items ?? []).map((it: any) => ({
+    // One line per product: if the same product ever ended up stored twice on
+    // the bill, it is shown once with the correct total quantity so reopening
+    // a bill can never make it grow.
+    setCart(mergeLines((s.sale_items ?? []).map((it: any) => ({
       product_id: it.product_id,
       name: it.products?.name ?? "Item",
       category: it.products?.category ?? "",
@@ -168,7 +198,7 @@ function POS() {
       quantity: num(it.quantity),
       total: num(it.total),
       current_stock: num(it.products?.current_stock),
-    })));
+    }))));
     setInvoiceSearch("");
     setShowInvoiceResults(false);
   }, [editingSale]);
@@ -439,7 +469,8 @@ function POS() {
         }
       }
 
-      const items = cart.map((i) => ({
+      // Save one line per product — repeated lines are merged first.
+      const items = mergeLines(cart).map((i) => ({
         product_id: i.product_id,
         quantity: i.quantity,
         rate: i.rate,
@@ -515,12 +546,17 @@ function POS() {
         }
       }
 
-      // Staff katha sale: link the invoice to the staff member. The database
-      // trigger recomputes the balance from invoice history, avoiding duplicate
-      // increments when the same sale is edited or retried.
-      if (saleData && !editId && staffId) {
-        const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: staffId } as any).eq("id", saleData.id);
-        if (staffLinkError) throw staffLinkError;
+      // Staff bill: link the invoice to the staff member on every save — a new
+      // bill, an edited bill, and a pending bill completed later. Clearing the
+      // staff member removes the link again. The database trigger recomputes
+      // the katha balance from invoice history, so nothing is double counted.
+      if (saleData) {
+        const currentStaff = (saleData as any).staff_id ?? null;
+        const nextStaff = staffId ?? null;
+        if (currentStaff !== nextStaff) {
+          const { error: staffLinkError } = await supabase.from("sales").update({ staff_id: nextStaff } as any).eq("id", saleData.id);
+          if (staffLinkError) throw staffLinkError;
+        }
       }
 
 
