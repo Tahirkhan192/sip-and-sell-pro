@@ -165,6 +165,13 @@ function POS() {
 
   const hydratedEditIdRef = useRef<string | null>(null);
   const skipHydrateIdRef = useRef<string | null>(null);
+  // Opening a bill always starts a fresh load. Without this, a bill saved
+  // earlier in the same session would be reopened empty (no lines, no staff
+  // member) and saving it again would wipe its staff link.
+  useEffect(() => {
+    skipHydrateIdRef.current = null;
+    hydratedEditIdRef.current = null;
+  }, [editId]);
   useEffect(() => {
     if (!editingSale) return;
     const s: any = editingSale;
