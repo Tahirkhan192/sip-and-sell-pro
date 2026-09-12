@@ -236,7 +236,12 @@ function POS() {
     staleTime: 0,
     gcTime: 0,
     refetchOnMount: "always",
-    queryFn: async () => (await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? [],
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const rows = ((await supabase.from("sales").select("id, invoice_no, customer_name, grand_total, sale_date, status").eq("status", "pending").is("deleted_at", null).ilike("customer_name", `%${invoiceSearch.trim()}%`).order("sale_date", { ascending: false }).limit(8)).data ?? []) as any[];
+      // Final safety net on screen: never list a bill that is not pending right now.
+      return rows.filter((s) => s.status === "pending");
+    },
   });
 
   const filtered = useMemo(() => {
