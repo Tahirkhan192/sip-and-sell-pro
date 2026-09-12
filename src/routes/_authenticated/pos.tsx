@@ -72,6 +72,17 @@ function mergeLines(items: CartItem[]): CartItem[] {
   return out;
 }
 
+/** Preserve the original quantity when an older local database contains
+ * accidental duplicate rows for the same saved product. */
+function uniqueSavedLines(items: CartItem[]): CartItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.product_id)) return false;
+    seen.add(item.product_id);
+    return true;
+  });
+}
+
 function POS() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -192,10 +203,9 @@ function POS() {
     if (s.sale_date) setSaleDate(businessDateOf(s.sale_date));
     setDiscountType((s.discount_type ?? "amount") as any);
     setDiscountValue(num(s.discount_value) || "");
-    // One line per product: if the same product ever ended up stored twice on
-    // the bill, it is shown once with the correct total quantity so reopening
-    // a bill can never make it grow.
-    setCart(mergeLines((s.sale_items ?? []).map((it: any) => ({
+    // One line per product. Preserve the first saved quantity rather than
+    // summing accidental duplicate rows from an older local database.
+    setCart(uniqueSavedLines((s.sale_items ?? []).map((it: any) => ({
       product_id: it.product_id,
       name: it.products?.name ?? "Item",
       category: it.products?.category ?? "",
@@ -420,10 +430,14 @@ function POS() {
       const { error } = await supabase.from("sales").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
       toast.success("Pending KDF deleted");
+      qc.setQueriesData<any[]>({ queryKey: ["sales", "pending-search"] }, (rows) =>
+        Array.isArray(rows) ? rows.filter((row) => row.id !== deletedId) : rows,
+      );
       resetForm();
       qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.refetchQueries({ queryKey: ["sales", "pending-search"], type: "active" });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"] });
@@ -636,6 +650,12 @@ function POS() {
         return;
       }
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
+      const savedId = sale?.id ?? editId ?? null;
+      if (savedId && status === "completed") {
+        qc.setQueriesData<any[]>({ queryKey: ["sales", "pending-search"] }, (rows) =>
+          Array.isArray(rows) ? rows.filter((row) => row.id !== savedId) : rows,
+        );
+      }
       toast.success(status === "pending" ? `KDF ${sale.invoice_no} saved as pending` : `KDF ${sale.invoice_no} completed`);
       if (sale?.__staffWarning) toast.warning("Bill saved", { description: sale.__staffWarning });
       if (status === "completed") {
@@ -661,6 +681,7 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["sales", "pending-search"] });
+      qc.refetchQueries({ queryKey: ["sales", "pending-search"], type: "active" });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"] });
       qc.invalidateQueries({ queryKey: ["stock"] });

@@ -45,6 +45,9 @@ DELETE FROM public.sale_items si
  USING ranked r
  WHERE si.ctid = r.rid AND r.rn > 1;
 
+CREATE UNIQUE INDEX IF NOT EXISTS sale_items_sale_product_key
+  ON public.sale_items (sale_id, product_id);
+
 UPDATE public.sales s
    SET grand_total = GREATEST(
          COALESCE((SELECT SUM(i.total) FROM public.sale_items i WHERE i.sale_id = s.id), 0)

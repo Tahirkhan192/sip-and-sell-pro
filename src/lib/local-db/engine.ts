@@ -161,7 +161,7 @@ async function refreshSaleRules(db: PGlite) {
 async function dedupeSaleItemsOnce(db: PGlite) {
   try {
     const done = await db.query<{ ok: boolean }>(
-      "SELECT EXISTS (SELECT 1 FROM public._local_meta WHERE key = 'sale_items_deduped') AS ok",
+      "SELECT EXISTS (SELECT 1 FROM public._local_meta WHERE key = 'sale_items_deduped_v2') AS ok",
     );
     if (done.rows[0]?.ok) return;
     await db.exec("SET session_replication_role = replica;");
@@ -171,7 +171,7 @@ async function dedupeSaleItemsOnce(db: PGlite) {
       await db.exec("SET session_replication_role = origin;");
     }
     await db.exec(
-      "INSERT INTO public._local_meta(key, value) VALUES ('sale_items_deduped', now()::text) ON CONFLICT DO NOTHING",
+      "INSERT INTO public._local_meta(key, value) VALUES ('sale_items_deduped_v2', now()::text) ON CONFLICT DO NOTHING",
     );
   } catch (err) {
     console.error("[local-db] duplicate bill lines cleanup failed", err);
