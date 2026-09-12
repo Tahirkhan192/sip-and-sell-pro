@@ -573,7 +573,7 @@ function POS() {
       // separate update because the existing sale RPCs predate staff invoices.
       // Explicit recomputation also repairs older local databases where the
       // staff trigger may not have been installed yet.
-      const saleId = (saleData as any)?.id ?? editId ?? null;
+      const saleId = resolvedId ?? (saleData as any)?.id ?? editId ?? null;
       const nextStaff = staffId ?? null;
       let staffWarning: string | null = null;
       if (saleId) {
@@ -588,12 +588,14 @@ function POS() {
         const { data: check } = await supabase.from("sales").select("*").eq("id", saleId).maybeSingle();
         if (check) saleData = check;
         const savedStaff = (check as any)?.staff_id ?? null;
-        if (!staffWarning && String(savedStaff ?? "") !== String(nextStaff ?? "")) {
-          staffWarning = "The staff member could not be attached to this invoice.";
+        if (!staffWarning && nextStaff && String(savedStaff ?? "") !== String(nextStaff)) {
+          staffWarning = "The staff member could not be attached to this bill.";
         }
         if (nextStaff && !staffWarning) {
           await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
         }
+      } else if (nextStaff) {
+        staffWarning = "The staff member could not be attached to this bill.";
       }
       if (staffWarning) (saleData as any) = { ...(saleData as any), __staffWarning: staffWarning };
 
