@@ -516,9 +516,28 @@ function POS() {
         const { data, error } = await supabase.rpc("save_sale" as any, args);
         if (error) throw error;
         saleData = data;
-        if (data && saleTs && saleDate && saleDate !== today) {
-          await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", (data as any).id);
-        }
+      }
+
+      // The save routine can hand the invoice back as a plain record value, so
+      // the invoice id is resolved defensively and the row is always re-read.
+      let resolvedId: string | null = editId ?? null;
+      const rawId = (saleData as any)?.id;
+      if (typeof rawId === "string" && rawId) resolvedId = rawId;
+      else if (typeof saleData === "string") {
+        const m = saleData.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        if (m) resolvedId = m[0];
+      }
+      if (!resolvedId) {
+        const { data: latest } = await supabase.from("sales").select("id")
+          .is("deleted_at", null).order("created_at", { ascending: false }).limit(1);
+        resolvedId = ((latest as any[])?.[0]?.id as string) ?? null;
+      }
+      if (resolvedId) {
+        const { data: row } = await supabase.from("sales").select("*").eq("id", resolvedId).maybeSingle();
+        if (row) saleData = row;
+      }
+      if (!editId && resolvedId && saleTs && saleDate && saleDate !== today) {
+        await supabase.from("sales").update({ sale_date: saleTs } as any).eq("id", resolvedId);
       }
 
       // Attach money movements linked to this sale.
@@ -554,7 +573,7 @@ function POS() {
       // separate update because the existing sale RPCs predate staff invoices.
       // Explicit recomputation also repairs older local databases where the
       // staff trigger may not have been installed yet.
-      const saleId = (saleData as any)?.id ?? editId ?? null;
+      const saleId = resolvedId ?? (saleData as any)?.id ?? editId ?? null;
       const nextStaff = staffId ?? null;
       let staffWarning: string | null = null;
       if (saleId) {
@@ -569,12 +588,14 @@ function POS() {
         const { data: check } = await supabase.from("sales").select("*").eq("id", saleId).maybeSingle();
         if (check) saleData = check;
         const savedStaff = (check as any)?.staff_id ?? null;
-        if (!staffWarning && String(savedStaff ?? "") !== String(nextStaff ?? "")) {
-          staffWarning = "The staff member could not be attached to this invoice.";
+        if (!staffWarning && nextStaff && String(savedStaff ?? "") !== String(nextStaff)) {
+          staffWarning = "The staff member could not be attached to this bill.";
         }
         if (nextStaff && !staffWarning) {
           await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
         }
+      } else if (nextStaff) {
+        staffWarning = "The staff member could not be attached to this bill.";
       }
       if (staffWarning) (saleData as any) = { ...(saleData as any), __staffWarning: staffWarning };
 

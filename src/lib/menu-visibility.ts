@@ -13,7 +13,7 @@ export const MENU_MODULES: { key: string; label: string }[] = [
   { key: "/stock-items", label: "Stock Items" },
   { key: "/stock-transfer", label: "Stock Transfer" },
   { key: "/purchases", label: "Purchases" },
-  { key: "/customers", label: "Customers" },
+  
   { key: "/staff", label: "Staff Management" },
   { key: "/expenses", label: "Expenses" },
   { key: "/cash-movements", label: "Money Movements" },
