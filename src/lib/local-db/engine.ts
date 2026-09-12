@@ -12,7 +12,7 @@
 
 import type { PGlite } from "@electric-sql/pglite";
 import type { Meta, FK } from "./postgrest";
-import { LOCAL_UPGRADE_SQL } from "./upgrades";
+import { LOCAL_UPGRADE_SQL, LOCAL_SALE_RULES_SQL, DEDUPE_SALE_ITEMS_SQL } from "./upgrades";
 
 
 const DATA_DIR = "idb://kdf-pos-local";
@@ -137,6 +137,46 @@ async function repairGeneratedMovements(db: PGlite) {
   }
 }
 
+
+/**
+ * Re-applies the current bill-saving rules. A local database only runs the
+ * installation script the first time it is created, so without this a computer
+ * set up before an update keeps the old rules: an edited bill gained a second
+ * copy of its lines and never left "pending".
+ */
+async function refreshSaleRules(db: PGlite) {
+  try {
+    await db.exec(LOCAL_SALE_RULES_SQL);
+    console.info("[local-db] bill-saving rules up to date");
+  } catch (err) {
+    console.error("[local-db] could not refresh bill-saving rules", err);
+  }
+}
+
+/**
+ * Runs once per computer: removes repeated copies of the same product from a
+ * bill, keeping the first line with its original quantity, and recalculates the
+ * totals of the bills that were affected.
+ */
+async function dedupeSaleItemsOnce(db: PGlite) {
+  try {
+    const done = await db.query<{ ok: boolean }>(
+      "SELECT EXISTS (SELECT 1 FROM public._local_meta WHERE key = 'sale_items_deduped') AS ok",
+    );
+    if (done.rows[0]?.ok) return;
+    await db.exec("SET session_replication_role = replica;");
+    try {
+      await db.exec(DEDUPE_SALE_ITEMS_SQL);
+    } finally {
+      await db.exec("SET session_replication_role = origin;");
+    }
+    await db.exec(
+      "INSERT INTO public._local_meta(key, value) VALUES ('sale_items_deduped', now()::text) ON CONFLICT DO NOTHING",
+    );
+  } catch (err) {
+    console.error("[local-db] duplicate bill lines cleanup failed", err);
+  }
+}
 
 /** Brings an already-installed local database up to the current structure. */
 async function applyUpgrades(db: PGlite) {
