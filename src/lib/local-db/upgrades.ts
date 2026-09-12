@@ -25,15 +25,15 @@ export const LOCAL_SALE_RULES_SQL = SALE_RULES_SQL;
  */
 export const DEDUPE_SALE_ITEMS_SQL = `
 WITH ranked AS (
-  SELECT id, sale_id,
+  SELECT ctid AS rid, sale_id,
          row_number() OVER (PARTITION BY sale_id, product_id
-                            ORDER BY created_at ASC, id ASC) AS rn
+                            ORDER BY ctid ASC) AS rn
     FROM public.sale_items
 ),
 removed AS (
   DELETE FROM public.sale_items si
    USING ranked r
-   WHERE si.id = r.id AND r.rn > 1
+   WHERE si.ctid = r.rid AND r.rn > 1
   RETURNING si.sale_id
 ),
 touched AS (SELECT DISTINCT sale_id FROM removed)
