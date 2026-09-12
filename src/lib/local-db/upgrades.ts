@@ -6,6 +6,46 @@
  * functions without losing a single saved row. Every statement is idempotent.
  */
 
+import SALE_RULES_SQL from "./sale-rules.sql?raw";
+
+/**
+ * The bill-saving rules (create bill, edit bill, stock effect of a line).
+ * A local database only runs the installation script once, so a computer set
+ * up before an update keeps the older rules forever. Re-applying them on every
+ * start is what stops an edited bill from gaining a second copy of its lines
+ * and from staying on "pending" after it was completed.
+ */
+export const LOCAL_SALE_RULES_SQL = SALE_RULES_SQL;
+
+/**
+ * One-time repair for bills that already grew a second (or third) copy of the
+ * same product. Only the first line of each product is kept — with its original
+ * quantity, never the sum — and the bill total is recalculated from the lines
+ * that remain. Discount and delivery charges are preserved.
+ */
+export const DEDUPE_SALE_ITEMS_SQL = `
+WITH ranked AS (
+  SELECT id, sale_id,
+         row_number() OVER (PARTITION BY sale_id, product_id
+                            ORDER BY created_at ASC, id ASC) AS rn
+    FROM public.sale_items
+),
+removed AS (
+  DELETE FROM public.sale_items si
+   USING ranked r
+   WHERE si.id = r.id AND r.rn > 1
+  RETURNING si.sale_id
+),
+touched AS (SELECT DISTINCT sale_id FROM removed)
+UPDATE public.sales s
+   SET grand_total = GREATEST(
+         COALESCE((SELECT SUM(total) FROM public.sale_items i WHERE i.sale_id = s.id), 0)
+           - COALESCE(s.discount_amount, 0), 0)
+         + COALESCE(s.delivery_charges, 0)
+  FROM touched t
+ WHERE s.id = t.sale_id;
+`;
+
 export const LOCAL_UPGRADE_SQL = `
 -- Month-end stock lock: opening and closing records live in the same table and
 -- are told apart by "kind", so a month keeps both figures permanently.
