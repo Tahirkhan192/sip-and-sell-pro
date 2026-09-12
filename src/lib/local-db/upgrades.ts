@@ -6,6 +6,56 @@
  * functions without losing a single saved row. Every statement is idempotent.
  */
 
+import SALE_RULES_SQL from "./sale-rules.sql?raw";
+
+/**
+ * The bill-saving rules (create bill, edit bill, stock effect of a line).
+ * A local database only runs the installation script once, so a computer set
+ * up before an update keeps the older rules forever. Re-applying them on every
+ * start is what stops an edited bill from gaining a second copy of its lines
+ * and from staying on "pending" after it was completed.
+ */
+export const LOCAL_SALE_RULES_SQL = SALE_RULES_SQL;
+
+/**
+ * One-time repair for bills that already grew a second (or third) copy of the
+ * same product. Only the first line of each product is kept — with its original
+ * quantity, never the sum — and the bill total is recalculated from the lines
+ * that remain. Discount and delivery charges are preserved.
+ */
+export const DEDUPE_SALE_ITEMS_SQL = `
+DROP TABLE IF EXISTS pg_temp.kdf_dup_sales;
+
+CREATE TEMP TABLE kdf_dup_sales AS
+WITH ranked AS (
+  SELECT ctid AS rid, sale_id,
+         row_number() OVER (PARTITION BY sale_id, product_id
+                            ORDER BY ctid ASC) AS rn
+    FROM public.sale_items
+)
+SELECT DISTINCT sale_id FROM ranked WHERE rn > 1;
+
+WITH ranked AS (
+  SELECT ctid AS rid,
+         row_number() OVER (PARTITION BY sale_id, product_id
+                            ORDER BY ctid ASC) AS rn
+    FROM public.sale_items
+)
+DELETE FROM public.sale_items si
+ USING ranked r
+ WHERE si.ctid = r.rid AND r.rn > 1;
+
+UPDATE public.sales s
+   SET grand_total = GREATEST(
+         COALESCE((SELECT SUM(i.total) FROM public.sale_items i WHERE i.sale_id = s.id), 0)
+           - COALESCE(s.discount_amount, 0), 0)
+         + COALESCE(s.delivery_charges, 0)
+  FROM kdf_dup_sales d
+ WHERE s.id = d.sale_id;
+
+DROP TABLE IF EXISTS pg_temp.kdf_dup_sales;
+`;
+
 export const LOCAL_UPGRADE_SQL = `
 -- Month-end stock lock: opening and closing records live in the same table and
 -- are told apart by "kind", so a month keeps both figures permanently.
