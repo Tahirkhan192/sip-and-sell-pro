@@ -582,8 +582,11 @@ function POS() {
       // staff trigger may not have been installed yet.
       const saleId = resolvedId ?? (saleData as any)?.id ?? editId ?? null;
       const nextStaff = staffId ?? null;
+      // Never clear an existing staff link from a bill whose details were not
+      // loaded into the screen (safety net: the form would show no staff).
+      const canWriteStaff = nextStaff !== null || !editId || hydratedEditIdRef.current === editId;
       let staffWarning: string | null = null;
-      if (saleId) {
+      if (saleId && canWriteStaff) {
         const { error: staffLinkError } = await supabase
           .from("sales")
           .update({ staff_id: nextStaff, katha: effectiveKatha } as any)
