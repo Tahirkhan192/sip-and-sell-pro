@@ -24,26 +24,36 @@ export const LOCAL_SALE_RULES_SQL = SALE_RULES_SQL;
  * that remain. Discount and delivery charges are preserved.
  */
 export const DEDUPE_SALE_ITEMS_SQL = `
+DROP TABLE IF EXISTS pg_temp.kdf_dup_sales;
+
+CREATE TEMP TABLE kdf_dup_sales AS
 WITH ranked AS (
   SELECT ctid AS rid, sale_id,
          row_number() OVER (PARTITION BY sale_id, product_id
                             ORDER BY ctid ASC) AS rn
     FROM public.sale_items
-),
-removed AS (
-  DELETE FROM public.sale_items si
-   USING ranked r
-   WHERE si.ctid = r.rid AND r.rn > 1
-  RETURNING si.sale_id
-),
-touched AS (SELECT DISTINCT sale_id FROM removed)
+)
+SELECT DISTINCT sale_id FROM ranked WHERE rn > 1;
+
+WITH ranked AS (
+  SELECT ctid AS rid,
+         row_number() OVER (PARTITION BY sale_id, product_id
+                            ORDER BY ctid ASC) AS rn
+    FROM public.sale_items
+)
+DELETE FROM public.sale_items si
+ USING ranked r
+ WHERE si.ctid = r.rid AND r.rn > 1;
+
 UPDATE public.sales s
    SET grand_total = GREATEST(
-         COALESCE((SELECT SUM(total) FROM public.sale_items i WHERE i.sale_id = s.id), 0)
+         COALESCE((SELECT SUM(i.total) FROM public.sale_items i WHERE i.sale_id = s.id), 0)
            - COALESCE(s.discount_amount, 0), 0)
          + COALESCE(s.delivery_charges, 0)
-  FROM touched t
- WHERE s.id = t.sale_id;
+  FROM kdf_dup_sales d
+ WHERE s.id = d.sale_id;
+
+DROP TABLE IF EXISTS pg_temp.kdf_dup_sales;
 `;
 
 export const LOCAL_UPGRADE_SQL = `
