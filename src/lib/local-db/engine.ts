@@ -71,6 +71,8 @@ async function init(): Promise<Engine> {
   }
 
   await applyUpgrades(db);
+  await refreshSaleRules(db);
+  await dedupeSaleItemsOnce(db);
   await repairGeneratedMovements(db);
   await syncInvoiceSequence(db);
 
