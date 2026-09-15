@@ -193,10 +193,14 @@ BEGIN
   SELECT COALESCE(SUM(grand_total),0) INTO v_p_pur FROM public.purchases
     WHERE deleted_at IS NULL AND payment_status='katha' AND date >= v_from AND date < _date;
   SELECT COALESCE(SUM(amount),0) INTO v_p_exp FROM public.expenses
+    WHERE deleted_at IS NULL AND payment_status='katha' AND COALESCE(is_stock_transfer,false) = false
+      AND date >= v_from AND date < _date;
+  SELECT COALESCE(SUM(COALESCE(fuel_cost,0) + COALESCE(maintenance_cost,0)),0) INTO v_p_del
+    FROM public.delivery_expenses
     WHERE deleted_at IS NULL AND payment_status='katha' AND date >= v_from AND date < _date;
 
   v_prev_get  := v_open_get + v_p_sales + v_p_given - v_p_recovered;
-  v_prev_give := v_open_give + v_p_pur + v_p_exp + v_p_taken - v_p_repaid;
+  v_prev_give := v_open_give + v_p_pur + v_p_exp + v_p_del + v_p_taken - v_p_repaid;
 
   SELECT COALESCE(SUM(GREATEST(grand_total - cash_paid - online_paid, 0)),0) INTO v_katha_sales
     FROM public.sales WHERE deleted_at IS NULL AND NOT hidden AND status='completed' AND katha
