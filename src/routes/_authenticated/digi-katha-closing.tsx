@@ -39,6 +39,7 @@ type Summary = {
   loan_recovered: number;
   purchase_katha: number;
   expense_katha: number;
+  delivery_expense_katha?: number;
   loan_taken: number;
   loan_repaid: number;
   expected_loan_to_get: number;
