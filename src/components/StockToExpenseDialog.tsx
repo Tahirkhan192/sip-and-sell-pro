@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useExpenseCategories } from "@/lib/use-expense-categories";
 import { money, num, today } from "@/lib/format";
+import { businessToday } from "@/lib/business-date";
 import { toast } from "sonner";
 
 type Target = { kind: "product" | "stock_item"; id: string; name: string; unit?: string; cost: number; current: number };
@@ -20,7 +21,7 @@ export function StockToExpenseDialog({ target, open, onOpenChange }: { target: T
   const [category, setCategory] = useState<string>("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(businessToday());
 
   const cost = num(target?.cost) * num(quantity);
 

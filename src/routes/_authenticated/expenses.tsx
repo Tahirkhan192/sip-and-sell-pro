@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
+import { businessToday } from "@/lib/business-date";
 import { useExpenseCategories, useExpenseCategoryMutations } from "@/lib/use-expense-categories";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -21,7 +22,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/expenses")({ component: Page });
 
 type E = { id?: string; date: string; category: string; amount: number | ""; description: string; payment_method: "cash" | "online" | "stock_transfer"; payment_status: "paid" | "unpaid" | "katha"; is_stock_transfer?: boolean };
-const empty: E = { date: today(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash", payment_status: "paid" };
+const empty: E = { date: businessToday(), category: "Miscellaneous", amount: "", description: "", payment_method: "cash", payment_status: "paid" };
 
 function Page() {
   const qc = useQueryClient();
@@ -120,7 +121,7 @@ function Page() {
   return (
     <div>
       <PageHeader title="Expenses" subtitle="General business expenses (delivery costs go in Delivery Expenses)"
-        action={<Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Expense</Button>} />
+        action={<Button onClick={() => { setForm({ ...empty, date: businessToday() }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Expense</Button>} />
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -160,7 +161,7 @@ function Page() {
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: (p.payment_method ?? "cash") as any, payment_status: status, is_stock_transfer: p.is_stock_transfer, ...(p.is_stock_transfer ? { source_quantity: p.source_quantity, source_unit_cost: p.source_unit_cost, source_product_id: p.source_product_id, source_stock_item_id: p.source_stock_item_id } : {}) } as any); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" title="Duplicate" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ date: today(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title="Duplicate" disabled={!!p.is_stock_transfer} onClick={() => { setForm({ date: businessToday(), category: p.category, amount: Number(p.amount), description: p.description ?? "", payment_method: "cash", payment_status: status }); setOpen(true); }}><Plus className="h-4 w-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => { if (confirm(p.is_stock_transfer ? "Delete this stock transfer? Stock will be restored." : "Delete?")) del.mutate({ id: p.id, isTransfer: !!p.is_stock_transfer }); }}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>

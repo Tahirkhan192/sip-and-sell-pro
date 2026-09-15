@@ -16,7 +16,7 @@ import { PageHeader, CrudDialog } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
 import { useExpenseCategories } from "@/lib/use-expense-categories";
 import { money, num, today } from "@/lib/format";
-import { buildRange } from "@/lib/business-date";
+import { buildRange, businessToday } from "@/lib/business-date";
 import { useInventoryEngine, type Period } from "@/lib/inventory-engine";
 
 function transferPeriod(): Period {
@@ -52,7 +52,7 @@ const empty: F = {
   quantity: "",
   reason: "",
   notes: "",
-  date: today(),
+  date: businessToday(),
 };
 
 function Page() {
@@ -166,7 +166,7 @@ function Page() {
       <PageHeader
         title="Stock Transfer"
         subtitle="Move a Product or Stock Item between Categories, or transfer it out as an Expense (Wastage, Staff Food, Damage, etc.)."
-        action={<Button onClick={() => { setForm({ ...empty, date: today() }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Transfer</Button>}
+        action={<Button onClick={() => { setForm({ ...empty, date: businessToday() }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Transfer</Button>}
       />
 
       <Card>

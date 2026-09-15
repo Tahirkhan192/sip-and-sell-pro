@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatBusinessTime, businessDateOf } from "@/lib/business-date";
+import { formatBusinessTime, businessDateOf, businessToday } from "@/lib/business-date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,7 +52,7 @@ type Form = {
   items: Line[];
 };
 const emptyLine: Line = { target: "stock_item", product_id: "", stock_item_id: "", category: "", quantity: "", unit: "", unit_cost: "" };
-const empty: Form = { date: today(), supplier: "", payment_status: "unpaid", payment_method: "", notes: "", items: [{ ...emptyLine }] };
+const empty: Form = { date: businessToday(), supplier: "", payment_status: "unpaid", payment_method: "", notes: "", items: [{ ...emptyLine }] };
 
 function Page() {
   const qc = useQueryClient();
@@ -168,7 +168,7 @@ function Page() {
   return (
     <div>
       <PageHeader title="Purchases" subtitle="Multi-item purchases with paid/unpaid tracking"
-        action={<Button onClick={() => { setForm({ ...empty, items: [{ ...emptyLine }] }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Purchase</Button>} />
+        action={<Button onClick={() => { setForm({ ...empty, date: businessToday(), items: [{ ...emptyLine }] }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />New Purchase</Button>} />
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
