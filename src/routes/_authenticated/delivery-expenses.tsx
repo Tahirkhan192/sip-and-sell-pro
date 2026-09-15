@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/delivery-expenses")({ component: Page });
 
-type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid"; payment_method: "cash" | "online" | "" };
+type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid" | "katha"; payment_method: "cash" | "online" | "" };
 const empty: D = { date: businessToday(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
 
 function Page() {
