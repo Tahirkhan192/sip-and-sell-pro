@@ -103,6 +103,8 @@ function OpeningBalanceCard() {
           <h3 className="text-sm font-semibold">Opening Digi Katha Balance</h3>
           <p className="text-[11px] text-muted-foreground">
             Permanent starting balances from before the system was used. These are not daily transactions.
+            The date below is the cut-off: only katha entries on or after that date are added to these
+            balances, so anything older is never counted twice.
           </p>
         </div>
         {!editing && (
