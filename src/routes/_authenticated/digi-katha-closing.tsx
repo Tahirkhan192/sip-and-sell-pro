@@ -201,6 +201,7 @@ function Page() {
               <Row label="Previous Loan To Give (incl. opening)" value={s.previous_loan_to_give} />
               <Row label="Today's Purchase Katha" value={s.purchase_katha} />
               <Row label="Today's Expense Katha" value={s.expense_katha} />
+              <Row label="Today's Delivery Expense Katha" value={s.delivery_expense_katha ?? 0} />
               <Row label="Today's Loan Taken (Loan Get In)" value={s.loan_taken} />
               <Row label="Less: Loan Paid Today (Loan Paid Out)" value={-s.loan_repaid} />
               <Row label="Current Loan To Give" value={s.expected_loan_to_give} strong tone="give" />
