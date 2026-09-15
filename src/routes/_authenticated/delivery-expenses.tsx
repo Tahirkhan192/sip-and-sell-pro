@@ -12,13 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Pencil, Search } from "lucide-react";
 import { money, today } from "@/lib/format";
+import { businessToday } from "@/lib/business-date";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/delivery-expenses")({ component: Page });
 
 type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid"; payment_method: "cash" | "online" | "" };
-const empty: D = { date: today(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
+const empty: D = { date: businessToday(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
 
 function Page() {
   const qc = useQueryClient();
@@ -65,7 +66,7 @@ function Page() {
   return (
     <div>
       <PageHeader title="Delivery Expenses" subtitle="Fuel & motorcycle maintenance — NOT included in general business expenses"
-        action={<Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add</Button>} />
+        action={<Button onClick={() => { setForm({ ...empty, date: businessToday() }); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add</Button>} />
       <div className="relative max-w-sm mb-3">
         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input className="pl-8" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { money, num, today } from "@/lib/format";
+import { businessToday } from "@/lib/business-date";
 import { useStockItemAvailable } from "@/components/StockAvailability";
 import { CrudDialog, PageHeader } from "@/components/CrudHelpers";
 import { useCategories } from "@/lib/use-categories";
@@ -38,7 +39,7 @@ type S = {
 const empty: S = {
   name: "", category: "", unit: "pcs",
   opening_stock: null, current_stock: null, minimum_stock: null, purchase_price: null,
-  supplier_id: null, purchase_date: today(), notes: "", auto_calc: false,
+  supplier_id: null, purchase_date: businessToday(), notes: "", auto_calc: false,
 };
 
 function Page() {
@@ -137,7 +138,7 @@ function Page() {
             qc.invalidateQueries({ queryKey: ["report"] });
             toast.success("Opening Stock updated for all stock items");
           }}>Set Current as Opening</Button>
-          <Button onClick={() => { setForm(empty); setOriginalCurrent(null); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
+          <Button onClick={() => { setForm({ ...empty, purchase_date: businessToday() }); setOriginalCurrent(null); setOpen(true); }}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
         </div>}
       />
 
