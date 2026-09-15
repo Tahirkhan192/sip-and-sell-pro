@@ -167,9 +167,10 @@ AS $function$
 DECLARE
   v_prev_get numeric := 0; v_prev_give numeric := 0;
   v_katha_sales numeric := 0; v_loan_given numeric := 0; v_loan_recovered numeric := 0;
-  v_pur_katha numeric := 0; v_exp_katha numeric := 0; v_loan_taken numeric := 0; v_loan_repaid numeric := 0;
+  v_pur_katha numeric := 0; v_exp_katha numeric := 0; v_del_katha numeric := 0;
+  v_loan_taken numeric := 0; v_loan_repaid numeric := 0;
   v_p_sales numeric := 0; v_p_given numeric := 0; v_p_recovered numeric := 0;
-  v_p_pur numeric := 0; v_p_exp numeric := 0; v_p_taken numeric := 0; v_p_repaid numeric := 0;
+  v_p_pur numeric := 0; v_p_exp numeric := 0; v_p_del numeric := 0; v_p_taken numeric := 0; v_p_repaid numeric := 0;
   v_open_get numeric := 0; v_open_give numeric := 0; v_from date;
 BEGIN
   SELECT COALESCE(opening_loan_to_get,0), COALESCE(opening_loan_to_give,0), as_of_date
