@@ -216,6 +216,10 @@ BEGIN
   SELECT COALESCE(SUM(grand_total),0) INTO v_pur_katha FROM public.purchases
     WHERE deleted_at IS NULL AND payment_status='katha' AND date = _date AND _date >= v_from;
   SELECT COALESCE(SUM(amount),0) INTO v_exp_katha FROM public.expenses
+    WHERE deleted_at IS NULL AND payment_status='katha' AND COALESCE(is_stock_transfer,false) = false
+      AND date = _date AND _date >= v_from;
+  SELECT COALESCE(SUM(COALESCE(fuel_cost,0) + COALESCE(maintenance_cost,0)),0) INTO v_del_katha
+    FROM public.delivery_expenses
     WHERE deleted_at IS NULL AND payment_status='katha' AND date = _date AND _date >= v_from;
 
   RETURN jsonb_build_object(
