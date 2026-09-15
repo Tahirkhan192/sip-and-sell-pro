@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -169,7 +169,14 @@ function Page() {
       <PageHeader
         title="Digi Katha Closing"
         subtitle="Loan book by business date — opening balances, katha sales, katha purchases/expenses and cash loans"
-        action={<PrintButton title={`Digi Katha Closing ${date}`} />}
+        action={
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/katha-details" search={{ to: date }}>View details</Link>
+            </Button>
+            <PrintButton title={`Digi Katha Closing ${date}`} />
+          </div>
+        }
       />
 
       <div className="no-print flex flex-wrap gap-2 mb-3 items-end">

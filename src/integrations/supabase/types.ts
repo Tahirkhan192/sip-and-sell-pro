@@ -1690,6 +1690,10 @@ export type Database = {
         Args: { _expense_id: string }
         Returns: undefined
       }
+      digi_katha_entries: {
+        Args: { _from: string; _to: string }
+        Returns: Json
+      }
       digi_katha_summary: { Args: { _date: string }; Returns: Json }
       get_business_config: {
         Args: never

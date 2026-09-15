@@ -27,6 +27,7 @@ import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedProductionRouteImport } from './routes/_authenticated/production'
 import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
+import { Route as AuthenticatedKathaDetailsRouteImport } from './routes/_authenticated/katha-details'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDigiKathaClosingRouteImport } from './routes/_authenticated/digi-katha-closing'
 import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
@@ -133,6 +134,12 @@ const AuthenticatedPosRoute = AuthenticatedPosRouteImport.update({
   path: '/pos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedKathaDetailsRoute =
+  AuthenticatedKathaDetailsRouteImport.update({
+    id: '/katha-details',
+    path: '/katha-details',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
@@ -233,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/expenses': typeof AuthenticatedExpensesRoute
+  '/katha-details': typeof AuthenticatedKathaDetailsRoute
   '/pos': typeof AuthenticatedPosRoute
   '/production': typeof AuthenticatedProductionRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -266,6 +274,7 @@ export interface FileRoutesByTo {
   '/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/expenses': typeof AuthenticatedExpensesRoute
+  '/katha-details': typeof AuthenticatedKathaDetailsRoute
   '/pos': typeof AuthenticatedPosRoute
   '/production': typeof AuthenticatedProductionRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/_authenticated/delivery-report': typeof AuthenticatedDeliveryReportRoute
   '/_authenticated/digi-katha-closing': typeof AuthenticatedDigiKathaClosingRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
+  '/_authenticated/katha-details': typeof AuthenticatedKathaDetailsRoute
   '/_authenticated/pos': typeof AuthenticatedPosRoute
   '/_authenticated/production': typeof AuthenticatedProductionRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/delivery-report'
     | '/digi-katha-closing'
     | '/expenses'
+    | '/katha-details'
     | '/pos'
     | '/production'
     | '/products'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/delivery-report'
     | '/digi-katha-closing'
     | '/expenses'
+    | '/katha-details'
     | '/pos'
     | '/production'
     | '/products'
@@ -407,6 +419,7 @@ export interface FileRouteTypes {
     | '/_authenticated/delivery-report'
     | '/_authenticated/digi-katha-closing'
     | '/_authenticated/expenses'
+    | '/_authenticated/katha-details'
     | '/_authenticated/pos'
     | '/_authenticated/production'
     | '/_authenticated/products'
@@ -571,6 +584,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/katha-details': {
+      id: '/_authenticated/katha-details'
+      path: '/katha-details'
+      fullPath: '/katha-details'
+      preLoaderRoute: typeof AuthenticatedKathaDetailsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/expenses': {
       id: '/_authenticated/expenses'
       path: '/expenses'
@@ -688,6 +708,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDeliveryReportRoute: typeof AuthenticatedDeliveryReportRoute
   AuthenticatedDigiKathaClosingRoute: typeof AuthenticatedDigiKathaClosingRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
+  AuthenticatedKathaDetailsRoute: typeof AuthenticatedKathaDetailsRoute
   AuthenticatedPosRoute: typeof AuthenticatedPosRoute
   AuthenticatedProductionRoute: typeof AuthenticatedProductionRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
@@ -713,6 +734,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDeliveryReportRoute: AuthenticatedDeliveryReportRoute,
   AuthenticatedDigiKathaClosingRoute: AuthenticatedDigiKathaClosingRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
+  AuthenticatedKathaDetailsRoute: AuthenticatedKathaDetailsRoute,
   AuthenticatedPosRoute: AuthenticatedPosRoute,
   AuthenticatedProductionRoute: AuthenticatedProductionRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
