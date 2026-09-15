@@ -233,10 +233,11 @@ BEGIN
     'loan_recovered', v_loan_recovered,
     'purchase_katha', v_pur_katha,
     'expense_katha', v_exp_katha,
+    'delivery_expense_katha', v_del_katha,
     'loan_taken', v_loan_taken,
     'loan_repaid', v_loan_repaid,
     'expected_loan_to_get', v_prev_get + v_katha_sales + v_loan_given - v_loan_recovered,
-    'expected_loan_to_give', v_prev_give + v_pur_katha + v_exp_katha + v_loan_taken - v_loan_repaid
+    'expected_loan_to_give', v_prev_give + v_pur_katha + v_exp_katha + v_del_katha + v_loan_taken - v_loan_repaid
   );
 END $function$;
 `;
