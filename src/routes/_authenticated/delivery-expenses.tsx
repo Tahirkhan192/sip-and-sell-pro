@@ -101,6 +101,7 @@ function Page() {
           <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-medium">
             <span>Fuel: {money(totals.fuel)}</span>
             <span>Maintenance: {money(totals.maint)}</span>
+            <span className="text-amber-600">Katha: {money(totalKatha)}</span>
             <span>Total: {money(totals.fuel + totals.maint)}</span>
           </div>
         )}
