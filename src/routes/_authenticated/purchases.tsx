@@ -180,6 +180,7 @@ function Page() {
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="paid">Paid only</SelectItem>
             <SelectItem value="unpaid">Unpaid only</SelectItem>
+            <SelectItem value="katha">Katha only</SelectItem>
           </SelectContent>
         </Select>
       </div>
