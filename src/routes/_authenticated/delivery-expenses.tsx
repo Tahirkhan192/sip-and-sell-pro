@@ -62,6 +62,7 @@ function Page() {
   }, [data, search]);
 
   const totals = filtered.reduce((a, x: any) => ({ fuel: a.fuel + Number(x.fuel_cost), maint: a.maint + Number(x.maintenance_cost) }), { fuel: 0, maint: 0 });
+  const totalKatha = filtered.reduce((s, x: any) => s + ((x.payment_status ?? "unpaid") === "katha" ? Number(x.fuel_cost) + Number(x.maintenance_cost) : 0), 0);
 
   return (
     <div>
