@@ -61,6 +61,7 @@ const NAV: NavItem[] = [
   { to: "/cash-movements", label: "Money Movements", icon: Banknote },
   { to: "/daily-closing", label: "Daily Closing", icon: BookOpen },
   { to: "/digi-katha-closing", label: "Digi Katha Closing", icon: BookOpen },
+  { to: "/katha-details", label: "Katha Details", icon: BookOpen },
   { to: "/delivery-expenses", label: "Delivery Expenses", icon: Bike },
   { to: "/delivery-report", label: "Delivery Report", icon: Send },
   { to: "/stock", label: "Stock", icon: Boxes },

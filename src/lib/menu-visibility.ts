@@ -19,6 +19,7 @@ export const MENU_MODULES: { key: string; label: string }[] = [
   { key: "/cash-movements", label: "Money Movements" },
   { key: "/daily-closing", label: "Daily Closing" },
   { key: "/digi-katha-closing", label: "Digi Katha Closing" },
+  { key: "/katha-details", label: "Katha Details" },
   { key: "/delivery-expenses", label: "Delivery Expenses" },
   { key: "/delivery-report", label: "Delivery Report" },
   { key: "/stock", label: "Stock" },
