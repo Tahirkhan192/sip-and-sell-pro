@@ -84,7 +84,9 @@ function Page() {
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell>{(p.payment_status ?? "unpaid") === "paid"
                   ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Paid</Badge>
-                  : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
+                  : (p.payment_status === "katha")
+                    ? <Badge className="bg-amber-600 hover:bg-amber-600">Katha</Badge>
+                    : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
                 <TableCell className="capitalize">{p.payment_method ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "", payment_status: (p.payment_status ?? "unpaid") as any, payment_method: (p.payment_method ?? "") as any }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
