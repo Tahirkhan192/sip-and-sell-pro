@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/delivery-expenses")({ component: Page });
 
-type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid"; payment_method: "cash" | "online" | "" };
+type D = { id?: string; date: string; fuel_cost: number; maintenance_cost: number; description: string; payment_status: "paid" | "unpaid" | "katha"; payment_method: "cash" | "online" | "" };
 const empty: D = { date: businessToday(), fuel_cost: 0, maintenance_cost: 0, description: "", payment_status: "unpaid", payment_method: "" };
 
 function Page() {
@@ -62,6 +62,7 @@ function Page() {
   }, [data, search]);
 
   const totals = filtered.reduce((a, x: any) => ({ fuel: a.fuel + Number(x.fuel_cost), maint: a.maint + Number(x.maintenance_cost) }), { fuel: 0, maint: 0 });
+  const totalKatha = filtered.reduce((s, x: any) => s + ((x.payment_status ?? "unpaid") === "katha" ? Number(x.fuel_cost) + Number(x.maintenance_cost) : 0), 0);
 
   return (
     <div>
@@ -83,7 +84,9 @@ function Page() {
                 <TableCell className="max-w-xs truncate">{p.description ?? "—"}</TableCell>
                 <TableCell>{(p.payment_status ?? "unpaid") === "paid"
                   ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Paid</Badge>
-                  : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
+                  : (p.payment_status === "katha")
+                    ? <Badge className="bg-amber-600 hover:bg-amber-600">Katha</Badge>
+                    : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
                 <TableCell className="capitalize">{p.payment_method ?? "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => { setForm({ id: p.id, date: p.date, fuel_cost: Number(p.fuel_cost), maintenance_cost: Number(p.maintenance_cost), description: p.description ?? "", payment_status: (p.payment_status ?? "unpaid") as any, payment_method: (p.payment_method ?? "") as any }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
@@ -98,6 +101,7 @@ function Page() {
           <div className="flex justify-end gap-6 border-t px-4 py-2 text-sm font-medium">
             <span>Fuel: {money(totals.fuel)}</span>
             <span>Maintenance: {money(totals.maint)}</span>
+            <span className="text-amber-600">Katha: {money(totalKatha)}</span>
             <span>Total: {money(totals.fuel + totals.maint)}</span>
           </div>
         )}
@@ -115,11 +119,12 @@ function Page() {
         <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-2"><Label>Payment Status</Label>
-            <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v, payment_method: v === "unpaid" ? "" : form.payment_method })}>
+            <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v, payment_method: v === "paid" ? form.payment_method : "" })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="unpaid">Unpaid</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="katha">Katha (added to Loan To Give)</SelectItem>
               </SelectContent>
             </Select>
           </div>
