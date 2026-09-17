@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useBusinessConfigLoader } from "@/lib/use-settings";
 import { isModuleVisible, moduleKeyForPath, useMenuVisibility } from "@/lib/menu-visibility";
 import { useDriveAutoSync } from "@/lib/drive-sync";
+import { useDataFolderAutoSave } from "@/lib/data-folder";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -35,6 +36,7 @@ function AuthLayout() {
   useEffect(() => setReady(true), []);
   useBusinessConfigLoader();
   useDriveAutoSync();
+  useDataFolderAutoSave();
   useMenuGuard();
   if (!ready) return null;
   return (
