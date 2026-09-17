@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { validateBackup } from "@/data/backup/restore";
 import { applyBackup } from "@/data/backup/apply";
 import type { BackupFile, BackupValidation } from "@/data/backup/format";
+import { DATA_FILE, readDataFolderBackup, supportsDataFolder } from "@/lib/data-folder";
 
 export function RestoreCard() {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -41,6 +42,20 @@ export function RestoreCard() {
     } catch {
       setCheck({ ok: false, errors: ["The file is not readable JSON."], warnings: [], counts: {} });
       toast.error("The file could not be read");
+    }
+  }
+
+  async function pickFromFolder() {
+    setFile(null); setCheck(null); setStatus(""); setDone(null);
+    try {
+      const parsed = await readDataFolderBackup();
+      setFileName(`${DATA_FILE} (data folder)`);
+      setCheck(validateBackup(parsed));
+      setFile(parsed);
+    } catch (e: any) {
+      setFileName("");
+      setCheck({ ok: false, errors: [e?.message ?? "Could not read the data folder."], warnings: [], counts: {} });
+      toast.error(e?.message ?? "Could not read the data folder");
     }
   }
 
