@@ -17,7 +17,8 @@ import { applyBackup } from "@/data/backup/apply";
 import { validateBackup } from "@/data/backup/restore";
 import type { BackupFile } from "@/data/backup/format";
 
-export const SYNC_INTERVAL_MS = 60 * 60 * 1000;
+/** Backup to Google Drive runs every minute; skipped when nothing changed. */
+export const SYNC_INTERVAL_MS = 60 * 1000;
 const STATE_KEY = "kdf.driveSync.v1";
 
 export type SyncState = {
@@ -285,8 +286,10 @@ export async function restoreCatalogFromDrive(): Promise<{ restored: boolean; ro
 }
 
 /**
- * Background sync: one pull when the app opens, then a push every hour
- * whenever the local data changed.
+ * Background backup: the app always runs from the data on this computer and
+ * never waits for the internet. Every minute, if a connection happens to be
+ * there and something changed, a fresh copy is sent to Google Drive.
+ * Bringing data back from Drive is only ever done by hand from Settings.
  */
 export function useDriveAutoSync() {
   const started = useRef(false);
@@ -303,22 +306,24 @@ export function useDriveAutoSync() {
     started.current = true;
     let stopped = false;
 
-    async function cycle(first: boolean) {
+    async function cycle() {
       if (stopped || !readSyncState().enabled) return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       try {
         const status = await driveStatus();
         if (!status.connected) return;
-        if (first) await pullFromDrive();
         await pushToDrive();
       } catch (err) {
         writeSyncState({ lastError: err instanceof Error ? err.message : String(err) });
       }
     }
 
-    void cycle(true);
-    const timer = window.setInterval(() => void cycle(false), SYNC_INTERVAL_MS);
+    // Never on startup — opening the app must not touch the network.
+    const firstDelay = window.setTimeout(() => void cycle(), SYNC_INTERVAL_MS);
+    const timer = window.setInterval(() => void cycle(), SYNC_INTERVAL_MS);
     return () => {
       stopped = true;
+      window.clearTimeout(firstDelay);
       window.clearInterval(timer);
     };
   }, []);

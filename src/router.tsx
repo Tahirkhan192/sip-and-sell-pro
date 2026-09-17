@@ -9,10 +9,19 @@ export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30_000,
-        gcTime: 10 * 60_000,
+        // Everything is read from the database on this computer, so keeping
+        // lists in memory longer makes switching screens instant.
+        staleTime: 5 * 60_000,
+        gcTime: 60 * 60_000,
         refetchOnWindowFocus: false,
-        retry: 1,
+        refetchOnReconnect: false,
+        retry: 0,
+        // Never wait for the internet: the data is local.
+        networkMode: "always",
+      },
+      mutations: {
+        networkMode: "always",
+        retry: 0,
       },
     },
   });
@@ -21,7 +30,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    defaultPreload: "intent",
+    defaultPreloadStaleTime: 30_000,
   });
 
   return router;
