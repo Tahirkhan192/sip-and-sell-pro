@@ -17,7 +17,8 @@ import { applyBackup } from "@/data/backup/apply";
 import { validateBackup } from "@/data/backup/restore";
 import type { BackupFile } from "@/data/backup/format";
 
-export const SYNC_INTERVAL_MS = 60 * 60 * 1000;
+/** Backup to Google Drive runs every minute; skipped when nothing changed. */
+export const SYNC_INTERVAL_MS = 60 * 1000;
 const STATE_KEY = "kdf.driveSync.v1";
 
 export type SyncState = {
