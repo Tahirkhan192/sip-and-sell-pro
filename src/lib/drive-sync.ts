@@ -286,8 +286,10 @@ export async function restoreCatalogFromDrive(): Promise<{ restored: boolean; ro
 }
 
 /**
- * Background sync: one pull when the app opens, then a push every hour
- * whenever the local data changed.
+ * Background backup: the app always runs from the data on this computer and
+ * never waits for the internet. Every minute, if a connection happens to be
+ * there and something changed, a fresh copy is sent to Google Drive.
+ * Bringing data back from Drive is only ever done by hand from Settings.
  */
 export function useDriveAutoSync() {
   const started = useRef(false);
