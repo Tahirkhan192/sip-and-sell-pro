@@ -306,19 +306,20 @@ export function useDriveAutoSync() {
     started.current = true;
     let stopped = false;
 
-    async function cycle(first: boolean) {
+    async function cycle() {
       if (stopped || !readSyncState().enabled) return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       try {
         const status = await driveStatus();
         if (!status.connected) return;
-        if (first) await pullFromDrive();
         await pushToDrive();
       } catch (err) {
         writeSyncState({ lastError: err instanceof Error ? err.message : String(err) });
       }
     }
 
-    void cycle(true);
+    // Never on startup — opening the app must not touch the network.
+    const firstDelay = window.setTimeout(() => void cycle(), SYNC_INTERVAL_MS);
     const timer = window.setInterval(() => void cycle(false), SYNC_INTERVAL_MS);
     return () => {
       stopped = true;
