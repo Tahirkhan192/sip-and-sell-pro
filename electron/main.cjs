@@ -15,23 +15,29 @@ const path = require("path");
 const net = require("net");
 const fs = require("fs");
 
-// On Windows keep the complete Chromium profile (including the PGlite
-// IndexedDB database) under D:\app data. KDF_DATA_DIR can override this for
-// managed installations; computers without a D: drive use normal AppData.
+// The app creates and owns its own data folder on first run. Everything —
+// the complete Chromium profile including the PGlite database — lives there.
+// KDF_DATA_DIR can override it for managed installations.
 const requestedDataDir = process.env.KDF_DATA_DIR?.trim();
-const legacyDataDir = path.join(app.getPath("appData"), "KhyberDeliciousFood");
-const windowsDataDir = "D:\\app data";
+const appDataDir = path.join(app.getPath("appData"), "KhyberDeliciousFood");
+const ownWindowsDir = "D:\\Khyber Delicious Food Data";
 const DATA_DIR = requestedDataDir || (process.platform === "win32" && fs.existsSync("D:\\")
-  ? windowsDataDir
-  : legacyDataDir);
+  ? ownWindowsDir
+  : appDataDir);
 fs.mkdirSync(DATA_DIR, { recursive: true });
-// First run after this update: retain the existing local database, passcode,
-// Drive connection and settings instead of starting a blank profile on D:.
-if (DATA_DIR !== legacyDataDir && fs.existsSync(legacyDataDir) && !fs.existsSync(path.join(DATA_DIR, "IndexedDB"))) {
-  try {
-    fs.cpSync(legacyDataDir, DATA_DIR, { recursive: true, force: false, errorOnExist: false });
-  } catch {
-    /* If migration is unavailable, the packaged seed still opens normally. */
+// First run after an update: carry over the existing local database, passcode,
+// Drive connection and settings from wherever they used to live, so nothing is
+// lost and the app never opens on a blank profile.
+if (!fs.existsSync(path.join(DATA_DIR, "IndexedDB"))) {
+  for (const previous of ["D:\\app data", appDataDir]) {
+    if (previous === DATA_DIR) continue;
+    if (!fs.existsSync(path.join(previous, "IndexedDB"))) continue;
+    try {
+      fs.cpSync(previous, DATA_DIR, { recursive: true, force: false, errorOnExist: false });
+      break;
+    } catch {
+      /* If migration is unavailable, the packaged seed still opens normally. */
+    }
   }
 }
 app.setPath("userData", DATA_DIR);

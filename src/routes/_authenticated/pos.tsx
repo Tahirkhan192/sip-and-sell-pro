@@ -536,7 +536,10 @@ function POS() {
 
       let saleData: any;
       if (editId) {
-        const { data, error } = await supabase.rpc("update_sale" as any, {
+        // Re-saving an opened bill replaces it: the saved copy is removed
+        // completely and this one is written as the only copy, keeping the
+        // same bill number. Quantities never grow on their own.
+        const { data, error } = await supabase.rpc("resave_sale" as any, {
           _sale_id: editId, ...args,
           _sale_date: saleTs,
         });
