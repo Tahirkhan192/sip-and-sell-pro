@@ -320,9 +320,10 @@ export function useDriveAutoSync() {
 
     // Never on startup — opening the app must not touch the network.
     const firstDelay = window.setTimeout(() => void cycle(), SYNC_INTERVAL_MS);
-    const timer = window.setInterval(() => void cycle(false), SYNC_INTERVAL_MS);
+    const timer = window.setInterval(() => void cycle(), SYNC_INTERVAL_MS);
     return () => {
       stopped = true;
+      window.clearTimeout(firstDelay);
       window.clearInterval(timer);
     };
   }, []);
