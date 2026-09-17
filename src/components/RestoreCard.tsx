@@ -94,11 +94,16 @@ export function RestoreCard() {
               never creates duplicates.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={pick} />
             <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
               Choose file
             </Button>
+            {supportsDataFolder() && (
+              <Button variant="outline" onClick={pickFromFolder} disabled={busy}>
+                Restore from data folder
+              </Button>
+            )}
             <Button onClick={restore} disabled={!file || busy}>
               {busy ? "Restoring…" : "Restore"}
             </Button>
