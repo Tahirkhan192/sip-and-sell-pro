@@ -18,6 +18,7 @@ import { PIN_MODULES, DEFAULT_PIN_LOCKS } from "@/lib/pin-locks";
 import { DuplicateInvoiceManager } from "@/components/DuplicateInvoiceManager";
 import { BackupCard } from "@/components/BackupCard";
 import { RestoreCard } from "@/components/RestoreCard";
+import { DataFolderCard } from "@/components/DataFolderCard";
 import { OfflineSelfTestCard } from "@/components/OfflineSelfTestCard";
 
 import { ALWAYS_VISIBLE, MENU_MODULES, useMenuVisibility, useSaveMenuVisibility } from "@/lib/menu-visibility";
@@ -202,6 +203,8 @@ function SettingsPage() {
       <StockPinCard />
 
       <OfflineSelfTestCard />
+
+      <DataFolderCard />
 
       <BackupCard />
 
