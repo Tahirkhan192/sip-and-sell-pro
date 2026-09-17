@@ -246,3 +246,100 @@ BEGIN
   RETURN v_sale;
 END $function$
 ;
+
+-- Re-saving an opened bill is a REPLACEMENT, never an addition.
+-- The saved copy is removed completely (its stock effect reversed and its
+-- money movements withdrawn) and the bill on screen is written again as the
+-- one and only copy, keeping the same bill id and bill number. Doing this any
+-- number of times always leaves exactly one bill with exactly the quantities
+-- shown on screen.
+CREATE OR REPLACE FUNCTION public.resave_sale(_sale_id uuid, _items jsonb, _customer_name text DEFAULT NULL::text, _status text DEFAULT 'completed'::text, _delivery_charges numeric DEFAULT 0, _payment_method text DEFAULT 'cash'::text, _cash_paid numeric DEFAULT 0, _online_paid numeric DEFAULT 0, _order_type text DEFAULT 'walk_in'::text, _delivery_boy text DEFAULT NULL::text, _customer_phone text DEFAULT NULL::text, _katha boolean DEFAULT false, _discount_type text DEFAULT 'amount'::text, _discount_value numeric DEFAULT 0, _delivery_address text DEFAULT NULL::text, _sale_date timestamp with time zone DEFAULT NULL::timestamp with time zone)
+ RETURNS sales
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_old public.sales; v_sale public.sales; v_item jsonb;
+  v_subtotal numeric(14,2) := 0; v_product public.products;
+  v_uid uuid := auth.uid(); v_qty numeric; v_rate numeric; v_total numeric;
+  v_delivery numeric; v_customer_id uuid; v_discount_amt numeric(14,2);
+  v_old_item RECORD;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  SELECT * INTO v_old FROM public.sales WHERE id = _sale_id AND deleted_at IS NULL FOR UPDATE;
+  IF v_old IS NULL THEN RAISE EXCEPTION 'Sale not found'; END IF;
+
+  IF _status NOT IN ('pending','completed') THEN RAISE EXCEPTION 'Invalid status'; END IF;
+  IF _payment_method NOT IN ('cash','card') THEN _payment_method := 'cash'; END IF;
+  IF _order_type NOT IN ('walk_in','take_away','delivery') THEN _order_type := 'walk_in'; END IF;
+  IF _discount_type NOT IN ('amount','percent') THEN _discount_type := 'amount'; END IF;
+  IF jsonb_array_length(_items) = 0 THEN RAISE EXCEPTION 'Empty cart'; END IF;
+
+  -- 1. Undo the saved copy entirely.
+  FOR v_old_item IN SELECT product_id, quantity FROM public.sale_items WHERE sale_id = _sale_id LOOP
+    PERFORM public.apply_stock_for_sale_item(v_old_item.product_id, v_old_item.quantity, -1, v_old.order_type);
+  END LOOP;
+  UPDATE public.cash_movements SET deleted_at = now()
+    WHERE reference_type = 'sale' AND reference_id = _sale_id AND deleted_at IS NULL;
+  DELETE FROM public.sale_items WHERE sale_id = _sale_id;
+  DELETE FROM public.sales WHERE id = _sale_id;
+
+  v_delivery := COALESCE(_delivery_charges,0);
+  IF _order_type <> 'delivery' THEN v_delivery := 0; END IF;
+
+  IF NULLIF(trim(_customer_phone),'') IS NOT NULL THEN
+    SELECT id INTO v_customer_id FROM public.customers WHERE phone = trim(_customer_phone) AND deleted_at IS NULL LIMIT 1;
+    IF v_customer_id IS NULL THEN
+      INSERT INTO public.customers (name, phone) VALUES (COALESCE(NULLIF(trim(_customer_name),''),'Guest'), trim(_customer_phone)) RETURNING id INTO v_customer_id;
+    END IF;
+  END IF;
+
+  -- 2. Write the bill on screen as a fresh, single copy (same id, same number).
+  INSERT INTO public.sales (
+    id, invoice_no, sale_date, created_at, created_by, staff_id, hidden,
+    grand_total, customer_name, status, delivery_charges, payment_method,
+    cash_paid, online_paid, order_type, delivery_boy, customer_id, customer_phone,
+    katha, discount_type, discount_value, discount_amount, delivery_address
+  )
+  VALUES (
+    v_old.id, v_old.invoice_no, COALESCE(_sale_date, v_old.sale_date), v_old.created_at,
+    COALESCE(v_old.created_by, v_uid), v_old.staff_id, COALESCE(v_old.hidden,false),
+    0, NULLIF(trim(_customer_name), ''), _status, v_delivery, _payment_method,
+    COALESCE(_cash_paid,0), COALESCE(_online_paid,0), _order_type, NULLIF(trim(_delivery_boy),''),
+    v_customer_id, NULLIF(trim(_customer_phone),''), COALESCE(_katha,false),
+    _discount_type, COALESCE(_discount_value,0), 0, NULLIF(trim(_delivery_address),'')
+  )
+  RETURNING * INTO v_sale;
+
+  FOR v_item IN SELECT * FROM jsonb_array_elements(_items) LOOP
+    SELECT * INTO v_product FROM public.products WHERE id = (v_item->>'product_id')::uuid AND deleted_at IS NULL;
+    IF v_product IS NULL THEN RAISE EXCEPTION 'Product not found'; END IF;
+    v_qty := (v_item->>'quantity')::numeric;
+    v_rate := COALESCE(NULLIF(v_item->>'rate','')::numeric, v_product.sale_price);
+    v_total := round(v_qty * v_rate, 2);
+    INSERT INTO public.sale_items (sale_id, product_id, quantity, price, total, unit)
+    VALUES (v_sale.id, v_product.id, v_qty, v_rate, v_total, COALESCE(v_item->>'unit', v_product.unit))
+    ON CONFLICT (sale_id, product_id) DO UPDATE
+      SET quantity = EXCLUDED.quantity, price = EXCLUDED.price,
+          total = EXCLUDED.total, unit = EXCLUDED.unit;
+    v_subtotal := v_subtotal + v_total;
+    PERFORM public.apply_stock_for_sale_item(v_product.id, v_qty, 1, _order_type);
+    IF _status = 'completed' THEN
+      UPDATE public.products SET last_sold_at = now() WHERE id = v_product.id;
+    END IF;
+  END LOOP;
+
+  IF _discount_type = 'percent' THEN
+    v_discount_amt := round(v_subtotal * LEAST(GREATEST(COALESCE(_discount_value,0),0),100) / 100.0, 2);
+  ELSE
+    v_discount_amt := LEAST(GREATEST(COALESCE(_discount_value,0),0), v_subtotal);
+  END IF;
+
+  UPDATE public.sales
+    SET grand_total = GREATEST(v_subtotal - v_discount_amt, 0) + v_delivery,
+        discount_amount = v_discount_amt
+    WHERE id = v_sale.id RETURNING * INTO v_sale;
+
+  RETURN v_sale;
+END $function$
+;
