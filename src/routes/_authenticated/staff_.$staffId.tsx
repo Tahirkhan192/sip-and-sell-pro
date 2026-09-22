@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PrintButton } from "@/components/PrintButton";
 import { money } from "@/lib/format";
-import { businessToday, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
+import { businessDateOf, businessToday, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/staff_/$staffId")({
@@ -119,6 +119,17 @@ function StaffDetailPage() {
     [payments, month],
   );
 
+  const monthInvoices = useMemo(
+    () => (invoices as any[]).filter((s) => String(businessDateOf(s.sale_date)).slice(0, 7) === month),
+    [invoices, month],
+  );
+
+  function shiftMonth(delta: number) {
+    const [y, mm] = month.split("-").map(Number);
+    const d = new Date(Date.UTC(y, mm - 1 + delta, 1));
+    setMonth(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+
   if (!staff) return <div className="p-4 text-muted-foreground">Loading staff…</div>;
 
   return (
@@ -136,8 +147,13 @@ function StaffDetailPage() {
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="no-print space-y-1">
-            <Label className="text-xs">Salary Month</Label>
-            <Input type="month" className="h-9 w-[150px]" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <Label className="text-xs">Month</Label>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-9" onClick={() => shiftMonth(-1)}>‹</Button>
+              <Input type="month" className="h-9 w-[150px]" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <Button variant="outline" size="sm" className="h-9" onClick={() => shiftMonth(1)}>›</Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setMonth(businessToday().slice(0, 7))}>This Month</Button>
+            </div>
           </div>
           <PrintButton title={`Staff Detail - ${staff.name} - ${month}`} />
         </div>
@@ -193,7 +209,7 @@ function StaffDetailPage() {
 
       {/* POS purchase history */}
       <Card className="overflow-hidden">
-        <div className="border-b px-3 py-2 text-sm font-semibold">POS Purchase History</div>
+        <div className="border-b px-3 py-2 text-sm font-semibold">POS Purchase History ({month})</div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-muted/50 text-xs">
@@ -213,8 +229,8 @@ function StaffDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No POS purchases</td></tr>}
-              {(invoices as any[]).map((s) => {
+              {monthInvoices.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No POS purchases in {month}</td></tr>}
+              {(monthInvoices as any[]).map((s) => {
                 const items = (s.sale_items ?? []) as any[];
                 const qty = items.reduce((a, i) => a + n(i.quantity), 0);
                 const rem = Math.max(0, n(s.grand_total) - n(s.cash_paid) - n(s.online_paid));
@@ -248,7 +264,7 @@ function StaffDetailPage() {
 
       {/* Payment / salary history */}
       <Card className="overflow-hidden">
-        <div className="border-b px-3 py-2 text-sm font-semibold">Salary &amp; Payment History</div>
+        <div className="border-b px-3 py-2 text-sm font-semibold">Salary &amp; Payment History ({month})</div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-muted/50 text-xs">
@@ -264,8 +280,8 @@ function StaffDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.length === 0 && <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">No payments recorded</td></tr>}
-              {(payments as any[]).map((p) => {
+              {monthPayments.length === 0 && <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">No payments recorded in {month}</td></tr>}
+              {(monthPayments as any[]).map((p) => {
                 const isCash = p.payment_method === "cash";
                 return (
                   <tr key={p.id} className="border-t">
