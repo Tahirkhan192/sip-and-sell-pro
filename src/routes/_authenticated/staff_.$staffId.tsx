@@ -280,8 +280,8 @@ function StaffDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.length === 0 && <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">No payments recorded</td></tr>}
-              {(payments as any[]).map((p) => {
+              {monthPayments.length === 0 && <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">No payments recorded in {month}</td></tr>}
+              {(monthPayments as any[]).map((p) => {
                 const isCash = p.payment_method === "cash";
                 return (
                   <tr key={p.id} className="border-t">
