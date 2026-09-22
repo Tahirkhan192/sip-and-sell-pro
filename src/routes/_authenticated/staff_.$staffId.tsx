@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PrintButton } from "@/components/PrintButton";
 import { money } from "@/lib/format";
-import { businessToday, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
+import { businessDateOf, businessToday, formatBusinessDate, formatBusinessTime } from "@/lib/business-date";
 import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/staff_/$staffId")({
