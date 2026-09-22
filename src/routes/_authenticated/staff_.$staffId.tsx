@@ -119,6 +119,17 @@ function StaffDetailPage() {
     [payments, month],
   );
 
+  const monthInvoices = useMemo(
+    () => (invoices as any[]).filter((s) => String(businessDateOf(s.sale_date)).slice(0, 7) === month),
+    [invoices, month],
+  );
+
+  function shiftMonth(delta: number) {
+    const [y, mm] = month.split("-").map(Number);
+    const d = new Date(Date.UTC(y, mm - 1 + delta, 1));
+    setMonth(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+
   if (!staff) return <div className="p-4 text-muted-foreground">Loading staff…</div>;
 
   return (
