@@ -209,7 +209,7 @@ function StaffDetailPage() {
 
       {/* POS purchase history */}
       <Card className="overflow-hidden">
-        <div className="border-b px-3 py-2 text-sm font-semibold">POS Purchase History</div>
+        <div className="border-b px-3 py-2 text-sm font-semibold">POS Purchase History ({month})</div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-muted/50 text-xs">
