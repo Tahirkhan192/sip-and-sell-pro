@@ -229,8 +229,8 @@ function StaffDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No POS purchases</td></tr>}
-              {(invoices as any[]).map((s) => {
+              {monthInvoices.length === 0 && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">No POS purchases in {month}</td></tr>}
+              {(monthInvoices as any[]).map((s) => {
                 const items = (s.sale_items ?? []) as any[];
                 const qty = items.reduce((a, i) => a + n(i.quantity), 0);
                 const rem = Math.max(0, n(s.grand_total) - n(s.cash_paid) - n(s.online_paid));
