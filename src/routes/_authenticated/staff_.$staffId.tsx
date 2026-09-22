@@ -147,8 +147,13 @@ function StaffDetailPage() {
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="no-print space-y-1">
-            <Label className="text-xs">Salary Month</Label>
-            <Input type="month" className="h-9 w-[150px]" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <Label className="text-xs">Month</Label>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-9" onClick={() => shiftMonth(-1)}>‹</Button>
+              <Input type="month" className="h-9 w-[150px]" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <Button variant="outline" size="sm" className="h-9" onClick={() => shiftMonth(1)}>›</Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setMonth(businessToday().slice(0, 7))}>This Month</Button>
+            </div>
           </div>
           <PrintButton title={`Staff Detail - ${staff.name} - ${month}`} />
         </div>
