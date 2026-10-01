@@ -480,6 +480,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     : null;
   const engineProductValue: Record<string, number> = {};
   const engineItemValue: Record<string, number> = {};
+  const engineOpening: Record<string, number> = {};
+  for (const r of invSnap?.products ?? []) engineOpening[`product:${r.id}`] = num(r.opening);
+  for (const r of invSnap?.stockItems ?? []) engineOpening[`stock_item:${r.id}`] = num(r.opening);
   for (const r of invSnap?.products ?? []) engineProductValue[r.id] = num(r.value);
   for (const r of invSnap?.stockItems ?? []) engineItemValue[r.id] = num(r.value);
 
@@ -491,7 +494,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     // Owner override of the average purchase price is used for valuation only.
     const costPrice = p.avg_price_override !== null && p.avg_price_override !== undefined ? num(p.avg_price_override) : num(p.cost_price);
     const key = `product:${p.id}`;
-    const openQty = openingSnapshot[key] ?? num(p.opening_stock);
+    const openQty = openingSnapshot[key] ?? engineOpening[key] ?? num(p.opening_stock);
     // Saved opening value of the month wins — a closed month never re-values itself.
     cat.opening += prodOverride[p.id]?.opening ?? openingSnapshotValue[key] ?? openQty * costPrice;
     const closeVal = prodOverride[p.id]?.closing ?? closingSnapshotValue[key] ?? engineProductValue[p.id] ?? num(p.current_stock) * costPrice;
@@ -504,7 +507,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const cat = ensureCat(si.category ?? "—");
     const price = si.avg_price_override !== null && si.avg_price_override !== undefined ? num(si.avg_price_override) : num(si.purchase_price);
     const key = `stock_item:${si.id}`;
-    const openQty = openingSnapshot[key] ?? num(si.opening_stock);
+    const openQty = openingSnapshot[key] ?? engineOpening[key] ?? num(si.opening_stock);
     cat.opening += openingSnapshotValue[key] ?? openQty * price;
     const closeVal = closingSnapshotValue[key] ?? engineItemValue[si.id] ?? num(si.current_stock) * price;
     cat.closing += closeVal;

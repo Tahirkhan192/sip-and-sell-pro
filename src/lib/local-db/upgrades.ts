@@ -103,16 +103,7 @@ BEGIN
   ON CONFLICT (scope, item_id, year, month, kind)
   DO UPDATE SET quantity = EXCLUDED.quantity, unit_value = EXCLUDED.unit_value, updated_at = now();
 
-  IF (_year, _month) = (EXTRACT(YEAR FROM CURRENT_DATE)::int, EXTRACT(MONTH FROM CURRENT_DATE)::int) THEN
-    UPDATE public.products p
-      SET opening_stock = r.quantity
-      FROM jsonb_to_recordset(_rows) AS r(scope text, item_id uuid, quantity numeric, unit_value numeric)
-      WHERE r.scope = 'product' AND p.id = r.item_id AND p.deleted_at IS NULL;
-    UPDATE public.stock_items s
-      SET opening_stock = r.quantity, updated_at = now()
-      FROM jsonb_to_recordset(_rows) AS r(scope text, item_id uuid, quantity numeric, unit_value numeric)
-      WHERE r.scope = 'stock_item' AND s.id = r.item_id AND s.deleted_at IS NULL;
-  END IF;
+  -- Base opening_stock is never overwritten; the saved snapshot is the month's opening.
 
   RETURN v_count;
 END $function$;
