@@ -54,49 +54,10 @@ function monthStart(year: number, month: number) {
 }
 
 /**
- * An earlier version of "Save as Opening" overwrote each item's base opening
- * stock with the saved figure, so history was counted twice (negatives, wrong
- * last-month profit). Put the base back: base = saved figure − movements that
- * were already inside it on the day it was saved.
- */
-async function repairOverwrittenBase(year: number, month: number) {
-  const sb = supabase as any;
-  const { data: snaps } = await sb.from("stock_opening_snapshots")
-    .select("scope,item_id,quantity,updated_at").eq("year", year).eq("month", month).eq("kind", "opening");
-  if (!snaps?.length) return;
-  const [{ data: prods }, { data: items }] = await Promise.all([
-    sb.from("products").select("id,opening_stock,auto_calc"),
-    sb.from("stock_items").select("id,opening_stock,auto_calc"),
-  ]);
-  const base: Record<string, any> = {};
-  for (const p of prods ?? []) base[`product:${p.id}`] = p;
-  for (const s of items ?? []) base[`stock_item:${s.id}`] = s;
-  const byDate: Record<string, any[]> = {};
-  for (const r of snaps) {
-    const b = base[`${r.scope}:${r.item_id}`];
-    if (!b || b.auto_calc !== true) continue;
-    if (Math.abs(num(b.opening_stock) - num(r.quantity)) > 1e-6) continue; // not overwritten
-    (byDate[businessDateOf(r.updated_at)] ??= []).push(r);
-  }
-  for (const [d, rows] of Object.entries(byDate)) {
-    const rg = buildRange("custom", "2000-01-01", d);
-    const snap = await fetchInventoryEngine({ from: rg.from, to: rg.to, startUTC: rg.startUTC, endExclusiveUTC: rg.endExclusiveUTC });
-    const net: Record<string, number> = {};
-    for (const x of snap.products) net[`product:${x.id}`] = x.remaining - x.opening;
-    for (const x of snap.stockItems) net[`stock_item:${x.id}`] = x.remaining - x.opening;
-    for (const r of rows) {
-      const fixed = Math.round((num(r.quantity) - (net[`${r.scope}:${r.item_id}`] ?? 0)) * 1e6) / 1e6;
-      await sb.from(r.scope === "product" ? "products" : "stock_items").update({ opening_stock: fixed }).eq("id", r.item_id);
-    }
-  }
-}
-
-/**
- * Rows to lock for `year`/`month`: the stock at the END of the previous month
- * (so this month's own sales are never deducted twice).
+ * Rows to lock for `year`/`month`: the stock at the END of the previous month,
+ * copied exactly as shown (no repair, no clamping, signs preserved).
  */
 export async function buildLockRows(year: number, month: number): Promise<LockRow[]> {
-  await repairOverwrittenBase(year, month);
   const r = buildRange("custom", "2000-01-01", dayBefore(monthStart(year, month)));
   const period: Period = { from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC };
   const [snapshot, prodPrices, itemPrices] = await Promise.all([
@@ -133,4 +94,24 @@ export async function lockMonthOpening(year: number, month: number, rows: LockRo
   });
   if (error) throw error;
   return rows.length;
+}
+
+/**
+ * Auto month-start lock: once per business month, if the current month has no
+ * saved opening yet, save it (and the previous month's closing) automatically.
+ * Never overwrites a month that already has a saved opening.
+ */
+export async function autoLockCurrentMonth() {
+  const from = buildRange("month").from;
+  const year = Number(from.slice(0, 4));
+  const month = Number(from.slice(5, 7));
+  const flag = `auto-month-lock:${year}-${month}`;
+  try { if (localStorage.getItem(flag)) return; } catch { /* ignore */ }
+  const { data } = await (supabase as any).from("stock_opening_snapshots")
+    .select("id").eq("year", year).eq("month", month).eq("kind", "opening").limit(1);
+  if (!data?.length) {
+    const rows = await buildLockRows(year, month);
+    if (rows.length) await lockMonthOpening(year, month, rows);
+  }
+  try { localStorage.setItem(flag, "1"); } catch { /* ignore */ }
 }
