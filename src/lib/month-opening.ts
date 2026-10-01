@@ -95,3 +95,23 @@ export async function lockMonthOpening(year: number, month: number, rows: LockRo
   if (error) throw error;
   return rows.length;
 }
+
+/**
+ * Auto month-start lock: once per business month, if the current month has no
+ * saved opening yet, save it (and the previous month's closing) automatically.
+ * Never overwrites a month that already has a saved opening.
+ */
+export async function autoLockCurrentMonth() {
+  const from = buildRange("month").from;
+  const year = Number(from.slice(0, 4));
+  const month = Number(from.slice(5, 7));
+  const flag = `auto-month-lock:${year}-${month}`;
+  try { if (localStorage.getItem(flag)) return; } catch { /* ignore */ }
+  const { data } = await (supabase as any).from("stock_opening_snapshots")
+    .select("id").eq("year", year).eq("month", month).eq("kind", "opening").limit(1);
+  if (!data?.length) {
+    const rows = await buildLockRows(year, month);
+    if (rows.length) await lockMonthOpening(year, month, rows);
+  }
+  try { localStorage.setItem(flag, "1"); } catch { /* ignore */ }
+}

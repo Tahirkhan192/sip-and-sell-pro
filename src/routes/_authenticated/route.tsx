@@ -6,6 +6,7 @@ import { useBusinessConfigLoader } from "@/lib/use-settings";
 import { isModuleVisible, moduleKeyForPath, useMenuVisibility } from "@/lib/menu-visibility";
 import { useDriveAutoSync } from "@/lib/drive-sync";
 import { useDataFolderAutoSave } from "@/lib/data-folder";
+import { autoLockCurrentMonth } from "@/lib/month-opening";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -34,6 +35,10 @@ function useMenuGuard() {
 function AuthLayout() {
   const [ready, setReady] = useState(true);
   useEffect(() => setReady(true), []);
+  useEffect(() => {
+    const t = setTimeout(() => { autoLockCurrentMonth().catch(() => {}); }, 3000);
+    return () => clearTimeout(t);
+  }, []);
   useBusinessConfigLoader();
   useDriveAutoSync();
   useDataFolderAutoSave();
