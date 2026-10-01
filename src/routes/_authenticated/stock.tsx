@@ -35,14 +35,14 @@ function Page() {
   const prev = previousMonthOf(lockYear, lockMonth);
 
   const preview = useQuery({
-    queryKey: ["lock-preview", lockOpen],
-    queryFn: buildLockRows,
+    queryKey: ["lock-preview", lockOpen, lockYear, lockMonth],
+    queryFn: () => buildLockRows(lockYear, lockMonth),
     enabled: lockOpen,
   });
 
   const setOpening = useMutation({
     mutationFn: async () => {
-      const rows = preview.data ?? (await buildLockRows());
+      const rows = preview.data ?? (await buildLockRows(lockYear, lockMonth));
       return lockMonthOpening(lockYear, lockMonth, rows);
     },
     onSuccess: (count) => {

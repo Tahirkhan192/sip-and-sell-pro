@@ -13,6 +13,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { num } from "@/lib/format";
+import { buildRange } from "@/lib/business-date";
+
+const BASE_DATE = "2000-01-01";
+function dayBefore(d: string) {
+  const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() - 1);
+  return t.toISOString().slice(0, 10);
+}
 
 export type Period = { from: string; to: string; startUTC: string; endExclusiveUTC: string };
 
@@ -136,6 +143,16 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
   const openings: Record<string, number> = {};
   for (const r of (openRes.data ?? []) as any[]) openings[`${r.scope}:${r.item_id}`] = num(r.quantity);
 
+  // ---- No saved opening for this month → carry forward: opening = closing of
+  // everything before this month (base opening + all earlier movements).
+  const carried: Record<string, number> = {};
+  if (period.from > BASE_DATE) {
+    const r = buildRange("custom", BASE_DATE, dayBefore(period.from));
+    const pre = await fetchInventoryEngine({ from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC }).catch(() => null);
+    for (const x of pre?.products ?? []) if (x.auto) carried[`product:${x.id}`] = x.remaining;
+    for (const x of pre?.stockItems ?? []) if (x.auto) carried[`stock_item:${x.id}`] = x.remaining;
+  }
+
   // ---- Purchases
   const purchaseProd: Record<string, number> = {};
   const purchaseItem: Record<string, number> = {};
@@ -226,7 +243,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       auto,
       salePrice,
     };
-    const opening = num(openings[`product:${r.id}`] ?? r.opening_stock);
+    const opening = num(openings[`product:${r.id}`] ?? carried[`product:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseProd[r.id] ?? 0;
     const production = productionProd[r.id] ?? 0;
     const recipeUsage = round(recipeProd[r.id] ?? 0);
@@ -250,7 +267,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
 
   const stockItems: StockItemInventoryRow[] = ((itemsRes.data ?? []) as any[]).filter((r) => !r.deleted_at).map((r) => {
     const auto = r.auto_calc === true;
-    const opening = num(openings[`stock_item:${r.id}`] ?? r.opening_stock);
+    const opening = num(openings[`stock_item:${r.id}`] ?? carried[`stock_item:${r.id}`] ?? r.opening_stock);
     const purchases = purchaseItem[r.id] ?? 0;
     const production = 0; // stock items are not produced by batches
     const recipeUsage = round(recipeItem[r.id] ?? 0);
