@@ -15,12 +15,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { StockToExpenseDialog } from "@/components/StockToExpenseDialog";
 import { useProductStockAvailable, useStockItemAvailable, stockPeriodFor, StockPeriodSelect, type StockPeriodMode } from "@/components/StockAvailability";
 import { StockTraceDialog, type TraceTarget } from "@/components/StockTraceDialog";
+import { MonthStockEditDialog, type MonthEditTarget } from "@/components/MonthStockEditDialog";
 import { OpeningStockHistory } from "@/components/OpeningStockHistory";
 
 import { buildLockRows, lockMonthOpening, monthLabel, previousMonthOf } from "@/lib/month-opening";
 import { money, num } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categories";
-import { Search, CalendarClock, ArrowRightLeft } from "lucide-react";
+import { Search, CalendarClock, ArrowRightLeft, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 
@@ -123,6 +124,7 @@ function CurrentStock() {
   const [mode, setMode] = useState<StockPeriodMode>("month");
   const period = useMemo(() => stockPeriodFor(mode), [mode]);
   const readOnly = mode === "lastMonth";
+  const [editTarget, setEditTarget] = useState<MonthEditTarget | null>(null);
 
 
   // Master lists — every product and every stock item that exists, one by one.
@@ -257,7 +259,7 @@ function CurrentStock() {
               <TableHead className="text-right">Current / Closing</TableHead>
               <TableHead>Formula</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
-              <TableHead className="w-16"></TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {filtered.map((r) => (
@@ -275,6 +277,9 @@ function CurrentStock() {
                   <TableCell>{formulaBadge(r.auto)}</TableCell>
                   <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button size="icon" variant="ghost" title="Edit opening / closing for this month" onClick={() => setEditTarget({ scope: "product", id: r.id, name: r.name, unit: r.unit, opening: r.opening, current: r.current, price: r.price })}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button size="icon" variant="ghost" disabled={readOnly} title={readOnly ? "Last month is read only" : "Transfer to Expense"} onClick={() => setTransferTarget({ kind: "product", id: r.id, name: r.name, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
@@ -302,7 +307,7 @@ function CurrentStock() {
               <TableHead className="text-right">Current / Closing</TableHead>
               <TableHead>Formula</TableHead>
               <TableHead className="text-right">Stock Value</TableHead>
-              <TableHead className="w-16"></TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {filteredItems.map((r) => (
@@ -319,6 +324,9 @@ function CurrentStock() {
                   <TableCell>{formulaBadge(r.auto)}</TableCell>
                   <TableCell className="text-right">{money(r.current * r.price)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button size="icon" variant="ghost" title="Edit opening / closing for this month" onClick={() => setEditTarget({ scope: "stock_item", id: r.id, name: r.name, unit: r.unit, opening: r.opening, current: r.current, price: r.price })}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button size="icon" variant="ghost" disabled={readOnly} title={readOnly ? "Last month is read only" : "Transfer to Expense"} onClick={() => setTransferTarget({ kind: "stock_item", id: r.id, name: r.name, unit: r.unit, cost: r.price, current: r.current })}>
                       <ArrowRightLeft className="h-4 w-4" />
                     </Button>
@@ -330,6 +338,7 @@ function CurrentStock() {
           </Table>
         </Card>
       </div>
+      <MonthStockEditDialog target={editTarget} from={period.from} to={period.to} onClose={() => setEditTarget(null)} />
       <StockTraceDialog target={trace} period={period} onOpenChange={(v) => { if (!v) setTrace(null); }} />
       <StockToExpenseDialog target={transferTarget} open={!!transferTarget} onOpenChange={(v) => { if (!v) setTransferTarget(null); }} />
     </div>
