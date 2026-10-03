@@ -13,12 +13,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { num } from "@/lib/format";
-import { buildRange } from "@/lib/business-date";
+import { buildRange, getBusinessConfig } from "@/lib/business-date";
 
 const BASE_DATE = "2000-01-01";
 function dayBefore(d: string) {
   const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() - 1);
   return t.toISOString().slice(0, 10);
+}
+
+/** Business-month start date of a saved snapshot's year/month. */
+export function snapshotStart(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(getBusinessConfig().monthStartDay).padStart(2, "0")}`;
 }
 
 export type Period = { from: string; to: string; startUTC: string; endExclusiveUTC: string };
@@ -108,7 +113,7 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     expCatRows,
     adjustRows,
   ] = await Promise.all([
-    fetchHistory(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity").eq("year", year).eq("month", month).eq("kind", "opening").order("item_id")),
+    fetchHistory(() => sb.from("stock_opening_snapshots").select("scope,item_id,quantity,year,month").eq("kind", "opening").order("item_id")),
     fetchHistory(() => sb.from("stock_purchases").select("product_id,stock_item_id,quantity").is("deleted_at", null).gte("date", period.from).lte("date", period.to).order("id")),
     fetchHistory(() => sb.from("production_batches").select("product_id,quantity").is("deleted_at", null).gte("batch_date", period.from).lte("batch_date", period.to).order("id")),
     fetchHistory(() => sb.from("production_batch_items").select("component_product_id,component_stock_item_id,quantity,production_batches!inner(batch_date,deleted_at)")
@@ -141,16 +146,60 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
 
   // ---- Opening (locked monthly snapshot wins over live opening_stock)
   const openings: Record<string, number> = {};
-  for (const r of (openRes.data ?? []) as any[]) openings[`${r.scope}:${r.item_id}`] = num(r.quantity);
+  // Latest saved opening at or before a date, per item: { start, qty }.
+  const snapsByKey: Record<string, { start: string; qty: number }[]> = {};
+  for (const r of (openRes.data ?? []) as any[]) {
+    const key = `${r.scope}:${r.item_id}`;
+    if (Number(r.year) === year && Number(r.month) === month) openings[key] = num(r.quantity);
+    (snapsByKey[key] ??= []).push({ start: snapshotStart(Number(r.year), Number(r.month)), qty: num(r.quantity) });
+  }
+  const anchorFor = (key: string, onOrBefore: string, strictlyBefore: boolean) => {
+    let best: string | null = null;
+    for (const x of snapsByKey[key] ?? []) {
+      const ok = strictlyBefore ? x.start < onOrBefore : x.start <= onOrBefore;
+      if (ok && (best === null || x.start > best)) best = x.start;
+    }
+    return best;
+  };
+  const autoKeys: string[] = [
+    ...((prods ?? []) as any[]).filter((r) => !r.deleted_at && r.auto_calc === true).map((r) => `product:${r.id}`),
+    ...((items ?? []) as any[]).filter((r) => !r.deleted_at && r.auto_calc === true).map((r) => `stock_item:${r.id}`),
+  ];
 
-  // ---- No saved opening for this month → carry forward: opening = closing of
-  // everything before this month (base opening + all earlier movements).
+  // ---- "From the beginning" view: start every item from its latest saved
+  // opening (on or before the end date) plus only the entries since then.
+  const fromAnchor: Record<string, InventoryRow> = {};
+  if (period.from <= BASE_DATE) {
+    const groups: Record<string, Set<string>> = {};
+    for (const k of autoKeys) {
+      const a = anchorFor(k, period.to, false);
+      if (a && a > BASE_DATE) (groups[a] ??= new Set()).add(k);
+    }
+    for (const [start, keys] of Object.entries(groups)) {
+      const r = buildRange("custom", start, period.to);
+      const sub = await fetchInventoryEngine({ from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC }).catch(() => null);
+      for (const x of sub?.products ?? []) if (keys.has(`product:${x.id}`)) fromAnchor[`product:${x.id}`] = x;
+      for (const x of sub?.stockItems ?? []) if (keys.has(`stock_item:${x.id}`)) fromAnchor[`stock_item:${x.id}`] = x;
+    }
+  }
+
+  // ---- No saved opening for this month → carry forward from the most recent
+  // saved opening before it (plus entries since), else from the very start.
+  // Skipped entirely when every item already has this month's saved opening.
   const carried: Record<string, number> = {};
   if (period.from > BASE_DATE) {
-    const r = buildRange("custom", BASE_DATE, dayBefore(period.from));
-    const pre = await fetchInventoryEngine({ from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC }).catch(() => null);
-    for (const x of pre?.products ?? []) if (x.auto) carried[`product:${x.id}`] = x.remaining;
-    for (const x of pre?.stockItems ?? []) if (x.auto) carried[`stock_item:${x.id}`] = x.remaining;
+    const groups: Record<string, Set<string>> = {};
+    for (const k of autoKeys) {
+      if (openings[k] !== undefined) continue;
+      const a = anchorFor(k, period.from, true) ?? BASE_DATE;
+      (groups[a] ??= new Set()).add(k);
+    }
+    for (const [start, keys] of Object.entries(groups)) {
+      const r = buildRange("custom", start, dayBefore(period.from));
+      const pre = await fetchInventoryEngine({ from: r.from, to: r.to, startUTC: r.startUTC, endExclusiveUTC: r.endExclusiveUTC }).catch(() => null);
+      for (const x of pre?.products ?? []) if (keys.has(`product:${x.id}`)) carried[`product:${x.id}`] = x.remaining;
+      for (const x of pre?.stockItems ?? []) if (keys.has(`stock_item:${x.id}`)) carried[`stock_item:${x.id}`] = x.remaining;
+    }
   }
 
   // ---- Purchases
@@ -257,6 +306,8 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
     const remaining = auto
       ? round(opening + purchases + production - recipeUsage - directSales - transferOut + manualAdjustment)
       : num(r.current_stock);
+    const anchored = fromAnchor[`product:${r.id}`];
+    if (anchored) return { ...base, ...anchored, ...base, value: anchored.remaining * salePrice };
     return {
       ...base,
       opening, purchases, transferIn: 0, production,
@@ -280,6 +331,10 @@ export async function fetchInventoryEngine(period: Period): Promise<InventorySna
       : num(r.current_stock);
     const manual = r.avg_price_override !== null && r.avg_price_override !== undefined;
     const avgPrice = manual ? num(r.avg_price_override) : num(r.purchase_price);
+    const anchored = fromAnchor[`stock_item:${r.id}`];
+    if (anchored) {
+      return { ...anchored, id: r.id, name: r.name, unit: r.unit ?? "pcs", tracked: true, auto, avgPrice, manual, value: anchored.remaining * avgPrice };
+    }
     return {
       id: r.id,
       name: r.name,
