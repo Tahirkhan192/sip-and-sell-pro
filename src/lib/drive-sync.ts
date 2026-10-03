@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { exportFullBackup } from "@/data/backup/export";
 import { applyBackup } from "@/data/backup/apply";
 import { validateBackup } from "@/data/backup/restore";

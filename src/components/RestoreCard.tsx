@@ -13,12 +13,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { validateBackup } from "@/data/backup/restore";
 import { applyBackup } from "@/data/backup/apply";
 import type { BackupFile, BackupValidation } from "@/data/backup/format";
 import { DATA_FILE, readDataFolderBackup, supportsDataFolder } from "@/lib/data-folder";
 
 export function RestoreCard() {
+  const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<BackupFile | null>(null);
   const [fileName, setFileName] = useState("");
@@ -68,6 +70,8 @@ export function RestoreCard() {
         setStatus(`${p.index + 1}/${p.total} — ${p.table} (${p.rows} rows)`),
       );
       setDone(res.rows);
+      // Drop every cached list so all screens re-read the restored data.
+      await qc.invalidateQueries();
       setStatus("");
       toast.success(`Restored ${res.rows.toLocaleString()} records`);
     } catch (e: any) {
@@ -114,7 +118,7 @@ export function RestoreCard() {
         {status && <p className="text-xs text-muted-foreground">{status}</p>}
         {done !== null && (
           <p className="text-xs text-emerald-600">
-            Restore finished — {done.toLocaleString()} records written. Reopen the app to see everything refreshed.
+            Restore finished — {done.toLocaleString()} records written. All screens now show the restored data.
           </p>
         )}
 
