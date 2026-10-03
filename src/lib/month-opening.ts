@@ -12,7 +12,7 @@
  * manual average-price override where one is set.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { buildRange, businessToday, businessDateOf } from "@/lib/business-date";
+import { buildRange, businessToday, businessDateOf, getBusinessConfig } from "@/lib/business-date";
 import { fetchInventoryEngine, type Period } from "@/lib/inventory-engine";
 import { num } from "@/lib/format";
 
@@ -48,9 +48,10 @@ function dayBefore(d: string) {
 
 /** First business date of the target month. */
 function monthStart(year: number, month: number) {
-  const cur = buildRange("month");
+  // Always the configured business-month start day, for any month — so the
+  // previous month's closing is measured at its real business month end.
   const key = `${year}-${String(month).padStart(2, "0")}`;
-  return cur.from.slice(0, 7) === key ? cur.from : `${key}-01`;
+  return `${key}-${String(getBusinessConfig().monthStartDay).padStart(2, "0")}`;
 }
 
 /**
