@@ -276,10 +276,16 @@ export function useDataFolderAutoSave() {
   useEffect(() => {
     if (!supportsDataFolder()) return;
     let stopped = false;
+    // Only re-export the database when an entry was actually saved since the
+    // last write — idle timers must not re-read everything for nothing.
+    let dirty = true;
 
     const run = () => {
-      if (stopped) return;
-      void saveToDataFolder().catch(() => undefined);
+      if (stopped || !dirty) return;
+      dirty = false;
+      void saveToDataFolder().then((r) => {
+        if (!r.saved && r.reason !== "No changes") dirty = true;
+      }).catch(() => { dirty = true; });
     };
 
     const schedule = () => {
@@ -290,7 +296,7 @@ export function useDataFolderAutoSave() {
     // Any saved entry (sale, purchase, expense, movement, settings…) goes
     // through a mutation, so this covers every entry screen at once.
     const unsubscribe = qc.getMutationCache().subscribe((event: any) => {
-      if (event?.mutation?.state?.status === "success") schedule();
+      if (event?.mutation?.state?.status === "success") { dirty = true; schedule(); }
     });
 
     const interval = window.setInterval(run, SAVE_INTERVAL_MS);

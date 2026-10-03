@@ -306,4 +306,120 @@ BEGIN
   RETURN v_res;
 END $function$;
 
+
+-- Restored functions (missing from fresh-setup schema).
+CREATE OR REPLACE FUNCTION public.get_business_config()
+ RETURNS TABLE(tz text, start_time time without time zone, month_start_day integer)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(timezone,'Asia/Karachi'),
+         COALESCE(business_day_start_time,'08:00'::time),
+         COALESCE(business_month_start_day,6)
+  FROM public.settings WHERE id=1
+  UNION ALL SELECT 'Asia/Karachi','08:00'::time,6
+  LIMIT 1;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.business_date_of(_ts timestamp with time zone)
+ RETURNS date
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+DECLARE v_tz text; v_st time; v_local timestamp;
+BEGIN
+  SELECT tz, start_time INTO v_tz, v_st FROM public.get_business_config();
+  v_local := _ts AT TIME ZONE v_tz;
+  RETURN (v_local - (v_st - '00:00'::time))::date;
+END $function$
+;
+CREATE OR REPLACE FUNCTION public.business_date(ts timestamp with time zone)
+ RETURNS date
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+DECLARE v_tz text; v_st time; v_local timestamp;
+BEGIN
+  SELECT tz, start_time INTO v_tz, v_st FROM public.get_business_config();
+  v_local := ts AT TIME ZONE v_tz;
+  RETURN (v_local - (v_st - '00:00'::time))::date;
+END $function$
+;
+CREATE OR REPLACE FUNCTION public.fn_purchase_sync_category()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NEW.product_id IS NOT NULL THEN
+    SELECT category INTO NEW.category FROM public.products WHERE id = NEW.product_id;
+  ELSIF NEW.stock_item_id IS NOT NULL THEN
+    SELECT category INTO NEW.category FROM public.stock_items WHERE id = NEW.stock_item_id;
+  END IF;
+  IF NEW.category IS NULL OR trim(NEW.category) = '' THEN
+    NEW.category := COALESCE((SELECT name FROM public.categories WHERE deleted_at IS NULL ORDER BY sort_order, name LIMIT 1), 'Snacks');
+  END IF;
+  RETURN NEW;
+END $function$
+;
+CREATE OR REPLACE FUNCTION public.staff_pay(_staff_id uuid, _kind text, _amount numeric, _method text, _remark text DEFAULT NULL::text, _date date DEFAULT NULL::date)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_staff public.staff; v_mv uuid; v_id uuid;
+  v_date date := COALESCE(_date, public.business_date_of(now()));
+  v_cat text; v_type text; v_now timestamptz := now();
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  IF _amount IS NULL OR _amount <= 0 THEN RAISE EXCEPTION 'Amount must be greater than zero'; END IF;
+  IF _kind NOT IN ('salary','advance','katha_receipt') THEN RAISE EXCEPTION 'Invalid payment kind'; END IF;
+  IF _method NOT IN ('cash','online') THEN RAISE EXCEPTION 'Invalid payment method'; END IF;
+  SELECT * INTO v_staff FROM public.staff WHERE id = _staff_id AND deleted_at IS NULL;
+  IF v_staff IS NULL THEN RAISE EXCEPTION 'Staff member not found'; END IF;
+
+  v_cat := CASE _kind WHEN 'salary' THEN 'Staff Salary' WHEN 'advance' THEN 'Staff Salary Advance' ELSE 'Staff Katha Payment' END;
+  v_type := CASE WHEN _kind = 'katha_receipt' THEN 'cash_in' ELSE 'cash_out' END;
+
+  INSERT INTO public.cash_movements (business_date, occurred_at, type, payment_source, amount, movement_category, katha_category, reason, notes, reference_type, reference_id)
+  VALUES (v_date, v_now, v_type, _method, _amount, v_cat, 'transaction',
+          v_cat || ' — ' || v_staff.name, _remark, 'staff', _staff_id)
+  RETURNING id INTO v_mv;
+
+  INSERT INTO public.staff_payments (staff_id, kind, amount, payment_method, remark, date, cash_movement_id, created_by)
+  VALUES (_staff_id, _kind, _amount, _method, NULLIF(trim(_remark),''), v_date, v_mv, auth.uid())
+  RETURNING id INTO v_id;
+
+  IF _kind = 'katha_receipt' THEN
+    UPDATE public.staff SET katha_balance = katha_balance - _amount WHERE id = _staff_id;
+  END IF;
+  RETURN v_id;
+END $function$
+;
+CREATE OR REPLACE FUNCTION public.staff_payment_delete(_payment_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE r public.staff_payments;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  SELECT * INTO r FROM public.staff_payments WHERE id = _payment_id;
+  IF r IS NULL THEN RAISE EXCEPTION 'Payment not found'; END IF;
+  IF r.cash_movement_id IS NOT NULL THEN
+    UPDATE public.cash_movements SET deleted_at = now() WHERE id = r.cash_movement_id AND deleted_at IS NULL;
+  END IF;
+  IF r.kind = 'katha_receipt' THEN
+    UPDATE public.staff SET katha_balance = katha_balance + r.amount WHERE id = r.staff_id;
+  END IF;
+  DELETE FROM public.staff_payments WHERE id = _payment_id;
+END $function$
+;
+
 `;
