@@ -292,6 +292,7 @@ export async function restoreCatalogFromDrive(): Promise<{ restored: boolean; ro
  * Bringing data back from Drive is only ever done by hand from Settings.
  */
 export function useDriveAutoSync() {
+  const qc = useQueryClient();
   const started = useRef(false);
   const [state, setState] = useState<SyncState>(() => readSyncState());
 
@@ -305,15 +306,22 @@ export function useDriveAutoSync() {
     if (started.current) return;
     started.current = true;
     let stopped = false;
+    // Skip the whole-database export unless an entry was saved since the last push.
+    let dirty = true;
+    const unsubscribe = qc.getMutationCache().subscribe((event: any) => {
+      if (event?.mutation?.state?.status === "success") dirty = true;
+    });
 
     async function cycle() {
-      if (stopped || !readSyncState().enabled) return;
+      if (stopped || !dirty || !readSyncState().enabled) return;
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       try {
         const status = await driveStatus();
         if (!status.connected) return;
+        dirty = false;
         await pushToDrive();
       } catch (err) {
+        dirty = true;
         writeSyncState({ lastError: err instanceof Error ? err.message : String(err) });
       }
     }
@@ -323,6 +331,7 @@ export function useDriveAutoSync() {
     const timer = window.setInterval(() => void cycle(), SYNC_INTERVAL_MS);
     return () => {
       stopped = true;
+      unsubscribe();
       window.clearTimeout(firstDelay);
       window.clearInterval(timer);
     };
