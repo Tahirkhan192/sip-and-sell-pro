@@ -69,7 +69,8 @@ function DailyReport() {
     card: a.card + d.online,
     delivery: a.delivery + d.delivery,
     change: a.change + d.change,
-  }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0, change: 0 });
+    discount: a.discount + (d.discount ?? 0),
+  }), { count: 0, sales: 0, cash: 0, card: 0, delivery: 0, change: 0, discount: 0 });
   return (<>
     {r.el}
     <Card>
@@ -81,7 +82,8 @@ function DailyReport() {
           <TableHead className="text-right">Card</TableHead>
           <TableHead className="text-right">Delivery</TableHead>
           <TableHead className="text-right">Change Returned</TableHead>
-          <TableHead className="text-right">Grand Total</TableHead>
+          <TableHead className="text-right">Discount</TableHead>
+          <TableHead className="text-right">Sales (Products)</TableHead>
         </TableRow></TableHeader>
         <TableBody>
           {rows.map((d) => (
@@ -92,16 +94,24 @@ function DailyReport() {
               <TableCell className="text-right">{money(d.online)}</TableCell>
               <TableCell className="text-right">{money(d.delivery)}</TableCell>
               <TableCell className="text-right text-emerald-600">{money(d.change)}</TableCell>
+              <TableCell className="text-right text-destructive">{money(d.discount ?? 0)}</TableCell>
               <TableCell className="text-right font-semibold">{money(d.totalSales)}</TableCell>
             </TableRow>
           ))}
-          {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
+          {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No data</TableCell></TableRow>}
         </TableBody>
       </Table>
       {rows.length > 0 && (
-        <div className="border-t px-4 py-2 grid grid-cols-7 text-sm font-medium text-right">
+        <div className="border-t px-4 py-2 grid grid-cols-8 text-sm font-medium text-right">
           <div className="text-left">Totals</div>
-          <div>{total.count}</div><div>{money(total.cash)}</div><div>{money(total.card)}</div><div>{money(total.delivery)}</div><div className="text-emerald-600">{money(total.change)}</div><div>{money(total.sales)}</div>
+          <div>{total.count}</div><div>{money(total.cash)}</div><div>{money(total.card)}</div><div>{money(total.delivery)}</div><div className="text-emerald-600">{money(total.change)}</div><div className="text-destructive">{money(total.discount)}</div><div>{money(total.sales)}</div>
+        </div>
+      )}
+      {data && (
+        <div className="border-t px-4 py-2 text-sm space-y-1">
+          <div className="flex justify-between"><span>Total Discount</span><span className="text-destructive">{money(data.totalDiscount)}</span></div>
+          <div className="flex justify-between"><span>Net Profit After Staff Salary</span><span>{money(data.netProfit)}</span></div>
+          <div className="flex justify-between font-semibold"><span>Profit After Discount</span><span className={data.profitAfterDiscount >= 0 ? "text-primary" : "text-destructive"}>{money(data.profitAfterDiscount)}</span></div>
         </div>
       )}
     </Card>
@@ -122,9 +132,9 @@ function MonthlyReport() {
       <CardContent className="p-0">
         <Table>
           <TableBody>
-            <TableRow className="font-semibold"><TableCell>Total Sales (matches Sales page)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
-            <TableRow><TableCell>− Delivery Charges</TableCell><TableCell className="text-right">{money(data?.deliveryCharges)}</TableCell></TableRow>
-            <TableRow className="font-medium"><TableCell>= Sales (engine total)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
+            <TableRow className="font-semibold"><TableCell>Total Sales (products × bill price)</TableCell><TableCell className="text-right">{money(data?.totalSales)}</TableCell></TableRow>
+            <TableRow><TableCell className="text-muted-foreground">Delivery Charges (counted in Delivery Profit)</TableCell><TableCell className="text-right text-muted-foreground">{money(data?.deliveryCharges)}</TableCell></TableRow>
+            <TableRow><TableCell className="text-muted-foreground">Discount (subtracted below)</TableCell><TableCell className="text-right text-muted-foreground">{money(data?.totalDiscount)}</TableCell></TableRow>
             <TableRow><TableCell>Opening Stock</TableCell><TableCell className="text-right">{money(data?.totalOpening)}</TableCell></TableRow>
             <TableRow><TableCell>+ Purchases</TableCell><TableCell className="text-right">{money(data?.totalPurch)}</TableCell></TableRow>
             <TableRow><TableCell className="pl-8 text-muted-foreground">Product Stock Value</TableCell><TableCell className="text-right text-muted-foreground">{money(data?.closingProductValue)}</TableCell></TableRow>
@@ -142,6 +152,8 @@ function MonthlyReport() {
 
             <TableRow><TableCell>Total Change Returned (informational)</TableCell><TableCell className="text-right text-emerald-600">{money(data?.totalChangeReturned)}</TableCell></TableRow>
             <TableRow className="font-bold"><TableCell>Net Profit After Staff Salary</TableCell><TableCell className={"text-right " + ((data?.netProfit ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.netProfit)}</TableCell></TableRow>
+            <TableRow><TableCell>− Total Discount</TableCell><TableCell className="text-right text-destructive">{money(data?.totalDiscount)}</TableCell></TableRow>
+            <TableRow className="font-bold"><TableCell>Profit After Discount</TableCell><TableCell className={"text-right " + ((data?.profitAfterDiscount ?? 0) >= 0 ? "text-primary" : "text-destructive")}>{money(data?.profitAfterDiscount)}</TableCell></TableRow>
           </TableBody>
         </Table>
       </CardContent>
