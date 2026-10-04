@@ -36,6 +36,7 @@ export async function applyBackup(
       onProgress?.({ table: t.table, index: i, total: tables.length, rows: 0 });
       for (let from = 0; from < (t.rows?.length ?? 0); from += CHUNK) {
         const slice = t.rows.slice(from, from + CHUNK);
+        if (t.table === "sales") await resolveInvoiceCollisions(slice);
         const { error } = await (supabase as any).from(t.table).upsert(slice, { onConflict: pk });
         if (error) throw new Error(`${t.table}: ${error.message}`);
         rows += slice.length;
@@ -44,5 +45,34 @@ export async function applyBackup(
     }
     return { rows };
   });
+}
+
+/**
+ * A bill on this device may use the same invoice number as a different bill in
+ * the backup (e.g. made here before restoring). Keep BOTH: the local bill gets
+ * a "-L" suffix so the backup's bill can land with its original number.
+ */
+async function resolveInvoiceCollisions(slice: any[]) {
+  const nos = slice.map((r) => r?.invoice_no).filter(Boolean);
+  if (!nos.length) return;
+  const { data, error } = await (supabase as any)
+    .from("sales")
+    .select("id, invoice_no")
+    .in("invoice_no", nos);
+  if (error || !data?.length) return;
+  const idByNo = new Map(slice.map((r) => [r.invoice_no, r.id]));
+  for (const row of data) {
+    if (idByNo.get(row.invoice_no) === row.id) continue;
+    let suffix = "-L";
+    for (let n = 2; n < 50; n++) {
+      const candidate = `${row.invoice_no}${suffix}`;
+      const { error: e } = await (supabase as any)
+        .from("sales")
+        .update({ invoice_no: candidate })
+        .eq("id", row.id);
+      if (!e) break;
+      suffix = `-L${n}`;
+    }
+  }
 }
 
