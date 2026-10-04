@@ -78,9 +78,13 @@ export type ReportResult = {
   grossProfit: number;
   businessProfit: number;
   netProfit: number;
+  /** Total discount given on completed bills in the period. */
+  totalDiscount: number;
+  /** Net profit after staff salary minus discount. */
+  profitAfterDiscount: number;
   catRows: ReportCategoryRow[];
   productRows: ReportProductRow[];
-  salesByBusinessDate: Record<string, { date: string; count: number; totalSales: number; totalQtySold: number; delivery: number; cash: number; online: number; katha: number; change: number }>;
+  salesByBusinessDate: Record<string, { date: string; count: number; totalSales: number; totalQtySold: number; delivery: number; cash: number; online: number; katha: number; change: number; discount: number }>;
   audit: {
     totalInvoices: number;
     firstBusinessDate: string | null;
@@ -146,7 +150,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   const buildSales = () => {
     let q = (supabase as any)
       .from("sales")
-      .select("id, invoice_no, sale_date, grand_total, delivery_charges, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, staff_id, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
+      .select("id, invoice_no, sale_date, grand_total, delivery_charges, discount_amount, cash_paid, online_paid, payment_method, customer_name, customer_phone, status, order_type, katha, staff_id, deleted_at, sale_items(id, product_id, quantity, price, total, unit, products(id, name, category, cost_price))")
       .is("deleted_at", null)
       .eq("hidden", false)
 
@@ -354,11 +358,13 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
   let totalOnlinePaid = 0;
   let kathaAmount = 0;
   let totalChangeReturned = 0;
+  let totalDiscount = 0;
 
   for (const sale of invoices) {
     const isPending = sale.status === "pending";
     const businessDate = businessDateOf(sale.sale_date);
     const grand = num(sale.grand_total);
+    const discount = num(sale.discount_amount);
     const delivery = num(sale.delivery_charges);
     const items = ((sale.sale_items ?? []) as any[]).filter(Boolean);
     const itemSubtotal = items.reduce((s, it) => s + num(it.total), 0);
@@ -376,7 +382,9 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
     // Financial totals only for completed sales — pending is inventory-only.
     if (!isPending) {
-      totalSales += grand;
+      // Sales = products sold at bill price (no delivery charge, before discount).
+      totalSales += items.length > 0 ? itemSubtotal : Math.max(0, grand - delivery + discount);
+      totalDiscount += discount;
       deliveryCharges += delivery;
       totalCashPaid += cash;
       totalOnlinePaid += online;
@@ -384,10 +392,11 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       totalChangeReturned += saleChange;
     }
 
-    const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0, change: 0 });
+    const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0, change: 0, discount: 0 });
     day.count += 1;
     if (!isPending) {
-      day.totalSales += grand;
+      day.totalSales += items.length > 0 ? itemSubtotal : Math.max(0, grand - delivery + discount);
+      day.discount += discount;
       day.delivery += delivery;
       day.cash += cash;
       day.online += online;
@@ -398,10 +407,10 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     if (items.length === 0) {
       if (!isPending) {
         const cat = ensureCat("Uncategorized");
-        cat.sales += grand;
+        cat.sales += Math.max(0, grand - delivery + discount);
         const key = "unallocated";
         productMap[key] ??= { id: key, name: "Unallocated invoice", category: "Uncategorized", qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
-        productMap[key].rev += grand;
+        productMap[key].rev += Math.max(0, grand - delivery + discount);
       }
       continue;
     }
@@ -411,7 +420,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const category = product.category ?? "—";
       const qty = num(it.quantity);
       const itemTotal = num(it.total);
-      const allocatedSales = itemSubtotal > 0 ? (grand * itemTotal) / itemSubtotal : grand / items.length;
+      const allocatedSales = itemTotal;
       const cat = ensureCat(category);
       // Sold quantity counts the same invoices as the money totals: completed,
       // not hidden, not deleted, keyed on business date. Pending is inventory-only.
@@ -614,6 +623,8 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     grossProfit,
     businessProfit,
     netProfit,
+    totalDiscount,
+    profitAfterDiscount: netProfit - totalDiscount,
     catRows,
     productRows,
     salesByBusinessDate,
@@ -631,7 +642,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       valid,
     },
     monthRev: totalSales,
-    monthSalesExDel: totalSales - deliveryCharges,
+    monthSalesExDel: totalSales,
     monthDelCharges: deliveryCharges,
     monthExp: generalExpenses,
     monthDelExp: deliveryExpenseTotal,
