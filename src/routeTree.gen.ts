@@ -9,43 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
-import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
-import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
-import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
-import { Route as AuthenticatedDailyClosingRouteImport } from './routes/_authenticated/daily-closing'
-import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
-import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
-import { Route as AuthenticatedDigiKathaClosingRouteImport } from './routes/_authenticated/digi-katha-closing'
-import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
-import { Route as AuthenticatedKathaDetailsRouteImport } from './routes/_authenticated/katha-details'
-import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
-import { Route as AuthenticatedProductionRouteImport } from './routes/_authenticated/production'
-import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
-import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
-import { Route as AuthenticatedRecipesRouteImport } from './routes/_authenticated/recipes'
-import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
-import { Route as AuthenticatedSalesRouteImport } from './routes/_authenticated/sales'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
-import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
-import { Route as AuthenticatedStockItemsRouteImport } from './routes/_authenticated/stock-items'
-import { Route as AuthenticatedStockTransferRouteImport } from './routes/_authenticated/stock-transfer'
-import { Route as ApiDriveRouteImport } from './routes/api/drive'
 import { Route as ApiDriveConnectRouteImport } from './routes/api/drive-connect'
-import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
-import { Route as AuthenticatedStaffStaffIdRouteImport } from './routes/_authenticated/staff_.$staffId'
-import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
+import { Route as ApiDriveRouteImport } from './routes/api/drive'
+import { Route as AuthenticatedStockTransferRouteImport } from './routes/_authenticated/stock-transfer'
+import { Route as AuthenticatedStockItemsRouteImport } from './routes/_authenticated/stock-items'
+import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
+import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSalesRouteImport } from './routes/_authenticated/sales'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedRecipesRouteImport } from './routes/_authenticated/recipes'
+import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
+import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
+import { Route as AuthenticatedProductionRouteImport } from './routes/_authenticated/production'
+import { Route as AuthenticatedPosRouteImport } from './routes/_authenticated/pos'
+import { Route as AuthenticatedKathaDetailsRouteImport } from './routes/_authenticated/katha-details'
+import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
+import { Route as AuthenticatedDigiKathaClosingRouteImport } from './routes/_authenticated/digi-katha-closing'
+import { Route as AuthenticatedDeliveryReportRouteImport } from './routes/_authenticated/delivery-report'
+import { Route as AuthenticatedDeliveryExpensesRouteImport } from './routes/_authenticated/delivery-expenses'
+import { Route as AuthenticatedDailyClosingRouteImport } from './routes/_authenticated/daily-closing'
+import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
+import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
+import { Route as AuthenticatedCashMovementsRouteImport } from './routes/_authenticated/cash-movements'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as OauthGoogleDriveReturnRouteImport } from './routes/oauth/google-drive/return'
+import { Route as ApiPublicWhatsappInvoiceRouteImport } from './routes/api/public/whatsapp-invoice'
+import { Route as AuthenticatedStaffStaffIdRouteImport } from './routes/_authenticated/staff_.$staffId'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -53,71 +54,84 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedCashMovementsRoute =
-  AuthenticatedCashMovementsRouteImport.update({
-    id: '/cash-movements',
-    path: '/cash-movements',
+const ApiDriveConnectRoute = ApiDriveConnectRouteImport.update({
+  id: '/api/drive-connect',
+  path: '/api/drive-connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDriveRoute = ApiDriveRouteImport.update({
+  id: '/api/drive',
+  path: '/api/drive',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedStockTransferRoute =
+  AuthenticatedStockTransferRouteImport.update({
+    id: '/stock-transfer',
+    path: '/stock-transfer',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
-  id: '/categories',
-  path: '/categories',
+const AuthenticatedStockItemsRoute = AuthenticatedStockItemsRouteImport.update({
+  id: '/stock-items',
+  path: '/stock-items',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
+const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDailyClosingRoute =
-  AuthenticatedDailyClosingRouteImport.update({
-    id: '/daily-closing',
-    path: '/daily-closing',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedDeliveryExpensesRoute =
-  AuthenticatedDeliveryExpensesRouteImport.update({
-    id: '/delivery-expenses',
-    path: '/delivery-expenses',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedDeliveryReportRoute =
-  AuthenticatedDeliveryReportRouteImport.update({
-    id: '/delivery-report',
-    path: '/delivery-report',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedDigiKathaClosingRoute =
-  AuthenticatedDigiKathaClosingRouteImport.update({
-    id: '/digi-katha-closing',
-    path: '/digi-katha-closing',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
-  id: '/expenses',
-  path: '/expenses',
+const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSalesRoute = AuthenticatedSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRecipesRoute = AuthenticatedRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPurchasesRoute = AuthenticatedPurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProductionRoute = AuthenticatedProductionRouteImport.update({
+  id: '/production',
+  path: '/production',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPosRoute = AuthenticatedPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedKathaDetailsRoute =
@@ -126,86 +140,72 @@ const AuthenticatedKathaDetailsRoute =
     path: '/katha-details',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedPosRoute = AuthenticatedPosRouteImport.update({
-  id: '/pos',
-  path: '/pos',
+const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedProductionRoute = AuthenticatedProductionRouteImport.update({
-  id: '/production',
-  path: '/production',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
-  id: '/products',
-  path: '/products',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedPurchasesRoute = AuthenticatedPurchasesRouteImport.update({
-  id: '/purchases',
-  path: '/purchases',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedRecipesRoute = AuthenticatedRecipesRouteImport.update({
-  id: '/recipes',
-  path: '/recipes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSalesRoute = AuthenticatedSalesRouteImport.update({
-  id: '/sales',
-  path: '/sales',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
-  id: '/stock',
-  path: '/stock',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedStockItemsRoute = AuthenticatedStockItemsRouteImport.update({
-  id: '/stock-items',
-  path: '/stock-items',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedStockTransferRoute =
-  AuthenticatedStockTransferRouteImport.update({
-    id: '/stock-transfer',
-    path: '/stock-transfer',
+const AuthenticatedDigiKathaClosingRoute =
+  AuthenticatedDigiKathaClosingRouteImport.update({
+    id: '/digi-katha-closing',
+    path: '/digi-katha-closing',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiDriveRoute = ApiDriveRouteImport.update({
-  id: '/api/drive',
-  path: '/api/drive',
+const AuthenticatedDeliveryReportRoute =
+  AuthenticatedDeliveryReportRouteImport.update({
+    id: '/delivery-report',
+    path: '/delivery-report',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDeliveryExpensesRoute =
+  AuthenticatedDeliveryExpensesRouteImport.update({
+    id: '/delivery-expenses',
+    path: '/delivery-expenses',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDailyClosingRoute =
+  AuthenticatedDailyClosingRouteImport.update({
+    id: '/daily-closing',
+    path: '/daily-closing',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCashMovementsRoute =
+  AuthenticatedCashMovementsRouteImport.update({
+    id: '/cash-movements',
+    path: '/cash-movements',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OauthGoogleDriveReturnRoute = OauthGoogleDriveReturnRouteImport.update({
+  id: '/oauth/google-drive/return',
+  path: '/oauth/google-drive/return',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiDriveConnectRoute = ApiDriveConnectRouteImport.update({
-  id: '/api/drive-connect',
-  path: '/api/drive-connect',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
-  id: '/.lovable/oauth/consent',
-  path: '/.lovable/oauth/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
+const ApiPublicWhatsappInvoiceRoute =
+  ApiPublicWhatsappInvoiceRouteImport.update({
+    id: '/api/public/whatsapp-invoice',
+    path: '/api/public/whatsapp-invoice',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedStaffStaffIdRoute =
@@ -214,15 +214,15 @@ const AuthenticatedStaffStaffIdRoute =
     path: '/staff/$staffId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiPublicWhatsappInvoiceRoute =
-  ApiPublicWhatsappInvoiceRouteImport.update({
-    id: '/api/public/whatsapp-invoice',
-    path: '/api/public/whatsapp-invoice',
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
-const OauthGoogleDriveReturnRoute = OauthGoogleDriveReturnRouteImport.update({
-  id: '/oauth/google-drive/return',
-  path: '/oauth/google-drive/return',
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -458,11 +458,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -472,25 +472,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.mcp/list-tools': {
-      id: '/.mcp/list-tools'
-      path: '/.mcp/list-tools'
-      fullPath: '/.mcp/list-tools'
-      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -500,137 +486,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/cash-movements': {
-      id: '/_authenticated/cash-movements'
-      path: '/cash-movements'
-      fullPath: '/cash-movements'
-      preLoaderRoute: typeof AuthenticatedCashMovementsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/api/drive-connect': {
+      id: '/api/drive-connect'
+      path: '/api/drive-connect'
+      fullPath: '/api/drive-connect'
+      preLoaderRoute: typeof ApiDriveConnectRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/categories': {
-      id: '/_authenticated/categories'
-      path: '/categories'
-      fullPath: '/categories'
-      preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/api/drive': {
+      id: '/api/drive'
+      path: '/api/drive'
+      fullPath: '/api/drive'
+      preLoaderRoute: typeof ApiDriveRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/customers': {
-      id: '/_authenticated/customers'
-      path: '/customers'
-      fullPath: '/customers'
-      preLoaderRoute: typeof AuthenticatedCustomersRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/daily-closing': {
-      id: '/_authenticated/daily-closing'
-      path: '/daily-closing'
-      fullPath: '/daily-closing'
-      preLoaderRoute: typeof AuthenticatedDailyClosingRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/delivery-expenses': {
-      id: '/_authenticated/delivery-expenses'
-      path: '/delivery-expenses'
-      fullPath: '/delivery-expenses'
-      preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/delivery-report': {
-      id: '/_authenticated/delivery-report'
-      path: '/delivery-report'
-      fullPath: '/delivery-report'
-      preLoaderRoute: typeof AuthenticatedDeliveryReportRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/digi-katha-closing': {
-      id: '/_authenticated/digi-katha-closing'
-      path: '/digi-katha-closing'
-      fullPath: '/digi-katha-closing'
-      preLoaderRoute: typeof AuthenticatedDigiKathaClosingRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/expenses': {
-      id: '/_authenticated/expenses'
-      path: '/expenses'
-      fullPath: '/expenses'
-      preLoaderRoute: typeof AuthenticatedExpensesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/katha-details': {
-      id: '/_authenticated/katha-details'
-      path: '/katha-details'
-      fullPath: '/katha-details'
-      preLoaderRoute: typeof AuthenticatedKathaDetailsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/pos': {
-      id: '/_authenticated/pos'
-      path: '/pos'
-      fullPath: '/pos'
-      preLoaderRoute: typeof AuthenticatedPosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/production': {
-      id: '/_authenticated/production'
-      path: '/production'
-      fullPath: '/production'
-      preLoaderRoute: typeof AuthenticatedProductionRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/products': {
-      id: '/_authenticated/products'
-      path: '/products'
-      fullPath: '/products'
-      preLoaderRoute: typeof AuthenticatedProductsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/purchases': {
-      id: '/_authenticated/purchases'
-      path: '/purchases'
-      fullPath: '/purchases'
-      preLoaderRoute: typeof AuthenticatedPurchasesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/recipes': {
-      id: '/_authenticated/recipes'
-      path: '/recipes'
-      fullPath: '/recipes'
-      preLoaderRoute: typeof AuthenticatedRecipesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/reports': {
-      id: '/_authenticated/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof AuthenticatedReportsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/sales': {
-      id: '/_authenticated/sales'
-      path: '/sales'
-      fullPath: '/sales'
-      preLoaderRoute: typeof AuthenticatedSalesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/staff': {
-      id: '/_authenticated/staff'
-      path: '/staff'
-      fullPath: '/staff'
-      preLoaderRoute: typeof AuthenticatedStaffRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/stock': {
-      id: '/_authenticated/stock'
-      path: '/stock'
-      fullPath: '/stock'
-      preLoaderRoute: typeof AuthenticatedStockRouteImport
+    '/_authenticated/stock-transfer': {
+      id: '/_authenticated/stock-transfer'
+      path: '/stock-transfer'
+      fullPath: '/stock-transfer'
+      preLoaderRoute: typeof AuthenticatedStockTransferRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/stock-items': {
@@ -640,39 +514,165 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStockItemsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/stock-transfer': {
-      id: '/_authenticated/stock-transfer'
-      path: '/stock-transfer'
-      fullPath: '/stock-transfer'
-      preLoaderRoute: typeof AuthenticatedStockTransferRouteImport
+    '/_authenticated/stock': {
+      id: '/_authenticated/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof AuthenticatedStockRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/drive': {
-      id: '/api/drive'
-      path: '/api/drive'
-      fullPath: '/api/drive'
-      preLoaderRoute: typeof ApiDriveRouteImport
+    '/_authenticated/staff': {
+      id: '/_authenticated/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof AuthenticatedStaffRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sales': {
+      id: '/_authenticated/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof AuthenticatedSalesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/recipes': {
+      id: '/_authenticated/recipes'
+      path: '/recipes'
+      fullPath: '/recipes'
+      preLoaderRoute: typeof AuthenticatedRecipesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/purchases': {
+      id: '/_authenticated/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof AuthenticatedPurchasesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/products': {
+      id: '/_authenticated/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof AuthenticatedProductsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/production': {
+      id: '/_authenticated/production'
+      path: '/production'
+      fullPath: '/production'
+      preLoaderRoute: typeof AuthenticatedProductionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pos': {
+      id: '/_authenticated/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof AuthenticatedPosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/katha-details': {
+      id: '/_authenticated/katha-details'
+      path: '/katha-details'
+      fullPath: '/katha-details'
+      preLoaderRoute: typeof AuthenticatedKathaDetailsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/expenses': {
+      id: '/_authenticated/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AuthenticatedExpensesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/digi-katha-closing': {
+      id: '/_authenticated/digi-katha-closing'
+      path: '/digi-katha-closing'
+      fullPath: '/digi-katha-closing'
+      preLoaderRoute: typeof AuthenticatedDigiKathaClosingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/delivery-report': {
+      id: '/_authenticated/delivery-report'
+      path: '/delivery-report'
+      fullPath: '/delivery-report'
+      preLoaderRoute: typeof AuthenticatedDeliveryReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/delivery-expenses': {
+      id: '/_authenticated/delivery-expenses'
+      path: '/delivery-expenses'
+      fullPath: '/delivery-expenses'
+      preLoaderRoute: typeof AuthenticatedDeliveryExpensesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/daily-closing': {
+      id: '/_authenticated/daily-closing'
+      path: '/daily-closing'
+      fullPath: '/daily-closing'
+      preLoaderRoute: typeof AuthenticatedDailyClosingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/customers': {
+      id: '/_authenticated/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AuthenticatedCustomersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/categories': {
+      id: '/_authenticated/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cash-movements': {
+      id: '/_authenticated/cash-movements'
+      path: '/cash-movements'
+      fullPath: '/cash-movements'
+      preLoaderRoute: typeof AuthenticatedCashMovementsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/drive-connect': {
-      id: '/api/drive-connect'
-      path: '/api/drive-connect'
-      fullPath: '/api/drive-connect'
-      preLoaderRoute: typeof ApiDriveConnectRouteImport
+    '/.mcp/list-tools': {
+      id: '/.mcp/list-tools'
+      path: '/.mcp/list-tools'
+      fullPath: '/.mcp/list-tools'
+      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.lovable/oauth/consent': {
-      id: '/.lovable/oauth/consent'
-      path: '/.lovable/oauth/consent'
-      fullPath: '/.lovable/oauth/consent'
-      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+    '/oauth/google-drive/return': {
+      id: '/oauth/google-drive/return'
+      path: '/oauth/google-drive/return'
+      fullPath: '/oauth/google-drive/return'
+      preLoaderRoute: typeof OauthGoogleDriveReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.mcp/invoke-tool/$tool': {
-      id: '/.mcp/invoke-tool/$tool'
-      path: '/.mcp/invoke-tool/$tool'
-      fullPath: '/.mcp/invoke-tool/$tool'
-      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+    '/api/public/whatsapp-invoice': {
+      id: '/api/public/whatsapp-invoice'
+      path: '/api/public/whatsapp-invoice'
+      fullPath: '/api/public/whatsapp-invoice'
+      preLoaderRoute: typeof ApiPublicWhatsappInvoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/staff_/$staffId': {
@@ -682,18 +682,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffStaffIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/public/whatsapp-invoice': {
-      id: '/api/public/whatsapp-invoice'
-      path: '/api/public/whatsapp-invoice'
-      fullPath: '/api/public/whatsapp-invoice'
-      preLoaderRoute: typeof ApiPublicWhatsappInvoiceRouteImport
+    '/.mcp/invoke-tool/$tool': {
+      id: '/.mcp/invoke-tool/$tool'
+      path: '/.mcp/invoke-tool/$tool'
+      fullPath: '/.mcp/invoke-tool/$tool'
+      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/oauth/google-drive/return': {
-      id: '/oauth/google-drive/return'
-      path: '/oauth/google-drive/return'
-      fullPath: '/oauth/google-drive/return'
-      preLoaderRoute: typeof OauthGoogleDriveReturnRouteImport
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
