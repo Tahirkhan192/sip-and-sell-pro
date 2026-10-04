@@ -367,7 +367,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const discount = num(sale.discount_amount);
     const delivery = num(sale.delivery_charges);
     const items = ((sale.sale_items ?? []) as any[]).filter(Boolean);
-    const itemSubtotal = items.reduce((s, it) => s + num(it.total), 0);
+    const itemSubtotal = items.reduce((s, it) => s + num(it.quantity) * num(it.price), 0);
     let cash = num(sale.cash_paid);
     let online = num(sale.online_paid);
     if (cash + online <= 0 && !sale.katha) {
@@ -383,7 +383,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     // Financial totals only for completed sales — pending is inventory-only.
     if (!isPending) {
       // Sales = products sold at bill price (no delivery charge, before discount).
-      totalSales += items.length > 0 ? itemSubtotal : Math.max(0, grand - delivery + discount);
+      totalSales += itemSubtotal;
       totalDiscount += discount;
       deliveryCharges += delivery;
       totalCashPaid += cash;
@@ -395,7 +395,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
     const day = (salesByBusinessDate[businessDate] ??= { date: businessDate, count: 0, totalSales: 0, totalQtySold: 0, delivery: 0, cash: 0, online: 0, katha: 0, change: 0, discount: 0 });
     day.count += 1;
     if (!isPending) {
-      day.totalSales += items.length > 0 ? itemSubtotal : Math.max(0, grand - delivery + discount);
+      day.totalSales += itemSubtotal;
       day.discount += discount;
       day.delivery += delivery;
       day.cash += cash;
@@ -406,11 +406,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
 
     if (items.length === 0) {
       if (!isPending) {
-        const cat = ensureCat("Uncategorized");
-        cat.sales += Math.max(0, grand - delivery + discount);
-        const key = "unallocated";
-        productMap[key] ??= { id: key, name: "Unallocated invoice", category: "Uncategorized", qty: 0, rev: 0, cogs: 0, grossProfit: 0 };
-        productMap[key].rev += Math.max(0, grand - delivery + discount);
+        // No products on the bill → no product revenue (revenue = qty x price only).
       }
       continue;
     }
@@ -419,7 +415,7 @@ export async function fetchReportEngine(range: ReportRangeInput, seedCategories:
       const product = it.products ?? prodById[it.product_id] ?? {};
       const category = product.category ?? "—";
       const qty = num(it.quantity);
-      const itemTotal = num(it.total);
+      const itemTotal = qty * num(it.price);
       const allocatedSales = itemTotal;
       const cat = ensureCat(category);
       // Sold quantity counts the same invoices as the money totals: completed,

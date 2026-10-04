@@ -9,6 +9,7 @@ Nothing else changes: bills, stock, Katha, salary, POS and all other screens sta
 - To match your rule exactly, the report will read **quantity x price** directly for each product, category, day and month total (today, previous day, this month, last month, older months, all time).
 - Monthly Total Sales = sum of quantity x price for that month. Discount and delivery stay on their own lines and are not added to sales.
 - A small automatic check: 2 x 1,450 = 2,900 even when the bill has delivery and discount.
+- Some entries are still showing wrong revenue check and fix them. 
 
 ## 2. Getting data from Drive on the phone fails
 
