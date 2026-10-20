@@ -440,9 +440,9 @@ function POS() {
       qc.refetchQueries({ queryKey: ["sales", "pending-search"], type: "active" });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
-      qc.invalidateQueries({ queryKey: ["stock"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["stock"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["report"], refetchType: "none" });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete"),
   });
@@ -647,9 +647,9 @@ function POS() {
         toast.success("Money movement saved");
         resetForm();
         qc.invalidateQueries({ queryKey: ["cash_movements"] });
-        qc.invalidateQueries({ queryKey: ["daily_closing"] });
+        qc.invalidateQueries({ queryKey: ["daily_closing"], refetchType: "none" });
         qc.invalidateQueries({ queryKey: ["dashboard"] });
-        qc.invalidateQueries({ queryKey: ["report"] });
+        qc.invalidateQueries({ queryKey: ["report"], refetchType: "none" });
         return;
       }
       if (editId) skipHydrateIdRef.current = editId; // prevent stale refetch from re-populating
@@ -686,15 +686,15 @@ function POS() {
       qc.invalidateQueries({ queryKey: ["sales", "pending-search"] });
       qc.refetchQueries({ queryKey: ["sales", "pending-search"], type: "active" });
       qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["inventory-engine"] });
-      qc.invalidateQueries({ queryKey: ["stock"] });
+      qc.invalidateQueries({ queryKey: ["inventory-engine"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["stock"], refetchType: "none" });
       qc.invalidateQueries({ queryKey: ["customers"] });
       qc.invalidateQueries({ queryKey: ["staff"] });
 
       qc.invalidateQueries({ queryKey: ["cash_movements"] });
-      qc.invalidateQueries({ queryKey: ["daily_closing"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
-      qc.invalidateQueries({ queryKey: ["digi_katha"] });
+      qc.invalidateQueries({ queryKey: ["daily_closing"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["report"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["digi_katha"], refetchType: "none" });
     },
     onError: (e: any) => {
       if (e instanceof SaveInProgress) return;
