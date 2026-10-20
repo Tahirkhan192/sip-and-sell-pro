@@ -422,4 +422,19 @@ BEGIN
 END $function$
 ;
 
+-- Speed only: lookup shortcuts for the largest lists. No data is changed.
+CREATE INDEX IF NOT EXISTS kdf_sale_items_sale_idx ON public.sale_items (sale_id);
+CREATE INDEX IF NOT EXISTS kdf_sale_items_product_idx ON public.sale_items (product_id);
+CREATE INDEX IF NOT EXISTS kdf_sales_date_idx ON public.sales (sale_date);
+CREATE INDEX IF NOT EXISTS kdf_sales_status_idx ON public.sales (status, deleted_at);
+CREATE INDEX IF NOT EXISTS kdf_stock_purchases_date_idx ON public.stock_purchases (date);
+CREATE INDEX IF NOT EXISTS kdf_expenses_date_idx ON public.expenses (date);
+CREATE INDEX IF NOT EXISTS kdf_production_batches_date_idx ON public.production_batches (batch_date);
+CREATE INDEX IF NOT EXISTS kdf_production_batch_items_batch_idx ON public.production_batch_items (batch_id);
+CREATE INDEX IF NOT EXISTS kdf_stock_transfers_created_idx ON public.stock_transfers (created_at);
+CREATE INDEX IF NOT EXISTS kdf_stock_adjustments_date_idx ON public.stock_adjustments (date);
+CREATE INDEX IF NOT EXISTS kdf_cash_movements_bdate_idx ON public.cash_movements (business_date);
+CREATE INDEX IF NOT EXISTS kdf_staff_payments_staff_date_idx ON public.staff_payments (staff_id, date);
+CREATE INDEX IF NOT EXISTS kdf_recipes_parent_idx ON public.recipes (parent_product_id);
+
 `;
