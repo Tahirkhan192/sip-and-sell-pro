@@ -459,6 +459,7 @@ function POS() {
       }
       submittingRef.current = true;
       ownsLock = true;
+      const saveStartedAt = performance.now();
 
       // Build list of Money Movement rows to persist (if MM enabled) — shared rules with Money Movement page
       const mmRows = mmEnabled
@@ -565,7 +566,8 @@ function POS() {
           .is("deleted_at", null).order("created_at", { ascending: false }).limit(1);
         resolvedId = ((latest as any[])?.[0]?.id as string) ?? null;
       }
-      if (resolvedId) {
+      const willRecheck = !!resolvedId && (staffId != null || (!!editId && hydratedEditIdRef.current === editId));
+      if (resolvedId && (!willRecheck || typeof saleData !== "object" || !saleData?.invoice_no)) {
         const { data: row } = await supabase.from("sales").select("*").eq("id", resolvedId).maybeSingle();
         if (row) saleData = row;
       }
@@ -610,7 +612,8 @@ function POS() {
       const nextStaff = staffId ?? null;
       // Never clear an existing staff link from a bill whose details were not
       // loaded into the screen (safety net: the form would show no staff).
-      const canWriteStaff = nextStaff !== null || !editId || hydratedEditIdRef.current === editId;
+      // New bills without staff need no link update (nothing to attach or clear).
+      const canWriteStaff = nextStaff !== null || (!!editId && hydratedEditIdRef.current === editId);
       let staffWarning: string | null = null;
       if (saleId && canWriteStaff) {
         const { error: staffLinkError } = await supabase
@@ -619,8 +622,7 @@ function POS() {
           .eq("id", saleId);
         if (staffLinkError) staffWarning = staffLinkError.message;
 
-        // Read the saved invoice back so the link is confirmed from the record
-        // itself, not from what the save call happened to return.
+        // Read the saved invoice back once so the link is confirmed from the record.
         const { data: check } = await supabase.from("sales").select("*").eq("id", saleId).maybeSingle();
         if (check) saleData = check;
         const savedStaff = (check as any)?.staff_id ?? null;
@@ -628,11 +630,15 @@ function POS() {
           staffWarning = "The staff member could not be attached to this bill.";
         }
         if (nextStaff && !staffWarning) {
-          await supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff });
+          // Runs in the background after the bill is saved.
+          void Promise.resolve(supabase.rpc("recompute_staff_katha" as any, { _staff_id: nextStaff }))
+            .then(() => qc.invalidateQueries({ queryKey: ["staff"] }))
+            .catch(() => {});
         }
       } else if (nextStaff) {
         staffWarning = "The staff member could not be attached to this bill.";
       }
+      console.info(`[pos] bill saved in ${Math.round(performance.now() - saveStartedAt)} ms`);
       if (staffWarning) (saleData as any) = { ...(saleData as any), __staffWarning: staffWarning };
 
 
