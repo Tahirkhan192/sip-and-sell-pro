@@ -88,6 +88,24 @@ async function fetchHistory<T = any>(build: () => any): Promise<T[]> {
   }
 }
 
+/**
+ * Earlier ranges (carry-forward / anchor sub-reads) are requested repeatedly
+ * while one screen loads. Reuse an identical in-flight or just-finished read
+ * for a few seconds instead of re-reading the whole history again.
+ */
+const SUB_TTL_MS = 5_000;
+const subCache = new Map<string, { at: number; p: Promise<InventorySnapshot> }>();
+function fetchSubRange(period: Period): Promise<InventorySnapshot> {
+  const key = `${period.from}|${period.to}|${period.startUTC}|${period.endExclusiveUTC}`;
+  const now = Date.now();
+  const hit = subCache.get(key);
+  if (hit && now - hit.at < SUB_TTL_MS) return hit.p;
+  const p = fetchInventoryEngine(period);
+  subCache.set(key, { at: now, p });
+  p.catch(() => subCache.delete(key));
+  return p;
+}
+
 export async function fetchInventoryEngine(period: Period): Promise<InventorySnapshot> {
   const year = Number(period.from.slice(0, 4));
   const month = Number(period.from.slice(5, 7));
