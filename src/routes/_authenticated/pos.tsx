@@ -687,17 +687,16 @@ function POS() {
         }
       }
       resetForm();
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["sales"] });
-      qc.invalidateQueries({ queryKey: ["sales", "pending-search"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["sales"], refetchType: "none" });
       qc.refetchQueries({ queryKey: ["sales", "pending-search"], type: "active" });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["inventory-engine"], refetchType: "none" });
       qc.invalidateQueries({ queryKey: ["stock"], refetchType: "none" });
-      qc.invalidateQueries({ queryKey: ["customers"] });
-      qc.invalidateQueries({ queryKey: ["staff"] });
+      qc.invalidateQueries({ queryKey: ["customers"], refetchType: "none" });
+      qc.invalidateQueries({ queryKey: ["staff"], refetchType: "none" });
 
-      qc.invalidateQueries({ queryKey: ["cash_movements"] });
+      qc.invalidateQueries({ queryKey: ["cash_movements"], refetchType: "none" });
       qc.invalidateQueries({ queryKey: ["daily_closing"], refetchType: "none" });
       qc.invalidateQueries({ queryKey: ["report"], refetchType: "none" });
       qc.invalidateQueries({ queryKey: ["digi_katha"], refetchType: "none" });
