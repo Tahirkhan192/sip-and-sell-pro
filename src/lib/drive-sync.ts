@@ -19,7 +19,7 @@ import { validateBackup } from "@/data/backup/restore";
 import type { BackupFile } from "@/data/backup/format";
 
 /** Backup to Google Drive runs every minute; skipped when nothing changed. */
-export const SYNC_INTERVAL_MS = 60 * 1000;
+export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const STATE_KEY = "kdf.driveSync.v1";
 
 export type SyncState = {
@@ -315,6 +315,7 @@ export function useDriveAutoSync() {
 
     async function cycle() {
       if (stopped || !dirty || !readSyncState().enabled) return;
+      if (qc.isMutating() > 0) return;
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       try {
         const status = await driveStatus();

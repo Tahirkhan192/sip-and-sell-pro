@@ -29,7 +29,7 @@ const IDB_STORE = "handles";
 const IDB_KEY = "folder";
 
 /** Rewritten at most this often, and at least this often while the app is open. */
-const SAVE_DEBOUNCE_MS = 5_000;
+const SAVE_DEBOUNCE_MS = 60_000;
 const SAVE_INTERVAL_MS = 2 * 60 * 1000;
 
 export type DataFolderState = {
